@@ -25,7 +25,6 @@ const WarehouseDetailScreen = ({ route }) => {
     const [permission, requestPermission] = useCameraPermissions();
     const [scanned, setScanned] = useState(false);
     const [qrData, setQrData] = useState("");
-    console.log("Kho:", kho);
     useEffect(() => {
         if (isScanning && !permission) {
             requestPermission();
@@ -55,6 +54,7 @@ const WarehouseDetailScreen = ({ route }) => {
     };
     const handleQRCodeScanned = async (qrCode) => {
         try {
+            console.log("Response data:", qrCode);
             if (kho.id === 5) {
                 const response = await axios.post('https://apipccc.z76.vn/api/TAG_QTKD/getthongtinkien', {
                     QRCode: qrCode,

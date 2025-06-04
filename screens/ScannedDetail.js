@@ -48,7 +48,7 @@ const ScannedDetail = ({ route }) => {
         if (!selectedLocation) return;
         console.log('Cập nhật vị trí:', selectedLocation);
         try {
-            const response = await axios.post('https://apipccc.z76.vn/api/TAG_QTKD/updatevitribtp', {
+            const response = await axios.post('https://localhost:7220/api/TAG_QTKD/updatevitribtp', {
                 ID_TheKhoKienBTP: data[0].ID_TheKhoKienBTP,
                 ID_ViTriKho: selectedLocation.value,
             });
@@ -106,7 +106,16 @@ const ScannedDetail = ({ route }) => {
                     <Text style={styles.infoLabel}>Vị trí</Text>
                     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                         <Text style={styles.infoValue}>{data[0].MaViTriKho}</Text>
-                        <TouchableOpacity onPress={() => setEditModalVisible(true)} style={{ marginLeft: 8 }}>
+                        <TouchableOpacity
+                            onPress={() =>
+                                navigation.navigate('SelectLocationScreen', {
+                                    onSelect: async (selectedLocation) => {
+                                        await handleUpdateLocation(selectedLocation);
+                                    }
+                                })
+                            }
+                            style={{ marginLeft: 8 }}
+                        >
                             <AntDesign name="edit" size={18} color="#007AFF" />
                         </TouchableOpacity>
                     </View>

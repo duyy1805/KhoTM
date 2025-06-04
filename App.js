@@ -7,7 +7,7 @@ import LoginScreen from "./screens/LoginScreen";
 // import { AppProvider } from './AppContext';
 import { StyleSheet } from "react-native";
 import ScannedDetail from "./screens/ScannedDetail";
-
+import SelectLocationScreen from "./screens/SelectLocationScreen";
 
 const Stack = createStackNavigator();
 
@@ -15,7 +15,7 @@ export default function App() {
   return (
     // <AppProvider>
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="LoginScreen">
+      <Stack.Navigator initialRouteName="SelectLocationScreen">
         <Stack.Screen
           name="LoginScreen"
           component={LoginScreen}
@@ -40,6 +40,12 @@ export default function App() {
           name="ScannedDetail"
           component={ScannedDetail}
           options={{ title: "Thông tin kiện" }}
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen
+          name="SelectLocationScreen"
+          component={SelectLocationScreen}
+          options={{ title: "Chọn vị trí" }}
           options={{ headerShown: false }}
         />
       </Stack.Navigator>
