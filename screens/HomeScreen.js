@@ -100,6 +100,7 @@ const HomeScreen = () => {
         fetchUserInfo();
     }, []);
     const handleSelectWareHouse = (kho) => {
+        AsyncStorage.setItem('selectedWarehouse', JSON.stringify(kho));
         Navigation.navigate("WarehouseDetailScreen", { kho });
     };
 

@@ -168,10 +168,10 @@ const styles = StyleSheet.create({
     },
     topSection: {
         flex: 1,
-        width: width - 20,
+        width: width,
         position: 'absolute',
-        marginTop: 10,
-        marginHorizontal: 10,
+        // marginTop: 10,
+        // marginHorizontal: 10,
         backgroundColor: '#8C9EFF',
         borderTopLeftRadius: width * 0.05,
         borderTopRightRadius: width * 0.05,
@@ -210,7 +210,7 @@ const styles = StyleSheet.create({
     loginSection: {
         flex: 1,
         backgroundColor: '#fff',
-        marginHorizontal: 10,
+        // marginHorizontal: 10,
         marginTop: height * 0.15,
         borderRadius: 20,
         padding: 25,
@@ -219,7 +219,7 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 10,
         elevation: 8,
-        marginBottom: 20,
+        // marginBottom: 20,
         paddingTop: height * 0.15,
     },
     loginTitle: {
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
     socialButtonsContainer: {
         flexDirection: 'row',
         justifyContent: 'center',
-        gap: 20, // Khoảng cách giữa các nút
+        gap: 20,
     },
     socialButton: {
         backgroundColor: '#f0f0f0',

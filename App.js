@@ -15,7 +15,7 @@ export default function App() {
   return (
     // <AppProvider>
     <NavigationContainer>
-      <Stack.Navigator initialRouteName="SelectLocationScreen">
+      <Stack.Navigator initialRouteName="LoginScreen">
         <Stack.Screen
           name="LoginScreen"
           component={LoginScreen}

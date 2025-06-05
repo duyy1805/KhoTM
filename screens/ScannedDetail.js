@@ -48,7 +48,7 @@ const ScannedDetail = ({ route }) => {
         if (!selectedLocation) return;
         console.log('Cập nhật vị trí:', selectedLocation);
         try {
-            const response = await axios.post('https://localhost:7220/api/TAG_QTKD/updatevitribtp', {
+            const response = await axios.post('https://apipccc.z76.vn/api/TAG_QTKD/updatevitribtp', {
                 ID_TheKhoKienBTP: data[0].ID_TheKhoKienBTP,
                 ID_ViTriKho: selectedLocation.value,
             });
@@ -69,10 +69,16 @@ const ScannedDetail = ({ route }) => {
                     text2: `Vị trí mới: ${shortCode} - ${selectedLocation.label}`,
                 });
             } else {
-                console.log('DUy', selectedLocation);
+                Toast.show({
+                    type: 'error',
+                    text1: 'QR không hợp lệ'
+                });
             }
         } catch (error) {
-            console.error(error);
+            Toast.show({
+                type: 'error',
+                text1: 'Cập nhật vị trí thất bại'
+            });
         }
     };
 
@@ -111,7 +117,9 @@ const ScannedDetail = ({ route }) => {
                                 navigation.navigate('SelectLocationScreen', {
                                     onSelect: async (selectedLocation) => {
                                         await handleUpdateLocation(selectedLocation);
-                                    }
+                                    },
+                                    ID_TheKhoKienBTP: data[0].ID_TheKhoKienBTP,
+                                    currentLocation: data[0].MaViTriKho,
                                 })
                             }
                             style={{ marginLeft: 8 }}
@@ -221,7 +229,7 @@ const styles = StyleSheet.create({
         elevation: 3,
     },
     cardTitle: {
-        fontSize: 18,
+        fontSize: 24,
         fontWeight: 'bold',
         marginBottom: 10,
     },
@@ -231,21 +239,21 @@ const styles = StyleSheet.create({
         marginBottom: 5,
     },
     infoLabel: {
-        fontSize: 16,
+        fontSize: 20,
         color: '#555',
     },
     infoValue: {
-        fontSize: 16,
+        fontSize: 20,
         fontWeight: '600',
     },
     itemQuantity: {
-        fontSize: 16,
+        fontSize: 20,
         fontWeight: '600',
         textAlign: 'right',
         marginTop: 10,
     },
     sectionTitle: {
-        fontSize: 18,
+        fontSize: 28,
         fontWeight: 'bold',
         marginHorizontal: 16,
         marginTop: 20,
@@ -264,7 +272,7 @@ const styles = StyleSheet.create({
     },
     headerText: {
         fontWeight: 'bold',
-        fontSize: 14,
+        fontSize: 16,
         color: '#333',
     },
     productItem: {
@@ -282,7 +290,7 @@ const styles = StyleSheet.create({
         marginRight: 10,
     },
     productName: {
-        fontSize: 15,
+        fontSize: 17,
         fontWeight: 'bold',
     },
     productSubText: {

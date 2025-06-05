@@ -1,12 +1,13 @@
-import React, { useState, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, Modal, FlatList, Pressable } from 'react-native';
+import React, { useState, useRef, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Image, Modal, FlatList, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import ScanOverlay from './ScanOverlay';
 import { useNavigation } from '@react-navigation/native';
 import Toast from "react-native-toast-message";
 import { CameraView, useCameraPermissions } from "expo-camera";
 import axios from 'axios';
-
+import apiConfig from '../apiConfig.json';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 // Mock Data for warehouses and aisles
 const MOCK_KHO_DATA = [
     { id: 'kho1', name: 'A-Tp Cầu Công', aisles: ['A01', 'A02', 'A03'] },
@@ -25,16 +26,72 @@ export default function SelectLocationScreen({ route }) {
     const [selectedKho, setSelectedKho] = useState(null);
     const [selectedDay, setSelectedDay] = useState(null);
     const [currentAisles, setCurrentAisles] = useState([]);
+    const [khoList, setKhoList] = useState([]);
+    const [viTriList, setViTriList] = useState([]);
+
+    const [selectedLocationId, setSelectedLocationId] = useState(null);
+    const [loading, setLoading] = useState(false);
     //===scanning===
+    const [items, setItems] = useState([]);
     const [isScanning, setIsScanning] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
     const [scanned, setScanned] = useState(false);
     const [qrData, setQrData] = useState("");
-    const { onSelect } = route.params || {};
+    const [loadingLocations, setLoadingLocations] = useState(false);
+    const { onSelect, ID_TheKhoKienBTP, currentLocation } = route.params || {};
 
     const Navigation = useNavigation();
 
+    useEffect(() => {
+        fetchLocations();
+        fetchWarehouses();
+    }, []);
+    //===locations===
+    const fetchLocations = async () => {
+        try {
+            setLoadingLocations(true);
+            const res = await axios.get('https://apipccc.z76.vn/api/TAG_QTKD/danhmucvitri');
+            const formatted = res.data.map(loc => {
+                const last4 = loc.TenViTriKho?.slice(-4); // lấy 4 ký tự cuối
+                return {
+                    label: `${loc.TenViTriKho} (${last4} - ${loc.MaNha})`,
+                    value: loc.ID_ViTriKho
+                };
+            });
+            setItems(formatted);
+        } catch (err) {
+            console.error('Lỗi lấy danh sách vị trí:', err);
+        } finally {
+            setLoadingLocations(false);
+        }
+    };
     //===scanning===
+
+    //==chọn kho thủ công==
+    const fetchWarehouses = async () => {
+        try {
+            const kho = JSON.parse(await AsyncStorage.getItem('selectedWarehouse'));
+            const userInfor = JSON.parse(await AsyncStorage.getItem('userInfor'));
+            const authToken = await AsyncStorage.getItem('authToken');
+            setLoading(true);
+            const token = JSON.parse(authToken).token;
+            const res = await axios.post(
+                `${apiConfig.API_BASE_URL}/vitri/${kho.id}/nha/${userInfor.id}`,
+                {}, // nếu không có body thì để {}
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            );
+            setKhoList(res.data);
+        } catch (err) {
+            console.error('Lỗi lấy danh sách kho:', err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleOpenModal = (type) => {
         setSelectingFor(type);
         if (type === 'day' && !selectedKho) {
@@ -42,22 +99,47 @@ export default function SelectLocationScreen({ route }) {
             return;
         }
         if (type === 'day' && selectedKho) {
-            setCurrentAisles(selectedKho.aisles);
+            setCurrentAisles(currentAisles);
         }
         setModalVisible(true);
     };
 
-    const handleSelectKho = (kho) => {
+    const handleSelectKho = async (kho) => {
         setSelectedKho(kho);
-        setSelectedDay(null); // Reset aisle when new warehouse is selected
-        setCurrentAisles(kho.aisles);
-        setSelectingFor('day'); // Move to aisle selection
-        // Modal remains open
+        setSelectedDay(null);
+        setSelectingFor('day');
+        const authToken = await AsyncStorage.getItem('authToken');
+        setLoading(true);
+        const token = JSON.parse(authToken).token;
+        try {
+            const res = await axios.post(`${apiConfig.API_BASE_URL}/vitri/day/tim-kiem`,
+                {
+                    "idKho": kho.idKho,
+                    "maNha": kho.maNha,
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${token}`,
+                    },
+                }
+            )
+            console.log(res.data)
+            setCurrentAisles(res.data);
+        } catch (error) {
+            console.error('Error selecting warehouse:', error);
+        }
     };
 
-    const handleSelectDay = (day) => {
+    const handleSelectDay = async (day) => {
         setSelectedDay(day);
-        setModalVisible(false); // Close modal after selecting aisle
+        setModalVisible(false);
+        try {
+            const res = await axios.get(`${apiConfig.API_BASE_URL}/vitri/btp/${selectedKho.idKho}/${selectedKho.maNha}/day/${day.maDay}/mavt/none/taikhoan/189`)
+            console.log(res.data)
+            setViTriList(res.data);
+        } catch (error) {
+            console.error('Lỗi khi lấy thông tin vị trí:', error);
+        }
     };
 
     const closeModal = () => {
@@ -67,45 +149,62 @@ export default function SelectLocationScreen({ route }) {
     const renderModalContent = () => {
         if (selectingFor === 'kho') {
             return (
-                <>
-                    <Text style={styles.modalTitle}>Chọn tên kho</Text>
-                    <FlatList
-                        data={MOCK_KHO_DATA}
-                        keyExtractor={(item) => item.id}
-                        renderItem={({ item }) => (
-                            <TouchableOpacity
-                                style={[styles.modalItem, selectedKho?.id === item.id && styles.modalItemSelected]}
-                                onPress={() => handleSelectKho(item)}
+                <ScrollView
+                    horizontal={false}
+                    contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap' }}
+                >
+                    {khoList.map((item) => (
+                        <TouchableOpacity
+                            key={item.maNha + item.tenNha}
+                            onPress={() => handleSelectKho(item)}
+                            style={[
+                                styles.chip,
+                                selectedKho?.maNha === item.maNha && styles.selectedChip,
+                            ]}
+                        >
+                            <Text
+                                style={[
+                                    styles.chipText,
+                                    selectedKho?.maNha === item.maNha && styles.selectedChipText,
+                                ]}
                             >
-                                <Text style={selectedKho?.id === item.id ? styles.modalItemTextSelected : styles.modalItemText}>
-                                    {item.name}
-                                </Text>
-                                {selectedKho?.id === item.id && <Ionicons name="checkmark-circle" size={20} color="#4a90e2" />}
-                            </TouchableOpacity>
-                        )}
-                    />
-                </>
+                                {item.tenNha}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </ScrollView>
             );
         } else if (selectingFor === 'day' && selectedKho) {
             return (
                 <>
-                    <Text style={styles.modalTitle}>Chọn tên dãy (Kho: {selectedKho.name})</Text>
+                    <Text style={styles.modalTitle}>Chọn tên dãy (Kho: {selectedKho.tenNha})</Text>
                     {currentAisles.length > 0 ? (
-                        <FlatList
-                            data={currentAisles}
-                            keyExtractor={(item) => item}
-                            renderItem={({ item }) => (
-                                <TouchableOpacity
-                                    style={[styles.modalItem, selectedDay === item && styles.modalItemSelected]}
-                                    onPress={() => handleSelectDay(item)}
-                                >
-                                    <Text style={selectedDay === item ? styles.modalItemTextSelected : styles.modalItemText}>
-                                        {item}
-                                    </Text>
-                                    {selectedDay === item && <Ionicons name="checkmark-circle" size={20} color="#4a90e2" />}
-                                </TouchableOpacity>
-                            )}
-                        />
+                        <ScrollView
+                            horizontal={false}
+                            contentContainerStyle={{ flexDirection: 'row', flexWrap: 'wrap' }}
+                        >
+                            {currentAisles
+                                .filter(item => item.maDay && item.tenDay) // bỏ dòng rỗng
+                                .map((item) => (
+                                    <TouchableOpacity
+                                        key={item.maDay + item.tenDay}
+                                        style={[
+                                            styles.chip,
+                                            selectedDay?.maDay === item.maDay && styles.selectedChip,
+                                        ]}
+                                        onPress={() => handleSelectDay(item)}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.chipText,
+                                                selectedDay?.maDay === item.maDay && styles.selectedChipText,
+                                            ]}
+                                        >
+                                            {item.tenDay}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                        </ScrollView>
                     ) : (
                         <Text style={styles.modalItemText}>Không có dãy nào cho kho này.</Text>
                     )}
@@ -118,6 +217,48 @@ export default function SelectLocationScreen({ route }) {
         return null;
     };
 
+    const renderLocationItem = ({ item }) => {
+        const isSelected = item.tenViTriKho === selectedLocationId;
+        return (
+            <TouchableOpacity
+                style={[styles.cardContainer, isSelected && styles.selectedCard]}
+                onPress={() => setSelectedLocationId(item.tenViTriKho)}
+            >
+                <View style={styles.codeBadge}>
+                    <Text style={styles.codeBadgeText}>
+                        {item.maViTriKho?.trim().replace(/\s*-\s*$/, '')}
+                    </Text>
+                </View>
+                <View style={styles.detailsContainer}>
+                    <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>{item.tenViTriKho}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Dãy:</Text>
+                        <Text style={styles.detailValue}>{item.tenDay}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Tầng:</Text>
+                        <Text style={styles.detailValue}>{item.tenTang}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Giá kệ:</Text>
+                        <Text style={styles.detailValue}>{item.maKe}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Tên kệ:</Text>
+                        <Text style={styles.detailValue}>{item.tenKe}</Text>
+                    </View>
+                    <View style={styles.detailRow}>
+                        <Text style={styles.detailLabel}>Số kiện:</Text>
+                        <Text style={styles.detailValue}>{item.soLuongKien}</Text>
+                    </View>
+                </View>
+            </TouchableOpacity>
+        )
+    };
+
+
 
     const handleScanPress = () => {
         setIsScanning(true);
@@ -128,46 +269,24 @@ export default function SelectLocationScreen({ route }) {
         setScanned(false);
     };
     const handleQRCodeScanned = async (qrCode) => {
-        try {
-            console.log("Response data:", qrCode);
-            if (kho.id === 5) {
-                const response = await axios.post('https://apipccc.z76.vn/api/TAG_QTKD/getthongtinkien', {
-                    QRCode: qrCode,
-                });
+        const matchedItem = items.find(item =>
+            item.label.startsWith(qrCode) || item.label.includes(qrCode)
+        );
 
-                const data = response.data;
-                // Navigate sang màn hình chi tiết, truyền dữ liệu
-                Navigation.navigate("ScannedDetail", { data, qrCode });
-            } else {
-                // Xử lý các kho khác nếu cần
-                Toast.show({
-                    type: "error",
-                    text1: "Chưa hỗ trợ quét mã QR cho kho này",
-                    position: "top",
-                    visibilityTime: 1500,
-                });
-            }
-        } catch (error) {
-            Toast.show({
-                type: "error",
-                text1: "Mã QR không hợp lệ",
-                position: "top",
-                visibilityTime: 1500,
-            });
+        if (!matchedItem) {
+            console.error('Không tìm thấy vị trí tương ứng với mã QR:', qrCode);
+            return;
         }
+        if (route.params?.onSelect) {
+            route.params.onSelect(matchedItem);
+        }
+        Navigation.goBack();
     };
     const handleBarCodeScanned = ({ data }: { data: string }) => {
         if (!scanned) {
             setScanned(true);
             setQrData(data);
 
-            Toast.show({
-                type: "success",
-                text1: "QR Code Scanned",
-                text2: `Mã QR: ${data}`,
-                position: "top",
-                visibilityTime: 1500,
-            });
             handleQRCodeScanned(data);
             setTimeout(() => {
                 setScanned(false);
@@ -181,7 +300,9 @@ export default function SelectLocationScreen({ route }) {
                 <View style={styles.container_}>
                     {/* Header */}
                     <View style={styles.header}>
-                        <Ionicons name="arrow-back" size={24} color="#333" />
+                        <TouchableOpacity onPress={Navigation.goBack()}>
+                            <Ionicons name="arrow-back" size={24} color="#333" />
+                        </TouchableOpacity>
                         <Text style={styles.headerText}>Chọn vị trí</Text>
                     </View>
 
@@ -191,11 +312,11 @@ export default function SelectLocationScreen({ route }) {
                             <Ionicons name="filter" size={16} color="#555" />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.selectBox} onPress={() => handleOpenModal('kho')}>
-                            <Text>{selectedKho ? selectedKho.name : 'Tên kho'}</Text>
+                            <Text>{selectedKho ? selectedKho.tenNha : 'Tên kho'}</Text>
                             <Ionicons name="chevron-down" size={16} color="#555" />
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.selectBox} onPress={() => handleOpenModal('day')}>
-                            <Text>{selectedDay ? selectedDay : 'Tên dãy'}</Text>
+                            <Text>{selectedDay ? selectedDay.tenDay : 'Tên dãy'}</Text>
                             <Ionicons name="chevron-down" size={16} color="#555" />
                         </TouchableOpacity>
                     </View>
@@ -206,24 +327,37 @@ export default function SelectLocationScreen({ route }) {
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.primaryButton} onPress={handleScanPress}>
-                        <Ionicons name="qr-code-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
+                        <Ionicons name="qr-code-outline" size={20} color="#fff" style={{ marginRight: 6 }} />
                         <Text style={styles.primaryButtonText}>Chọn vị trí</Text>
                     </TouchableOpacity>
                     <View style={styles.divider} />
                     {/* Không có dữ liệu */}
-                    <View style={styles.noData}>
-                        <Image
-                            source={require('../assets/empty-box.png')} // Make sure this path is correct
-                            style={{ width: 100, height: 100 }}
-                            resizeMode="contain"
+                    {viTriList.length === 0 ? (
+                        <View style={styles.noData}>
+                            <Image
+                                source={require('../assets/empty-box.png')}
+                                style={{ width: 100, height: 100 }}
+                                resizeMode="contain"
+                            />
+                            <Text style={{ marginTop: 8 }}>Không tìm thấy dữ liệu</Text>
+                        </View>
+                    ) : (
+                        <FlatList
+                            data={viTriList}
+                            renderItem={renderLocationItem}
+                            keyExtractor={(item) => item.id?.toString()}
+                            numColumns={3}
+                            contentContainerStyle={styles.listContentContainer}
+                            columnWrapperStyle={styles.row}
                         />
-                        <Text style={{ marginTop: 8 }}>Không tìm thấy dữ liệu</Text>
-                    </View>
+
+                    )}
+
 
                     {/* Xác nhận */}
                     <TouchableOpacity style={styles.confirmButton} onPress={() => {
-                        if (selectedKho && selectedDay) {
-                            alert(`Đã chọn: Kho ${selectedKho.name}, Dãy ${selectedDay}`);
+                        if (selectedLocationId) {
+                            handleQRCodeScanned(selectedLocationId)
                         } else {
                             alert("Vui lòng chọn kho và dãy.");
                         }
@@ -336,8 +470,8 @@ const styles = StyleSheet.create({
     },
     primaryButtonText: {
         color: '#fff',
-        fontSize: 16,
-        fontWeight: '500',
+        fontSize: 20,
+        fontWeight: '600',
     },
     divider: {
         height: 1,
@@ -471,5 +605,87 @@ const styles = StyleSheet.create({
         marginTop: 100,
         textAlign: "center",
         paddingBottom: 10,
+    },
+    chip: {
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        borderRadius: 20,
+        backgroundColor: '#e0e0e0',
+        margin: 6,
+    },
+    selectedChip: {
+        backgroundColor: '#4a90e2',
+    },
+    chipText: {
+        color: '#333',
+        fontSize: 14,
+    },
+    selectedChipText: {
+        color: '#fff',
+        fontWeight: 'bold',
+    },
+    cardContainer: {
+        flex: 1,
+        backgroundColor: '#fff',
+        margin: 6,
+        borderRadius: 10,
+        padding: 10,
+        elevation: 3,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
+        minWidth: 100, // quan trọng cho layout dạng lưới
+        maxWidth: '30%', // vì 3 cột nên giữ khoảng này
+    },
+    titleContainer: {
+        marginBottom: 6,
+        alignItems: 'center',
+    },
+    title: {
+        fontSize: 16,
+        fontWeight: 'bold',
+        color: '#007AFF',
+    },
+    detailsContainer: {
+        marginTop: 20,
+    },
+    detailRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        marginVertical: 2,
+    },
+    detailLabel: {
+        fontWeight: '600',
+        fontSize: 14,
+    },
+    detailValue: {
+        fontSize: 14,
+        color: '#333',
+    },
+    listContentContainer: {
+        paddingHorizontal: 8,
+        paddingBottom: 20,
+    },
+    row: {
+        // justifyContent: 'space-between',
+    },
+    codeBadge: {
+        position: 'absolute',
+        top: 8,
+        left: 8,
+        backgroundColor: '#007AFF',
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 4
+    },
+    codeBadgeText: {
+        color: '#fff',
+        fontWeight: 'bold',
+        fontSize: 14,
+    },
+    selectedCard: {
+        borderColor: '#007AFF',
+        borderWidth: 2,
     },
 });
