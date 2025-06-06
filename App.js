@@ -4,7 +4,6 @@ import QRCodeScanner from "./screens/QRCodeScanner";
 import HomeScreen from "./screens/HomeScreen";
 import WarehouseDetailScreen from "./screens/WarehouseDetailScreen";
 import LoginScreen from "./screens/LoginScreen";
-// import { AppProvider } from './AppContext';
 import { StyleSheet } from "react-native";
 import ScannedDetail from "./screens/ScannedDetail";
 import SelectLocationScreen from "./screens/SelectLocationScreen";
@@ -13,7 +12,6 @@ const Stack = createStackNavigator();
 
 export default function App() {
   return (
-    // <AppProvider>
     <NavigationContainer>
       <Stack.Navigator initialRouteName="LoginScreen">
         <Stack.Screen
@@ -50,7 +48,6 @@ export default function App() {
         />
       </Stack.Navigator>
     </NavigationContainer>
-    // </AppProvider>
   );
 }
 

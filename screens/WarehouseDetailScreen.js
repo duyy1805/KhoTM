@@ -12,7 +12,6 @@ const OptionItem = ({ title, iconName, onPress }) => {
     return (
         <TouchableOpacity style={styles.optionItem} onPress={onPress}>
             <Text style={styles.optionText}>{title}</Text>
-            {/* Biểu tượng tùy chọn, sử dụng Icon từ react-native-vector-icons */}
             <Icon name={iconName} size={30} color="#ccc" style={styles.optionIcon} />
         </TouchableOpacity>
     );
@@ -54,7 +53,6 @@ const WarehouseDetailScreen = ({ route }) => {
     };
     const handleQRCodeScanned = async (qrCode) => {
         try {
-            console.log("Response data:", qrCode);
             if (kho.id === 5) {
                 const response = await axios.post('https://apipccc.z76.vn/api/TAG_QTKD/getthongtinkien', {
                     QRCode: qrCode,
@@ -131,7 +129,6 @@ const WarehouseDetailScreen = ({ route }) => {
                 <>
                     <View style={styles.header}>
                         <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
-                            {/* Biểu tượng quay lại */}
                             <Icon name="arrow-left" size={24} color="#000" />
                         </TouchableOpacity>
                         <Text style={styles.headerTitle}>Kho bán thành phẩm</Text>

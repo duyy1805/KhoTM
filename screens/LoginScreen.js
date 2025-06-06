@@ -79,7 +79,6 @@ const App = () => {
                 );
 
                 const userInfor = res.data;
-                console.log('Thông tin người dùng:', userInfor);
                 await AsyncStorage.setItem('userInfor', JSON.stringify(userInfor));
             } catch (error) {
                 console.error('Lỗi khi lấy thông tin người dùng:', error);

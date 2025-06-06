@@ -8,17 +8,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import axios from 'axios';
 import apiConfig from '../apiConfig.json';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// Mock Data for warehouses and aisles
-const MOCK_KHO_DATA = [
-    { id: 'kho1', name: 'A-Tp Cầu Công', aisles: ['A01', 'A02', 'A03'] },
-    { id: 'kho2', name: 'A-Kho N10', aisles: ['N10-01', 'N10-02'] },
-    { id: 'kho3', name: 'A-Kho N12', aisles: ['N12-A', 'N12-B', 'N12-C'] },
-    { id: 'kho4', name: 'A-Btp May', aisles: ['M01', 'M02'] },
-    { id: 'kho5', name: 'A-Kho N17', aisles: ['N17-X', 'N17-Y'] },
-    { id: 'kho6', name: 'A-Kho N19', aisles: ['N19-Kệ 1', 'N19-Kệ 2'] },
-    { id: 'kho7', name: 'A-Kho N7', aisles: ['N7-D1'] },
-    { id: 'kho8', name: 'B-Kho K3', aisles: ['K3-001', 'K3-002', 'K3-003'] },
-];
+
 
 export default function SelectLocationScreen({ route }) {
     const [modalVisible, setModalVisible] = useState(false);
@@ -123,7 +113,6 @@ export default function SelectLocationScreen({ route }) {
                     },
                 }
             )
-            console.log(res.data)
             setCurrentAisles(res.data);
         } catch (error) {
             console.error('Error selecting warehouse:', error);
@@ -135,7 +124,6 @@ export default function SelectLocationScreen({ route }) {
         setModalVisible(false);
         try {
             const res = await axios.get(`${apiConfig.API_BASE_URL}/vitri/btp/${selectedKho.idKho}/${selectedKho.maNha}/day/${day.maDay}/mavt/none/taikhoan/189`)
-            console.log(res.data)
             setViTriList(res.data);
         } catch (error) {
             console.error('Lỗi khi lấy thông tin vị trí:', error);
@@ -226,7 +214,7 @@ export default function SelectLocationScreen({ route }) {
             >
                 <View style={styles.codeBadge}>
                     <Text style={styles.codeBadgeText}>
-                        {item.maViTriKho?.trim().replace(/\s*-\s*$/, '')}
+                        {item.maViTriKho?.trim().slice(0, 5)}
                     </Text>
                 </View>
                 <View style={styles.detailsContainer}>
@@ -300,7 +288,7 @@ export default function SelectLocationScreen({ route }) {
                 <View style={styles.container_}>
                     {/* Header */}
                     <View style={styles.header}>
-                        <TouchableOpacity onPress={Navigation.goBack()}>
+                        <TouchableOpacity onPress={Navigation.goBack}>
                             <Ionicons name="arrow-back" size={24} color="#333" />
                         </TouchableOpacity>
                         <Text style={styles.headerText}>Chọn vị trí</Text>

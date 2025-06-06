@@ -110,23 +110,22 @@ const ScannedDetail = ({ route }) => {
                 </View>
                 <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Vị trí</Text>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <Text style={styles.infoValue}>{data[0].MaViTriKho}</Text>
-                        <TouchableOpacity
-                            onPress={() =>
-                                navigation.navigate('SelectLocationScreen', {
-                                    onSelect: async (selectedLocation) => {
-                                        await handleUpdateLocation(selectedLocation);
-                                    },
-                                    ID_TheKhoKienBTP: data[0].ID_TheKhoKienBTP,
-                                    currentLocation: data[0].MaViTriKho,
-                                })
-                            }
-                            style={{ marginLeft: 8 }}
-                        >
-                            <AntDesign name="edit" size={18} color="#007AFF" />
-                        </TouchableOpacity>
-                    </View>
+                    <TouchableOpacity
+                        onPress={() =>
+                            navigation.navigate('SelectLocationScreen', {
+                                onSelect: async (selectedLocation) => {
+                                    await handleUpdateLocation(selectedLocation);
+                                },
+                                ID_TheKhoKienBTP: data[0].ID_TheKhoKienBTP,
+                                currentLocation: data[0].MaViTriKho,
+                            })
+                        }
+                    >
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Text style={styles.infoValue} >{data[0].MaViTriKho}</Text>
+                            <AntDesign name="edit" style={{ marginLeft: 8 }} size={24} color="#007AFF" />
+                        </View>
+                    </TouchableOpacity>
                 </View>
 
                 <Text style={styles.itemQuantity}>Tồn theo Item: {data[0].SoLuong}</Text>
@@ -239,11 +238,11 @@ const styles = StyleSheet.create({
         marginBottom: 5,
     },
     infoLabel: {
-        fontSize: 20,
+        fontSize: 24,
         color: '#555',
     },
     infoValue: {
-        fontSize: 20,
+        fontSize: 24,
         fontWeight: '600',
     },
     itemQuantity: {
