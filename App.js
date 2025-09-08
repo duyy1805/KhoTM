@@ -7,6 +7,10 @@ import LoginScreen from "./screens/LoginScreen";
 import { StyleSheet } from "react-native";
 import ScannedDetail from "./screens/ScannedDetail";
 import SelectLocationScreen from "./screens/SelectLocationScreen";
+import PhieuXuatBTP from "./screens/KhoBTP/PhieuXuatBTP";
+import PhieuXuatBTP_Detail from "./screens/KhoBTP/PhieuXuatBTP_Detail";
+import MergePackageScreen from "./screens/KhoBTP/GhepKien";
+import SplitPackageScreen from "./screens/KhoBTP/TachKien";
 
 const Stack = createStackNavigator();
 
@@ -37,14 +41,32 @@ export default function App() {
         <Stack.Screen
           name="ScannedDetail"
           component={ScannedDetail}
-          options={{ title: "Thông tin kiện" }}
-          options={{ headerShown: false }}
+          options={{ headerShown: false, title: "Thông tin kiện" }}
         />
         <Stack.Screen
           name="SelectLocationScreen"
           component={SelectLocationScreen}
-          options={{ title: "Chọn vị trí" }}
-          options={{ headerShown: false }}
+          options={{ headerShown: false, title: "Chọn vị trí" }}
+        />
+        <Stack.Screen
+          name="PhieuXuatBTP"
+          component={PhieuXuatBTP}
+          options={{ headerShown: false, title: "Phiếu xuất BTP" }}
+        />
+        <Stack.Screen
+          name="PhieuXuatBTP_Detail"
+          component={PhieuXuatBTP_Detail}
+          options={{ headerShown: false, title: "Chi tiết phiếu xuất BTP" }}
+        />
+        <Stack.Screen
+          name="MergePackageScreen"
+          component={MergePackageScreen}
+          options={{ headerShown: false, title: "Ghép kiện" }}
+        />
+        <Stack.Screen
+          name="SplitPackageScreen"
+          component={SplitPackageScreen}
+          options={{ headerShown: false, title: "Tách kiện" }}
         />
       </Stack.Navigator>
     </NavigationContainer>

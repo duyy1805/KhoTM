@@ -24,6 +24,10 @@ const WarehouseDetailScreen = ({ route }) => {
     const [permission, requestPermission] = useCameraPermissions();
     const [scanned, setScanned] = useState(false);
     const [qrData, setQrData] = useState("");
+    const [scanType, setScanType] = useState(null);
+
+
+
     useEffect(() => {
         if (isScanning && !permission) {
             requestPermission();
@@ -44,25 +48,44 @@ const WarehouseDetailScreen = ({ route }) => {
         );
     }
     const handleScanPress = () => {
+        setScanType('info');
+        setIsScanning(true);
+    };
+
+    const handleScanPress_xuat = () => {
+        setScanType('export');
         setIsScanning(true);
     };
 
     const handleCancelScan = () => {
         setIsScanning(false);
         setScanned(false);
+        setScanType(null);
     };
+
+
     const handleQRCodeScanned = async (qrCode) => {
         try {
             if (kho.id === 5) {
-                const response = await axios.post('https://apipccc.z76.vn/api/TAG_QTKD/getthongtinkien', {
-                    QRCode: qrCode,
-                });
+                const response = await axios.post(
+                    'https://nodeapi.z76.vn/khotm/getthongtinkien',
+                    { QRCode: qrCode }
+                );
 
-                const data = response.data;
-                // Navigate sang màn hình chi tiết, truyền dữ liệu
-                Navigation.navigate("ScannedDetail", { data, qrCode });
+                console.log('Response data:', response.data);
+
+                if (response.data && response.data.ok && response.data.data) {
+                    const data = response.data.data; // <-- chỗ này
+                    Navigation.navigate("ScannedDetail", { data, qrCode });
+                } else {
+                    Toast.show({
+                        type: "error",
+                        text1: "Không tìm thấy thông tin kiện",
+                        position: "top",
+                        visibilityTime: 1500,
+                    });
+                }
             } else {
-                // Xử lý các kho khác nếu cần
                 Toast.show({
                     type: "error",
                     text1: "Chưa hỗ trợ quét mã QR cho kho này",
@@ -71,15 +94,17 @@ const WarehouseDetailScreen = ({ route }) => {
                 });
             }
         } catch (error) {
+            console.error("API error:", error);
             Toast.show({
                 type: "error",
-                text1: "Mã QR không hợp lệ",
+                text1: "Mã QR không hợp lệ hoặc lỗi kết nối",
                 position: "top",
                 visibilityTime: 1500,
             });
         }
+
     };
-    const handleBarCodeScanned = ({ data }: { data: string }) => {
+    const handleBarCodeScanned = ({ data }) => {
         if (!scanned) {
             setScanned(true);
             setQrData(data);
@@ -89,15 +114,29 @@ const WarehouseDetailScreen = ({ route }) => {
                 text1: "QR Code Scanned",
                 text2: `Mã QR: ${data}`,
                 position: "top",
-                visibilityTime: 1500,
+                visibilityTime: 1200,
             });
+
+            if (scanType === 'export') {
+                Navigation.navigate("PhieuXuatBTP", { qrCode: data, kho });
+                setTimeout(() => {
+                    setScanned(false);
+                    setIsScanning(false);
+                    setScanType(null);
+                }, 300);
+                return;
+            }
+
             handleQRCodeScanned(data);
+
             setTimeout(() => {
                 setScanned(false);
                 setIsScanning(false);
-            }, 1500);
+                setScanType(null);
+            }, 1200);
         }
     };
+
 
     const handleImportPress = () => {
         console.log('Phiếu nhập pressed');
@@ -131,17 +170,18 @@ const WarehouseDetailScreen = ({ route }) => {
                         <TouchableOpacity onPress={handleGoBack} style={styles.backButton}>
                             <Icon name="arrow-left" size={24} color="#000" />
                         </TouchableOpacity>
-                        <Text style={styles.headerTitle}>Kho bán thành phẩm</Text>
+                        <Text style={styles.headerTitle}>{kho.title}</Text>
                     </View>
-
-
 
                     {/* Nút chính "Quét thông tin kiện" */}
                     <TouchableOpacity style={styles.mainButton} onPress={handleScanPress}>
                         <Icon name="qrcode-scan" size={20} color="#fff" style={styles.mainButtonIcon} />
                         <Text style={styles.mainButtonText}>Quét thông tin kiện</Text>
                     </TouchableOpacity>
-
+                    <TouchableOpacity style={styles.mainButton} onPress={handleScanPress_xuat}>
+                        <Icon name="qrcode-scan" size={20} color="#fff" style={styles.mainButtonIcon} />
+                        <Text style={styles.mainButtonText}>Quét xuất</Text>
+                    </TouchableOpacity>
                     {/* Danh sách các tùy chọn */}
                     <View style={styles.optionsList}>
                         <OptionItem
@@ -285,7 +325,7 @@ const styles = StyleSheet.create({
         height: "100%",
         justifyContent: "center",
         alignItems: "center",
-        background: "rgba(0, 0, 0, 0.6)",
+        backgroundColor: "rgba(0, 0, 0, 0.6)",
     },
     scanArea: {
         width: 250,

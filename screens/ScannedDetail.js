@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, TextInput } from 'react-native';
 import { AntDesign } from '@expo/vector-icons'; // Assuming you are using Expo for icons
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import Toast from 'react-native-toast-message';
 
+// 👇 NEW: import camera + overlay
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import ScanOverlay from './ScanOverlay';
 
 const ScannedDetail = ({ route }) => {
     const navigation = useNavigation();
@@ -17,6 +21,10 @@ const ScannedDetail = ({ route }) => {
     const [loadingLocations, setLoadingLocations] = useState(false);
     const [searchText, setSearchText] = useState('');
 
+    // ====== GHÉP KIỆN: state quét info ======
+    const [isMergingScan, setIsMergingScan] = useState(false);
+    const [hasScanned, setHasScanned] = useState(false);
+    const [permission, requestPermission] = useCameraPermissions();
 
     // Gọi API khi mở modal
     useEffect(() => {
@@ -91,6 +99,92 @@ const ScannedDetail = ({ route }) => {
         </View>
     );
 
+    // ====== GHÉP KIỆN: mở camera quét info ======
+    const openMergeScan = async () => {
+        if (!permission?.granted) {
+            const { granted } = await requestPermission();
+            if (!granted) {
+                Toast.show({ type: 'error', text1: 'Cần cấp quyền camera để quét QR' });
+                return;
+            }
+        }
+        setHasScanned(false);
+        setIsMergingScan(true);
+    };
+
+    // ====== GHÉP KIỆN: xử lý khi đã quét được mã ======
+    const handleMergeBarCodeScanned = async ({ data: scannedQR }) => {
+        if (hasScanned) return;
+        setHasScanned(true);
+
+        // 1) Chặn quét trùng QR đang mở
+        if ((scannedQR || '').trim() === (qrCode || '').trim()) {
+            Toast.show({
+                type: 'info',
+                text1: 'QR trùng kiện gốc',
+                text2: 'Hãy quét một kiện khác.',
+            });
+            // cho phép quét lại, không đóng overlay
+            setTimeout(() => setHasScanned(false), 600);
+            return;
+        }
+
+        try {
+            // 2) Gọi API lấy info kiện vừa quét
+            const response = await axios.post('https://nodeapi.z76.vn/khotm/getthongtinkien', {
+                QRCode: scannedQR,
+            });
+
+            const scannedData = response.data.data;
+
+            // 3) Validate dữ liệu trả về
+            if (!Array.isArray(scannedData) || scannedData.length === 0) {
+                Toast.show({
+                    type: 'error',
+                    text1: 'Không tìm thấy dữ liệu',
+                    text2: 'Mã QR không hợp lệ hoặc không có dòng chi tiết.',
+                });
+                setTimeout(() => setHasScanned(false), 600);
+                return;
+            }
+
+            // 4) Chặn nếu ID_TheKhoKienBTP trùng với kiện gốc
+            const samePackageId =
+                scannedData[0]?.ID_TheKhoKienBTP === data?.[0]?.ID_TheKhoKienBTP;
+
+            if (samePackageId) {
+                Toast.show({
+                    type: 'info',
+                    text1: 'Kiện trùng với kiện gốc',
+                    text2: 'Hãy chọn một kiện khác để ghép.',
+                });
+                setTimeout(() => setHasScanned(false), 600);
+                return;
+            }
+
+            // 5) OK -> điều hướng sang màn hình ghép
+            navigation.navigate('MergePackageScreen', {
+                originalPackage: data[0],  // kiện gốc (đang xem)
+                originalQRCode: qrCode,
+                scannedQRCode: scannedQR,  // mã vừa quét
+                scannedData,               // dữ liệu chi tiết để chọn
+            });
+
+            // Đóng overlay sau khi điều hướng (nếu muốn thoát luôn)
+            setTimeout(() => {
+                setIsMergingScan(false);
+                setHasScanned(false);
+            }, 200);
+        } catch (error) {
+            Toast.show({
+                type: 'error',
+                text1: 'Quét thất bại',
+                text2: 'Mã QR không hợp lệ hoặc lỗi mạng.',
+            });
+            setTimeout(() => setHasScanned(false), 800);
+        }
+    };
+
     return (
         <View style={styles.container}>
             {/* Header */}
@@ -142,7 +236,7 @@ const ScannedDetail = ({ route }) => {
                     <View style={styles.productItem} key={index}>
                         <View style={styles.productDetailsColumn}>
                             <Text style={styles.productName}>{item.Ten_SanPham}</Text>
-                            <Text style={styles.productSubText}>( Số lô SX : {item.lotNumber} )</Text>
+                            <Text style={styles.productSubText}>( Số lô SX : {item.LoSanXuat} )</Text>
                             <Text style={styles.productSubText}>( Kế hoạch SX : {item.productionPlan} )</Text>
                         </View>
                         <Text style={styles.productOrderCodeColumn}>{item.Ma_DonHang}</Text>
@@ -150,44 +244,60 @@ const ScannedDetail = ({ route }) => {
                     </View>
                 )}
             />
-            {editModalVisible && (
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <Text style={styles.modalTitle}>Chọn vị trí mới</Text>
 
-                        <TextInput
-                            style={styles.searchInput}
-                            placeholder="Tìm vị trí..."
-                            value={searchText}
-                            onChangeText={setSearchText}
-                        />
+            {/* Footer Actions */}
+            <View style={styles.footerActions}>
+                <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: '#ff6b6b' }]}
+                    onPress={() => {
+                        // Logic xử lý tách kiện
+                        navigation.navigate('SplitPackageScreen', {
+                            originalPackage: data[0],
+                            qrCode,
+                            onSplit: async (newId) => {
+                                // Reload lại dữ liệu kiện gốc
+                                const res = await axios.post('https://nodeapi.z76.vn/khotm/getthongtinkien', { QRCode: qrCode });
+                                setData(res.data.data);
+                                Toast.show({ type: 'success', text1: 'Đã tạo kiện mới', text2: `ID mới: ${newId}` });
+                            },
+                        });
+                        Toast.show({
+                            type: 'info',
+                            text1: 'Tách kiện',
+                            text2: `ID: ${data[0]?.ID_TheKhoKienBTP}`,
+                        });
+                    }}
+                >
+                    <Text style={styles.actionButtonText}>Tách kiện</Text>
+                </TouchableOpacity>
 
-                        <FlatList
-                            data={items.filter(item =>
-                                item.label.toLowerCase().includes(searchText.toLowerCase())
-                            )}
-                            keyExtractor={(item) => item.value.toString()}
-                            style={{ maxHeight: 250, marginBottom: 10 }}
-                            renderItem={({ item }) => (
-                                <TouchableOpacity
-                                    onPress={() => {
-                                        setSelectedLocation(item.value);
-                                        setEditModalVisible(false);
-                                        handleUpdateLocation(item)
-                                    }}
-                                    style={styles.locationItem}
-                                >
-                                    <Text style={styles.locationText}>{item.label}</Text>
-                                </TouchableOpacity>
-                            )}
-                        />
+                <TouchableOpacity
+                    style={[styles.actionButton, { backgroundColor: '#4caf50' }]}
+                    onPress={openMergeScan}
+                >
+                    <Text style={styles.actionButtonText}>Ghép kiện</Text>
+                </TouchableOpacity>
+            </View>
 
-                        <View style={styles.modalButtons}>
-                            <TouchableOpacity onPress={() => setEditModalVisible(false)} style={styles.modalButton}>
-                                <Text style={{ color: 'red' }}>Hủy</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
+            {/* Scanner overlay cho GHÉP KIỆN */}
+            {isMergingScan && permission?.granted && (
+                <View style={styles.scannerWrapper}>
+                    <TouchableOpacity
+                        onPress={() => { setIsMergingScan(false); setHasScanned(false); }}
+                        style={styles.backScanButton}
+                    >
+                        <Ionicons name="arrow-back" size={24} color="#fff" />
+                    </TouchableOpacity>
+
+                    <CameraView
+                        style={styles.camera}
+                        cameraType="back"
+                        onBarcodeScanned={hasScanned ? undefined : handleMergeBarCodeScanned}
+                        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                    >
+                        <View style={styles.scanArea} />
+                        <ScanOverlay />
+                    </CameraView>
                 </View>
             )}
             <Toast />
@@ -373,6 +483,34 @@ const styles = StyleSheet.create({
     locationText: {
         fontSize: 14,
     },
+    footerActions: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        padding: 16,
+        backgroundColor: '#fff',
+        borderTopWidth: 1,
+        borderTopColor: '#e0e0e0',
+    },
+    actionButton: {
+        flex: 1,
+        marginHorizontal: 8,
+        paddingVertical: 14,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    actionButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: 'bold',
+    },
+
+    // Scanner
+    scannerWrapper: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.8)' },
+    camera: { width: '100%', height: '100%', justifyContent: 'center', alignItems: 'center' },
+    scanArea: { width: 260, height: 260 },
+    backScanButton: { position: 'absolute', top: 30, left: 20, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.5)', padding: 8, borderRadius: 20 },
+
 });
 
 export default ScannedDetail;
