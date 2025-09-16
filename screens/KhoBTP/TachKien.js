@@ -11,7 +11,7 @@ import axios from 'axios';
 export default function SplitPackageScreen() {
     const navigation = useNavigation();
     const route = useRoute();
-    const { originalPackage, qrCode } = route.params || {};
+    const { originalPackage, qrCode, onSplit } = route.params || {};
 
     const [chiTiet, setChiTiet] = useState([]);
     const [newQRCode, setNewQRCode] = useState('');
@@ -20,12 +20,21 @@ export default function SplitPackageScreen() {
     const [hasScannedQR, setHasScannedQR] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
 
+    const [selectedLocation, setSelectedLocation] = useState(
+        originalPackage?.ID_ViTriKho
+            ? { value: originalPackage.ID_ViTriKho, label: originalPackage.MaViTriKho }
+            : null
+    );
     useEffect(() => {
-        if (originalPackage) {
-            console.log('Kiện gốc để tách:', originalPackage);
-            setChiTiet([originalPackage]); // tạm demo 1 dòng, bạn có thể map từ dữ liệu thật
+        if (Array.isArray(originalPackage)) {
+            // Trường hợp bạn truyền cả mảng data vào params
+            setChiTiet(originalPackage);
+        } else if (originalPackage) {
+            // Trường hợp chỉ truyền 1 object
+            setChiTiet([originalPackage]);
         }
     }, [originalPackage]);
+
 
     const openQRScanner = async () => {
         if (!permission?.granted) {
@@ -67,26 +76,36 @@ export default function SplitPackageScreen() {
             }
 
             const payload = {
-                sourcePackageId: originalPackage?.ID_TheKhoKienBTP,   // kiện gốc để giảm số lượng
-                phieuNhapId: originalPackage?.ID_PhieuNhapBTP || null,
+                sourcePackageId: originalPackage[0]?.ID_TheKhoKienBTP,
+                phieuNhapId: originalPackage[0]?.ID_PhieuNhapBTP || null,
                 qrCode: newQRCode,
-                viTriKhoId: originalPackage?.ID_ViTriKho,
+                viTriKhoId: selectedLocation?.value,  // đảm bảo != null
                 tonTai: 1,
                 chiTiet: selected.map(x => ({
+                    ID_TheKhoKienBTP_ChiTiet: x.ID_TheKhoKienBTP_ChiTiet, // 👈 thêm dòng này
                     ID_DonHang_SanPham: x.ID_DonHang_SanPham,
                     SoLuong: x.SoLuong_Tach,
                     ItemCode: x.ItemCode,
                     Ten_SanPham: x.Ten_SanPham,
+                    ID_DonHang: x.ID_DonHang,
+                    ID_QuyTrinhSanXuat: x.ID_QuyTrinhSanXuat ?? null,
+                    Ten_QuyTrinhSanXuat: x.Ten_QuyTrinhSanXuat ?? null,
+                    ID_DonHang_LoSanXuat: x.LoTheoCT ?? null,
+                    ID_KeHoachSanXuat: x.ID_KeHoachSanXuat ?? x.ID_KehoachSanXuat ?? null, // 👈 normalize
                 })),
             };
+
             console.log('Payload tách kiện:', payload);
-            const res = await axios.post('http://192.168.89.146:5000/khotm/split-kien', payload);
+            const res = await axios.post('https://nodeapi.z76.vn/khotm/split-kien', payload);
             if (res.data?.ok) {
                 Toast.show({
                     type: 'success',
                     text1: 'Tách kiện thành công',
                     text2: `ID mới: ${res.data.newKienId}`,
                 });
+                if (route.params?.onSplit) {
+                    route.params.onSplit(res.data.newKienId);
+                }
                 navigation.goBack();
             } else {
                 Toast.show({ type: 'error', text1: 'Tách kiện thất bại' });
@@ -145,8 +164,6 @@ export default function SplitPackageScreen() {
                         <Text style={styles.headerTitle}>Tách kiện</Text>
                     </View>
 
-                    {/* QR Code kiện mới */}
-                    {/* QR Code kiện mới */}
                     <View style={styles.section}>
                         <Text style={styles.label}>QRCode kiện mới</Text>
 
@@ -171,6 +188,39 @@ export default function SplitPackageScreen() {
                         </View>
                     </View>
 
+                    {/* Vị trí lưu kiện mới */}
+                    <View style={styles.section}>
+                        <Text style={styles.label}>Vị trí lưu kiện mới</Text>
+                        <TouchableOpacity
+                            style={styles.locationPicker}
+                            activeOpacity={0.85}
+                            onPress={() => {
+                                navigation.navigate('SelectLocationScreen', {
+                                    // mở lại đúng màn chọn vị trí sẵn có của bạn
+                                    currentLocation: selectedLocation?.label || originalPackage?.MaViTriKho,
+                                    // ⚠️ LƯU Ý: truyền function trong params sẽ có cảnh báo "Non-serializable…"
+                                    // Bạn yêu cầu dùng onSelect, mình làm đúng theo yêu cầu:
+                                    onSelect: async (loc) => {
+                                        await setSelectedLocation(loc);
+                                        Toast.show({ type: 'success', text1: 'Đã chọn vị trí', text2: loc.label });
+                                        // navigation.goBack();
+                                    },
+                                });
+                            }}
+                        >
+                            <Ionicons name="location-outline" size={18} color="#4a90e2" />
+                            <Text style={{ marginLeft: 8, color: selectedLocation ? '#111' : '#999' }}>
+                                {selectedLocation ? (() => {
+                                    const match = selectedLocation.label.match(/\(([^-]+)-/);
+                                    const shortCode = match ? match[1].trim() : selectedLocation.label;
+                                    const combined = `${shortCode} - ${selectedLocation.label}`;
+                                    return combined;
+                                })() : 'Chạm để chọn vị trí'}
+
+                            </Text>
+                            <Ionicons name="chevron-forward" size={18} color="#bbb" style={{ marginLeft: 'auto' }} />
+                        </TouchableOpacity>
+                    </View>
 
                     {/* Danh sách chi tiết */}
                     <Text style={styles.sectionTitle}>Chọn số lượng tách</Text>
@@ -307,5 +357,15 @@ const styles = StyleSheet.create({
         backgroundColor: "rgba(0,0,0,0.5)",
         padding: 8,
         borderRadius: 20,
+    },
+    locationPicker: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#e5e7eb',
+        borderRadius: 10,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+        backgroundColor: '#fff',
     },
 });

@@ -14,6 +14,7 @@ export default function MergePackageScreen({ route }) {
         originalQRCode,    // string
         scannedQRCode,     // string
         scannedData = [],  // array: chi tiết kiện từ mã vừa quét
+        onMerged,           // function callback sau khi ghép xong
     } = route.params || {};
 
     const list = Array.isArray(scannedData) ? scannedData : [];
@@ -48,7 +49,7 @@ export default function MergePackageScreen({ route }) {
             sources: selectedItems,
         });
 
-        const url = 'http://192.168.89.146:5000/khotm/merge-kien';
+        const url = 'https://nodeapi.z76.vn/khotm/merge-kien';
 
         try {
             const res = await axios.post(url, payload, { timeout: 8000 });
@@ -80,7 +81,8 @@ export default function MergePackageScreen({ route }) {
         }
 
         // Sau khi API thành công, có thể:
-        // navigation.goBack();
+        await onMerged?.();
+        navigation.goBack();
         // hoặc điều hướng về chi tiết kiện gốc để refresh.
     };
 
@@ -120,10 +122,9 @@ export default function MergePackageScreen({ route }) {
             <View style={styles.cardWrap}>
                 <View style={[styles.card, { marginRight: 8 }]}>
                     <Text style={styles.cardTitle}>Kiện gốc</Text>
-                    <Text style={styles.line}>ID: {originalPackage?.ID_TheKhoKienBTP}</Text>
+                    {/* <Text style={styles.line}>ID: {originalPackage?.ID_TheKhoKienBTP}</Text> */}
                     <Text style={styles.line}>QR: {originalQRCode}</Text>
                     <Text style={styles.line}>Vị trí: {originalPackage?.MaViTriKho}</Text>
-                    <Text style={styles.line}>Tồn: {originalPackage?.SoLuong}</Text>
                 </View>
 
                 <View style={[styles.card, { marginLeft: 8 }]}>

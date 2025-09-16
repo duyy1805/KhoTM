@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, TextInput } from 'react-native';
 import { AntDesign } from '@expo/vector-icons'; // Assuming you are using Expo for icons
 import Ionicons from '@expo/vector-icons/Ionicons';
@@ -26,6 +26,9 @@ const ScannedDetail = ({ route }) => {
     const [hasScanned, setHasScanned] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
 
+    // 👇 NEW: state cho pull-to-refresh
+    const [refreshing, setRefreshing] = useState(false);
+
     // Gọi API khi mở modal
     useEffect(() => {
         fetchLocations();
@@ -33,6 +36,26 @@ const ScannedDetail = ({ route }) => {
     useEffect(() => {
         setData(initialData);
     }, [initialData]);
+
+    // 👇 NEW: API reload dữ liệu kiện theo qrCode
+    const loadData = useCallback(async () => {
+        if (!qrCode) return;
+        try {
+            setRefreshing(true);
+            const res = await axios.post('https://nodeapi.z76.vn/khotm/getthongtinkien', { QRCode: qrCode });
+            const next = res?.data?.data;
+            if (Array.isArray(next) && next.length) {
+                setData(next);
+            } else {
+                Toast.show({ type: 'info', text1: 'Không có dữ liệu', text2: 'Không tìm thấy thông tin kiện.' });
+            }
+        } catch (err) {
+            Toast.show({ type: 'error', text1: 'Lỗi tải dữ liệu', text2: err?.message || 'Vui lòng thử lại.' });
+        } finally {
+            setRefreshing(false);
+        }
+    }, [qrCode]);
+
     const fetchLocations = async () => {
         try {
             setLoadingLocations(true);
@@ -168,6 +191,7 @@ const ScannedDetail = ({ route }) => {
                 originalQRCode: qrCode,
                 scannedQRCode: scannedQR,  // mã vừa quét
                 scannedData,               // dữ liệu chi tiết để chọn
+                onMerged: async () => { await loadData(); },
             });
 
             // Đóng overlay sau khi điều hướng (nếu muốn thoát luôn)
@@ -243,6 +267,9 @@ const ScannedDetail = ({ route }) => {
                         <Text style={styles.productStockColumn}>{item.SoLuong}</Text>
                     </View>
                 )}
+                /* 👇 NEW: pull-to-refresh */
+                refreshing={refreshing}
+                onRefresh={loadData}
             />
 
             {/* Footer Actions */}
@@ -252,7 +279,7 @@ const ScannedDetail = ({ route }) => {
                     onPress={() => {
                         // Logic xử lý tách kiện
                         navigation.navigate('SplitPackageScreen', {
-                            originalPackage: data[0],
+                            originalPackage: data,
                             qrCode,
                             onSplit: async (newId) => {
                                 // Reload lại dữ liệu kiện gốc

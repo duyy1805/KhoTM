@@ -11,7 +11,7 @@ import PhieuXuatBTP from "./screens/KhoBTP/PhieuXuatBTP";
 import PhieuXuatBTP_Detail from "./screens/KhoBTP/PhieuXuatBTP_Detail";
 import MergePackageScreen from "./screens/KhoBTP/GhepKien";
 import SplitPackageScreen from "./screens/KhoBTP/TachKien";
-
+import LocationPickerModal from "./screens/KhoBTP/LocationPickerModal";
 const Stack = createStackNavigator();
 
 export default function App() {
@@ -67,6 +67,11 @@ export default function App() {
           name="SplitPackageScreen"
           component={SplitPackageScreen}
           options={{ headerShown: false, title: "Tách kiện" }}
+        />
+        <Stack.Screen
+          name="LocationPickerModal"
+          component={LocationPickerModal}
+          options={{ headerShown: false }}
         />
       </Stack.Navigator>
     </NavigationContainer>

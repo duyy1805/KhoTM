@@ -71,7 +71,6 @@ const WarehouseDetailScreen = ({ route }) => {
                     'https://nodeapi.z76.vn/khotm/getthongtinkien',
                     { QRCode: qrCode }
                 );
-
                 console.log('Response data:', response.data);
 
                 if (response.data && response.data.ok && response.data.data) {
