@@ -111,7 +111,12 @@ export default function SplitPackageScreen() {
                 Toast.show({ type: 'error', text1: 'Tách kiện thất bại' });
             }
         } catch (err) {
-            Toast.show({ type: 'error', text1: 'Lỗi API', text2: err.message });
+            const msg = err.response?.data?.message || err.message;
+            Toast.show({
+                type: 'error',
+                text1: 'Lỗi API',
+                text2: msg,
+            });
         }
     };
 

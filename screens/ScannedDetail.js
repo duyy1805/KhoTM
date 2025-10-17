@@ -246,7 +246,9 @@ const ScannedDetail = ({ route }) => {
                     </TouchableOpacity>
                 </View>
 
-                <Text style={styles.itemQuantity}>Tồn theo Item: {data[0].SoLuong}</Text>
+                <Text style={styles.itemQuantity}>
+                    Tồn theo Item: {Array.isArray(data) ? data.reduce((sum, item) => sum + (item.SoLuong || 0), 0) : 0}
+                </Text>
             </View>
 
             {/* Product List Section */}

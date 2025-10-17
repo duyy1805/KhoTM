@@ -44,6 +44,13 @@ export default function PhieuXuatBTP({ route }) {
     const [showStartPicker, setShowStartPicker] = useState(false);
     const [showEndPicker, setShowEndPicker] = useState(false);
 
+    // thêm cùng nhóm state khác
+    const [searchText, setSearchText] = useState('');
+
+    // helper chuẩn hoá chuỗi để so khớp không phân biệt hoa/thường
+    const norm = (s) => (s ?? '').toString().trim().toLowerCase();
+
+
     const baseURL = useMemo(() => 'https://nodeapi.z76.vn', []);
     const findByQrEndpoint = `${baseURL}/khotm/find-by-qr`;
 
@@ -105,7 +112,7 @@ export default function PhieuXuatBTP({ route }) {
             const suggest = res?.data?.data?.phieuSuggest || [];
 
             // Nếu bạn chỉ muốn hiển thị phiếu đã pick:
-            setHeaders(suggest);
+            setHeaders(sortData(suggest));
             setChiTietKien(chiTietKien);
 
 
@@ -146,6 +153,35 @@ export default function PhieuXuatBTP({ route }) {
         setRefreshing(false);
     }, [fetchByQR]);
 
+    function sortData(data) {
+        return [...data].sort((a, b) => {
+            const aTong = a.TongPick ?? 0;
+            const bTong = b.TongPick ?? 0;
+            const aSoLuong = a.SoLuongTong_DongPhieu ?? 0;
+            const bSoLuong = b.SoLuongTong_DongPhieu ?? 0;
+
+            // Nhóm ưu tiên
+            const getGroup = (item) => {
+                const tong = item.TongPick ?? 0;
+                const sl = item.SoLuongTong_DongPhieu ?? 0;
+                if (tong === 0) return 1; // nhóm 1
+                if (tong < sl) return 2;  // nhóm 2
+                return 3;                 // nhóm 3
+            };
+
+            const groupA = getGroup(a);
+            const groupB = getGroup(b);
+
+            if (groupA !== groupB) {
+                return groupA - groupB; // nhóm nhỏ hơn đứng trước
+            }
+
+            // Nếu cùng nhóm → sắp theo Ngay_XuatBTP
+            const dateA = new Date(a.Ngay_XuatBTP);
+            const dateB = new Date(b.Ngay_XuatBTP);
+            return dateA - dateB; // tăng dần theo ngày
+        });
+    }
     const handleConfirmPick = async (phieu) => {
         if (!qrCode) {
             Toast.show({ type: 'error', text1: 'Thiếu QR Code' });
@@ -245,6 +281,13 @@ export default function PhieuXuatBTP({ route }) {
             </TouchableOpacity>
         );
     };
+    // sau khi đã có headers (đã sort), tạo mảng hiển thị theo search
+    const visibleHeaders = useMemo(() => {
+        if (!searchText.trim()) return headers;
+        const q = norm(searchText);
+        return headers.filter(h => norm(h.So_PhieuXuatBTP).includes(q));
+    }, [headers, searchText]);
+
 
     return (
         <View style={styles.container}>
@@ -342,9 +385,7 @@ export default function PhieuXuatBTP({ route }) {
                             />
                         )}
 
-
-
-                        <View style={{ marginTop: 8, flexDirection: 'row', justifyContent: 'space-between' }}>
+                        {/* <View style={{ marginTop: 8, flexDirection: 'row', justifyContent: 'space-between' }}>
                             <TouchableOpacity
                                 onPress={() => setEditableQR(s => !s)}
                                 style={styles.linkBtn}
@@ -372,12 +413,35 @@ export default function PhieuXuatBTP({ route }) {
                                     </>
                                 )}
                             </TouchableOpacity>
-                        </View>
+                        </View> */}
+                    </View>
+                </View>
+                {/* Search box */}
+                <View style={[styles.card, { marginHorizontal: 15, marginBottom: 10, paddingVertical: 10 }]}>
+                    {/* <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        <Ionicons name="search-outline" size={18} color="#4a90e2" />
+                        <Text style={styles.cardHeaderText}>Tìm theo số phiếu</Text>
+                    </View> */}
+
+                    <View style={{ marginTop: 8, flexDirection: 'row', alignItems: 'center' }}>
+                        <TextInput
+                            value={searchText}
+                            onChangeText={setSearchText}
+                            placeholder="Nhập số phiếu..."
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            style={[styles.input, { flex: 1 }]}
+                        />
+                        {searchText ? (
+                            <TouchableOpacity onPress={() => setSearchText('')} style={{ marginLeft: 8 }}>
+                                <Ionicons name="close-circle" size={20} color="#999" />
+                            </TouchableOpacity>
+                        ) : null}
                     </View>
                 </View>
 
                 <FlatList
-                    data={headers}
+                    data={visibleHeaders}
                     keyExtractor={(item) => String(item.ID_PhieuXuatBTP)}
                     renderItem={renderHeaderItem}
                     contentContainerStyle={{ paddingHorizontal: 15, paddingBottom: 30 }}

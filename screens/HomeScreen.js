@@ -12,15 +12,15 @@ const { width } = Dimensions.get('window');
 const CircularProgress = ({ percentage }) => {
     const radius = 30; // Bán kính của hình tròn
     const strokeWidth = 5; // Độ dày của đường viền
-    const circumference = 2 * Math.PI * (radius - strokeWidth / 2); // Chu vi hình tròn
-    const progress = percentage / 100 * circumference; // Độ dài của đường viền tiến độ
+    const circumference = 2 * Math.PI * (radius - strokeWidth / 2);
+    const progress = percentage / 100 * circumference;
 
     return (
         <View style={styles.progressContainer}>
             <Svg width={radius * 2} height={radius * 2}>
                 {/* Đường viền nền */}
                 <Circle
-                    stroke="#e6e6e6" // Màu nền của đường viền
+                    stroke="#e6e6e6"
                     fill="none"
                     cx={radius}
                     cy={radius}
@@ -29,7 +29,7 @@ const CircularProgress = ({ percentage }) => {
                 />
                 {/* Đường viền tiến độ */}
                 <Circle
-                    stroke="#4a90e2" // Màu của đường viền tiến độ
+                    stroke="#4a90e2"
                     fill="none"
                     cx={radius}
                     cy={radius}
@@ -38,7 +38,7 @@ const CircularProgress = ({ percentage }) => {
                     strokeDasharray={`${circumference} ${circumference}`}
                     strokeDashoffset={circumference - progress}
                     strokeLinecap="round" // Bo tròn đầu đường viền
-                    transform={`rotate(-90 ${radius} ${radius})`} // Xoay để bắt đầu từ trên cùng
+                    transform={`rotate(-90 ${radius} ${radius})`}
                 />
             </Svg>
             <Text style={styles.progressText}>{percentage}%</Text>

@@ -74,6 +74,7 @@ export default function SelectLocationScreen({ route }) {
                     },
                 }
             );
+            console.log(userInfor)
             setKhoList(res.data);
         } catch (err) {
             console.error('Lỗi lấy danh sách kho:', err);
