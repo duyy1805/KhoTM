@@ -1,0 +1,63 @@
+###
+POST  https://nodeapi.z76.vn/khotm/getthongtinkien
+Content-Type: application/json
+
+{
+  "QRCode": "NL0000000802"
+}
+
+###
+POST  https://nodeapi.z76.vn/khotm/khonl/getcuontheovitri
+Content-Type: application/json
+
+{
+  "QRCode": "26831"
+}
+
+###
+GET https://apipccc.z76.vn/api/TAG_QTKD/danhmucvitri
+Accept: application/json
+
+###
+POST https://apipccc.z76.vn/api/TAG_QTKD/test/updatevitribtp
+Content-Type: application/json
+
+{
+  "ID_TheKhoKienBTP": 123,
+  "ID_ViTriKho": 456
+}
+
+### Tách kiện BTP
+POST https://nodeapi.z76.vn/khotmtest/split-kien
+Content-Type: application/json
+
+{
+"sourcePackageId": 1234,
+  "phieuNhapId": null,
+  "qrCode": "BTP52789",
+  "viTriKhoId": 5,
+  "tonTai": 1,
+  "chiTiet": [
+    {
+      "ID_TheKhoKienBTP_ChiTiet": 1238,
+      "ID_DonHang_SanPham": 13170,
+      "SoLuong": 11,
+      "ItemCode": "4333116.B",
+      "Ten_SanPham": "BACKPACK NH ESCAPE 100 17L BLACK",
+      "ID_DonHang": 3001,
+      "ID_QuyTrinhSanXuat": 4001,
+      "Ten_QuyTrinhSanXuat": "Bao gói",
+      "ID_DonHang_LoSanXuat": 0,
+      "ID_KeHoachSanXuat": 656190968
+    }
+  ]
+}
+
+### Gộp kiện BTP
+POST https://nodeapi.z76.vn/khotmtest/merge-kien
+Content-Type: application/json
+
+{
+  "targetPackageId": 1234, //ID_TheKhoKienBTP kiện đích
+  "detailIds": [1001, 1002, 1003] //ID_TheKhoKienBTP_ChiTiet cần gộp vào kiện đích
+}

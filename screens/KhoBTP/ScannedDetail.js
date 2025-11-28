@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, FlatList, TextInput } from 'react-native';
+import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { AntDesign } from '@expo/vector-icons'; // Assuming you are using Expo for icons
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useNavigation } from '@react-navigation/native';
@@ -8,7 +9,7 @@ import Toast from 'react-native-toast-message';
 
 // 👇 NEW: import camera + overlay
 import { CameraView, useCameraPermissions } from 'expo-camera';
-import ScanOverlay from './ScanOverlay';
+import ScanOverlay from './../ScanOverlay';
 
 const ScannedDetail = ({ route }) => {
     const navigation = useNavigation();
@@ -77,7 +78,6 @@ const ScannedDetail = ({ route }) => {
 
     const handleUpdateLocation = async (selectedLocation) => {
         if (!selectedLocation) return;
-        console.log('Cập nhật vị trí:', selectedLocation);
         try {
             const response = await axios.post('https://apipccc.z76.vn/api/TAG_QTKD/updatevitribtp', {
                 ID_TheKhoKienBTP: data[0].ID_TheKhoKienBTP,
@@ -214,7 +214,7 @@ const ScannedDetail = ({ route }) => {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={navigation.goBack}>
-                    <AntDesign name="arrowleft" size={24} color="black" />
+                    <Icon name="arrow-left" size={24} color="#000" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Kiện {data[0].ID_TheKhoKienBTP}</Text>
             </View>

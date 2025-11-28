@@ -115,7 +115,6 @@ const App = () => {
                     refreshToken,
                     { headers: { 'Content-Type': 'application/json' } }
                 );
-                console.log('User Info:', res.data);
                 await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.data));
             } catch (e) {
                 console.error('Lỗi lấy thông tin người dùng:', e?.response?.data || e.message);

@@ -66,32 +66,60 @@ const WarehouseDetailScreen = ({ route }) => {
 
     const handleQRCodeScanned = async (qrCode) => {
         try {
+            // KHO BTP (id = 5) - GIỮ NGUYÊN LOGIC CŨ
             if (kho.id === 5) {
                 const response = await axios.post(
                     'https://nodeapi.z76.vn/khotm/getthongtinkien',
                     { QRCode: qrCode }
                 );
-                console.log('Response data:', response.data);
 
                 if (response.data && response.data.ok && response.data.data) {
-                    const data = response.data.data; // <-- chỗ này
-                    Navigation.navigate("ScannedDetail", { data, qrCode });
+                    const data = response.data.data;
+                    Navigation.navigate("ScannedDetail", { data, qrCode, kho });
                 } else {
                     Toast.show({
                         type: "error",
-                        text1: "Không tìm thấy thông tin kiện",
+                        text1: "Không tìm thấy thông tin kiện (Kho BTP)",
                         position: "top",
                         visibilityTime: 1500,
                     });
                 }
-            } else {
-                Toast.show({
-                    type: "error",
-                    text1: "Chưa hỗ trợ quét mã QR cho kho này",
-                    position: "top",
-                    visibilityTime: 1500,
-                });
+                return;
             }
+
+            // KHO NGUYÊN LIỆU (id = 1)
+            if (kho.id === 1) {
+                const response = await axios.post(
+                    'https://nodeapi.z76.vn/khotm/khonl/getcuontheovitri',
+                    { QRCode: qrCode } // qrCode chính là ID_ViTriKho
+                );
+
+                if (response.data && response.data.ok && response.data.data?.length) {
+                    const listCuon = response.data.data; // mảng cuộn
+                    Navigation.navigate('ScannedDetailNL', {
+                        data: listCuon,
+                        qrCode,
+                        kho,
+                    });
+                } else {
+                    Toast.show({
+                        type: 'error',
+                        text1: 'Không có cuộn nào trong vị trí này',
+                        position: 'top',
+                        visibilityTime: 1500,
+                    });
+                }
+                return;
+            }
+
+            // CÁC KHO KHÁC CHƯA HỖ TRỢ
+            Toast.show({
+                type: "error",
+                text1: "Chưa hỗ trợ quét mã QR cho kho này",
+                position: "top",
+                visibilityTime: 1500,
+            });
+
         } catch (error) {
             console.error("API error:", error);
             Toast.show({
@@ -101,7 +129,6 @@ const WarehouseDetailScreen = ({ route }) => {
                 visibilityTime: 1500,
             });
         }
-
     };
     const handleBarCodeScanned = ({ data }) => {
         if (!scanned) {

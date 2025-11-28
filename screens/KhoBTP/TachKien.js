@@ -95,7 +95,6 @@ export default function SplitPackageScreen() {
                 })),
             };
 
-            console.log('Payload tách kiện:', payload);
             const res = await axios.post('https://nodeapi.z76.vn/khotm/split-kien', payload);
             if (res.data?.ok) {
                 Toast.show({

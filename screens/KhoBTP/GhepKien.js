@@ -2,6 +2,7 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, FlatList } from 'react-native';
 import AntDesign from '@expo/vector-icons/AntDesign';
+import { Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import axios from 'axios';
@@ -92,9 +93,9 @@ export default function MergePackageScreen({ route }) {
             <TouchableOpacity onPress={() => toggleSelect(index)} style={styles.row}>
                 <View style={styles.checkbox}>
                     {selected ? (
-                        <AntDesign name="checksquare" size={22} color="#4caf50" />
+                        <Ionicons name="checkbox" size={22} color="#4caf50" />
                     ) : (
-                        <AntDesign name="checksquareo" size={22} color="#999" />
+                        <Ionicons name="square-outline" size={22} color="#999" />
                     )}
                 </View>
                 <View style={{ flex: 1 }}>
@@ -113,7 +114,7 @@ export default function MergePackageScreen({ route }) {
             {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity style={styles.backButton} onPress={navigation.goBack}>
-                    <AntDesign name="arrowleft" size={24} color="black" />
+                    <Ionicons name="arrow-back" size={24} color="black" />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Ghép kiện</Text>
             </View>

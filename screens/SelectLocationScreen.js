@@ -74,7 +74,6 @@ export default function SelectLocationScreen({ route }) {
                     },
                 }
             );
-            console.log(userInfor)
             setKhoList(res.data);
         } catch (err) {
             console.error('Lỗi lấy danh sách kho:', err);
@@ -124,7 +123,7 @@ export default function SelectLocationScreen({ route }) {
         setSelectedDay(day);
         setModalVisible(false);
         try {
-            const res = await axios.get(`${apiConfig.API_BASE_URL}/vitri/btp/${selectedKho.idKho}/${selectedKho.maNha}/day/${day.maDay}/mavt/none/taikhoan/189`)
+            const res = await axios.get(`${apiConfig.API_BASE_URL}/vitri/btp/${selectedKho.idKho}/${selectedKho.maNha}/day/${day.maDay}/mavt/none/taikhoan/1`)
             setViTriList(res.data);
         } catch (error) {
             console.error('Lỗi khi lấy thông tin vị trí:', error);

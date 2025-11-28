@@ -5,7 +5,8 @@ import HomeScreen from "./screens/HomeScreen";
 import WarehouseDetailScreen from "./screens/WarehouseDetailScreen";
 import LoginScreen from "./screens/LoginScreen";
 import { StyleSheet } from "react-native";
-import ScannedDetail from "./screens/ScannedDetail";
+import ScannedDetail from "./screens/KhoBTP/ScannedDetail";
+import ScannedDetailNL from "./screens/KhoNL/ScannedDetailNL";
 import SelectLocationScreen from "./screens/SelectLocationScreen";
 import PhieuXuatBTP from "./screens/KhoBTP/PhieuXuatBTP";
 import PhieuXuatBTP_Detail from "./screens/KhoBTP/PhieuXuatBTP_Detail";
@@ -72,6 +73,12 @@ export default function App() {
           name="LocationPickerModal"
           component={LocationPickerModal}
           options={{ headerShown: false }}
+        />
+        {/* //nguyên liệu */}
+        <Stack.Screen
+          name="ScannedDetailNL"
+          component={ScannedDetailNL}
+          options={{ headerShown: false, title: "Thông tin kiện NL" }}
         />
       </Stack.Navigator>
     </NavigationContainer>
