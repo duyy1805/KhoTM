@@ -6,6 +6,7 @@ import {
     TextInput,
     TouchableOpacity,
     Dimensions,
+    Alert,
     ActivityIndicator,
 } from 'react-native';
 import Toast from 'react-native-toast-message';
@@ -215,13 +216,18 @@ const App = () => {
             <View style={styles.topSection}>
                 <Text style={styles.welcomeText}>Hello, Welcome!</Text>
                 <Text style={styles.registerPrompt}>Don't have an account?</Text>
-                <TouchableOpacity style={styles.registerButton}>
+                <TouchableOpacity style={styles.registerButton} onPress={() =>
+                    Alert.alert(
+                        "Thông báo",
+                        "Tài khoản được cấp bởi quản trị hệ thống."
+                    )
+                }>
                     <Text style={styles.registerButtonText}>Register</Text>
                 </TouchableOpacity>
             </View>
 
             <Toast />
-        </View>
+        </View >
     );
 };
 

@@ -7,6 +7,7 @@ import LoginScreen from "./screens/LoginScreen";
 import { StyleSheet } from "react-native";
 import ScannedDetail from "./screens/KhoBTP/ScannedDetail";
 import ScannedDetailNL from "./screens/KhoNL/ScannedDetailNL";
+import ScannedDetailPL from "./screens/KhoPL/ScannedDetailPL";
 import SelectLocationScreen from "./screens/SelectLocationScreen";
 import PhieuXuatBTP from "./screens/KhoBTP/PhieuXuatBTP";
 import PhieuXuatBTP_Detail from "./screens/KhoBTP/PhieuXuatBTP_Detail";
@@ -74,11 +75,17 @@ export default function App() {
           component={LocationPickerModal}
           options={{ headerShown: false }}
         />
-        {/* //nguyên liệu */}
+
         <Stack.Screen
           name="ScannedDetailNL"
           component={ScannedDetailNL}
           options={{ headerShown: false, title: "Thông tin kiện NL" }}
+        />
+
+        <Stack.Screen
+          name="ScannedDetailPL"
+          component={ScannedDetailPL}
+          options={{ headerShown: false, title: "Thông tin kiện PL" }}
         />
       </Stack.Navigator>
     </NavigationContainer>

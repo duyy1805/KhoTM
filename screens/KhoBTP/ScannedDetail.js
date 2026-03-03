@@ -14,6 +14,7 @@ import ScanOverlay from './../ScanOverlay';
 const ScannedDetail = ({ route }) => {
     const navigation = useNavigation();
     const { data: initialData, qrCode } = route.params;
+    const [currentQR, setCurrentQR] = useState(qrCode);
     const [data, setData] = useState(initialData);
     const [editModalVisible, setEditModalVisible] = useState(false);
     const [open, setOpen] = useState(false);
@@ -29,6 +30,7 @@ const ScannedDetail = ({ route }) => {
 
     // 👇 NEW: state cho pull-to-refresh
     const [refreshing, setRefreshing] = useState(false);
+    const [isUpdatingQR, setIsUpdatingQR] = useState(false);
 
     // Gọi API khi mở modal
     useEffect(() => {
@@ -38,24 +40,35 @@ const ScannedDetail = ({ route }) => {
         setData(initialData);
     }, [initialData]);
 
-    // 👇 NEW: API reload dữ liệu kiện theo qrCode
-    const loadData = useCallback(async () => {
-        if (!qrCode) return;
+    const loadData = useCallback(async (qr) => {
+        const qrToUse = qr || currentQR;
+        if (!qrToUse) return;
+
+        console.log('Loading data for QR:', qrToUse);
+
         try {
             setRefreshing(true);
-            const res = await axios.post('https://nodeapi.z76.vn/khotm/getthongtinkien', { QRCode: qrCode });
+
+            const res = await axios.post(
+                'https://nodeapi.z76.vn/khotm/getthongtinkien',
+                { QRCode: qrToUse },
+                { timeout: 10000 }
+            );
+
             const next = res?.data?.data;
+
             if (Array.isArray(next) && next.length) {
                 setData(next);
-            } else {
-                Toast.show({ type: 'info', text1: 'Không có dữ liệu', text2: 'Không tìm thấy thông tin kiện.' });
             }
         } catch (err) {
-            Toast.show({ type: 'error', text1: 'Lỗi tải dữ liệu', text2: err?.message || 'Vui lòng thử lại.' });
+            Toast.show({
+                type: 'error',
+                text1: 'Lỗi tải dữ liệu',
+            });
         } finally {
             setRefreshing(false);
         }
-    }, [qrCode]);
+    }, [currentQR]);
 
     const fetchLocations = async () => {
         try {
@@ -209,6 +222,86 @@ const ScannedDetail = ({ route }) => {
         }
     };
 
+    const openUpdateQRScan = async () => {
+        if (!permission?.granted) {
+            const { granted } = await requestPermission();
+            if (!granted) {
+                Toast.show({ type: 'error', text1: 'Cần cấp quyền camera' });
+                return;
+            }
+        }
+
+        setHasScanned(false);
+        setIsUpdatingQR(true);
+    };
+
+    const handleUpdateQRScanned = async ({ data: rawQR }) => {
+        if (hasScanned) return;
+
+        const scannedQR = rawQR?.trim();
+        if (!scannedQR) return;
+
+        setHasScanned(true);
+
+        // 1️⃣ Chặn quét trùng QR hiện tại
+        if (scannedQR === qrCode?.trim()) {
+            Toast.show({
+                type: 'info',
+                text1: 'QR không thay đổi',
+                text2: 'Vui lòng quét mã khác.',
+            });
+
+            setTimeout(() => setHasScanned(false), 600);
+            return;
+        }
+
+        try {
+            const response = await axios.post(
+                'https://nodeapi.z76.vn/khotm/updateqrcodekien',
+                {
+                    ID_TheKhoKienBTP: data?.[0]?.ID_TheKhoKienBTP,
+                    QRCode: scannedQR,
+                },
+                { timeout: 10000 }
+            );
+
+            if (!response?.data?.ok) {
+                Toast.show({
+                    type: 'error',
+                    text1: response?.data?.message || 'Cập nhật thất bại',
+                });
+
+                setTimeout(() => setHasScanned(false), 800);
+                return;
+            }
+
+            // 2️⃣ Thành công
+            Toast.show({
+                type: 'success',
+                text1: 'Cập nhật QR thành công',
+            });
+
+            // Cập nhật UI ngay lập tức (không cần đợi loadData)
+            navigation.setParams({ qrCode: scannedQR });
+
+            // Hoặc nếu bạn không dùng setParams:
+            // setQrCode(scannedQR); (nếu qrCode là state riêng)
+
+            setCurrentQR(scannedQR);
+            await loadData(scannedQR);
+            setIsUpdatingQR(false);
+
+        } catch (err) {
+            Toast.show({
+                type: 'error',
+                text1: 'Lỗi cập nhật QR',
+                text2: err?.response?.data?.message || 'Vui lòng thử lại.',
+            });
+        } finally {
+            setTimeout(() => setHasScanned(false), 800);
+        }
+    };
+
     return (
         <View style={styles.container}>
             {/* Header */}
@@ -224,7 +317,13 @@ const ScannedDetail = ({ route }) => {
                 <Text style={styles.cardTitle}>Kiện {data[0].ID_TheKhoKienBTP}</Text>
                 <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Mã QR</Text>
-                    <Text style={styles.infoValue}>{qrCode}</Text>
+
+                    <TouchableOpacity onPress={openUpdateQRScan}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                            <Text style={styles.infoValue}>{currentQR}</Text>
+                            <AntDesign name="edit" size={20} color="#007AFF" style={{ marginLeft: 8 }} />
+                        </View>
+                    </TouchableOpacity>
                 </View>
                 <View style={styles.infoRow}>
                     <Text style={styles.infoLabel}>Vị trí</Text>
@@ -322,6 +421,32 @@ const ScannedDetail = ({ route }) => {
                         style={styles.camera}
                         cameraType="back"
                         onBarcodeScanned={hasScanned ? undefined : handleMergeBarCodeScanned}
+                        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                    >
+                        <View style={styles.scanArea} />
+                        <ScanOverlay />
+                    </CameraView>
+                </View>
+            )}
+
+            {isUpdatingQR && permission?.granted && (
+                <View style={styles.scannerWrapper}>
+                    <TouchableOpacity
+                        onPress={() => {
+                            setIsUpdatingQR(false);
+                            setHasScanned(false);
+                        }}
+                        style={styles.backScanButton}
+                    >
+                        <Ionicons name="arrow-back" size={24} color="#fff" />
+                    </TouchableOpacity>
+
+                    <CameraView
+                        style={styles.camera}
+                        cameraType="back"
+                        onBarcodeScanned={
+                            hasScanned ? undefined : handleUpdateQRScanned
+                        }
                         barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
                     >
                         <View style={styles.scanArea} />

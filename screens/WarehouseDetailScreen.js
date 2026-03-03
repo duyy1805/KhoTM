@@ -112,6 +112,31 @@ const WarehouseDetailScreen = ({ route }) => {
                 return;
             }
 
+            // KHO PHỤ LIỆU
+            if (kho.id === 3) {
+                const response = await axios.post(
+                    'https://nodeapi.z76.vn/khotm/khopl/getthongtinkien',
+                    { QRCode: qrCode } // qrCode chính là ID_ViTriKho
+                );
+
+                if (response.data && response.data.ok && response.data.data?.length) {
+                    const listCuon = response.data.data; // mảng cuộn
+                    Navigation.navigate('ScannedDetailPL', {
+                        data: listCuon,
+                        qrCode,
+                        kho,
+                    });
+                } else {
+                    Toast.show({
+                        type: 'error',
+                        text1: 'Không có cuộn nào trong vị trí này',
+                        position: 'top',
+                        visibilityTime: 1500,
+                    });
+                }
+                return;
+            }
+
             // CÁC KHO KHÁC CHƯA HỖ TRỢ
             Toast.show({
                 type: "error",

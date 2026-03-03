@@ -3,7 +3,7 @@ POST  https://nodeapi.z76.vn/khotm/getthongtinkien
 Content-Type: application/json
 
 {
-  "QRCode": "NL0000000802"
+  "QRCode": "qhatiag"
 }
 
 ###
@@ -19,7 +19,7 @@ GET https://apipccc.z76.vn/api/TAG_QTKD/danhmucvitri
 Accept: application/json
 
 ###
-POST https://apipccc.z76.vn/api/TAG_QTKD/test/updatevitribtp
+POST https://apipccc.z76.vn/api/TAG_QTKD/updatevitribtp
 Content-Type: application/json
 
 {
@@ -28,7 +28,7 @@ Content-Type: application/json
 }
 
 ### Tách kiện BTP
-POST https://nodeapi.z76.vn/khotmtest/split-kien
+POST https://nodeapi.z76.vn/khotm/split-kien
 Content-Type: application/json
 
 {
@@ -54,7 +54,7 @@ Content-Type: application/json
 }
 
 ### Gộp kiện BTP
-POST https://nodeapi.z76.vn/khotmtest/merge-kien
+POST https://nodeapi.z76.vn/khotm/merge-kien
 Content-Type: application/json
 
 {
