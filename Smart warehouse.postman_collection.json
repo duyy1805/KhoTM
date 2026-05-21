@@ -1,0 +1,3363 @@
+{
+	"info": {
+		"_postman_id": "83a1af1e-9e57-4121-b554-b0f73f7fa885",
+		"name": "Smart warehouse",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "20496851"
+	},
+	"item": [
+		{
+			"name": "Đăng nhập",
+			"item": [
+				{
+					"name": "Đăng nhập",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Đăng nhập thành công\", () => {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"let json = pm.response.json();\r",
+									"pm.environment.set(\"access_token\", json[\"token\"]);\r",
+									"pm.environment.set(\"refresh_token\", json[\"refreshToken\"])"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\r\n    \"userName\":\"haint\",\r\n    \"passWord\":\"12345678\"\r\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/login",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Lấy lại access token sử dụng refresh token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Lấy token thành công\", () => {\r",
+									"    pm.response.to.have.status(200);\r",
+									"});\r",
+									"\r",
+									"let json = pm.response.json();\r",
+									"pm.environment.set(\"access_token\", json[\"token\"]);"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{{refresh-token}}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/login/refresh-token",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"login",
+								"refresh-token"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Lấy quyền",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									""
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{host}}/autho/152/1/35",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"autho",
+								"152",
+								"1",
+								"35"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Lấy thông tin tài khoản",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "\"MjQxMjI2NjktMTdhMS00ZDllLWI0NGEtODgxZmRkYTkyNWQ2\"",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "{{host}}/login/userInfo",
+							"host": [
+								"{{host}}"
+							],
+							"path": [
+								"login",
+								"userInfo"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "New Request",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Nguyên liệu",
+			"item": [
+				{
+					"name": "Kho",
+					"item": [
+						{
+							"name": "Lấy tất cả kho",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"GET kho thành công\", () => {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{host}}/kho/tat-ca",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"kho",
+										"tat-ca"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Quét Qr cuộn kho nguyên liệu",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{host}}/kho/nguyen-lieu/cuon/qr-content-1",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"kho",
+										"nguyen-lieu",
+										"cuon",
+										"qr-content-1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Giám định",
+					"item": [
+						{
+							"name": "Danh sách biên bản giám định",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Lấy danh sách biên bản thành công\", () => {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});\r",
+											"\r",
+											"let jsonData = pm.response.json();\r",
+											"pm.environment.set(\"giam_dinh_id\", jsonData.data[0].listBienBan[0].id);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"idKho\":[],\r\n    \"soBienBan\": \"GDVT-2023-11-0317\",\r\n    \"PageSize\": 20,\r\n    \"PageIndex\": 0\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/giamdinh/tim-kiem",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"tim-kiem"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Chi tiết biên bản giám định",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"GET biên bản giám định thành công\", () => {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{host}}/giamdinh/53348",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"53348"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Chi tiết biên bản giám định phụ liệu",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"GET biên bản giám định thành công\", () => {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{host}}/giamdinh/50857/phulieu",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"50857",
+										"phulieu"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Gắn mã QR cho cuộn",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"idCuon\": 1,\r\n    \"qrCode\": \"content qrcode here\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/giamdinh/qrcode",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"qrcode"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy thông tin cuộn từ mã QR",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer  {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{host}}/giamdinh/cuon/qrcontent32703-40",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"cuon",
+										"qrcontent32703-40"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Xác nhận biên bản",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"idBienBan\":49515,\r\n    \"cuons\": [\r\n        {\r\n            \"idChungTuNhapChiTiet\":103899,\r\n            \"idVatTuCuon\":1,\r\n            \"soLuong\": 71,\r\n            \"idViTri\":1\r\n        }\r\n    ]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/giamdinh/xacnhan",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"xacnhan"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Danh sách vị trí gợi ý",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieunhap/nguyenlieu-vitri/701/1",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"nguyenlieu-vitri",
+										"701",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Phiếu xuất",
+					"item": [
+						{
+							"name": "Danh sách loại phiếu xuất",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Lấy danh sách loại phiếu nhập thành công\", () => {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});\r",
+											""
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{host}}/phieuxuat/types",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"types"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Danh sách phiếu xuất",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Lấy danh sách phiếu xuất thành công\", () => {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});\r",
+											"\r",
+											"let jsonData = pm.response.json();\r",
+											"pm.environment.set(\"phieuxuat_id\", jsonData.data[0].id);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer  {{access_token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"idKho\":[1],\r\n    \"trangThai\":null,\r\n    \"soPhieu\":\"\",\r\n    \"loaiPhieu\":null,\r\n    \"PageSize\": 20,\r\n    \"PageIndex\": 1\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieuxuat/tim-kiem",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"tim-kiem"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Chi tiết phiếu xuất",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"GET phiếu xuất thành công\", () => {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoidGVzdDEyIiwiZXhwIjoxNjkyODQxOTU1LCJpc3MiOiJ6NzYuY29tIiwiYXVkIjoiejc2LmNvbSJ9.5qC2962F1lptzWtP6PpRrAU7DRSeRqwJbAUMijiiev4",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{host}}/phieuxuat/228546",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"228546"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy thông tin cuộn từ mã QR",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiYWRtaW4iLCJleHAiOjE2OTkwMDMxNDUsImlzcyI6Ino3Ni5jb20iLCJhdWQiOiJ6NzYuY29tIn0.C3k6_w7nVoocCBa8ScCGPMuYliz3Mtkme0UTCiDLE0w",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer  {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "http://localhost:65497/phieuxuat/cuon/NL0000001820/idphieu/0",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"phieuxuat",
+										"cuon",
+										"NL0000001820",
+										"idphieu",
+										"0"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Xác nhận phiếu xuất",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"idPhieuXuat\": 191896,\r\n  \"cuons\": [\r\n    {\r\n      \"idTheKhoCuon\": 1,\r\n      \"idDonHangVatTu\": 94412,\r\n      \"idVatTu\": 24009,\r\n      \"soLuong\": 250\r\n    },\r\n    {\r\n      \"idTheKhoCuon\": 2,\r\n      \"idDonHangVatTu\": 94420,\r\n      \"idVatTu\": 21709,\r\n      \"soLuong\": 123\r\n    }\r\n  ]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieuxuat/xacnhan",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"xacnhan"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy list cuộn của phiếu",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{host}}/phieuxuat/list-cuon?idPhieuXuat=259036&idKho=1&maNha=K1&idVatTu=815",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"list-cuon"
+									],
+									"query": [
+										{
+											"key": "idPhieuXuat",
+											"value": "259036"
+										},
+										{
+											"key": "idKho",
+											"value": "1"
+										},
+										{
+											"key": "maNha",
+											"value": "K1"
+										},
+										{
+											"key": "idVatTu",
+											"value": "815"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Phiếu nhập",
+					"item": [
+						{
+							"name": "Danh sách loại phiếu nhập",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Lấy danh sách loại phiếu nhập thành công\", () => {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});\r",
+											""
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{host}}/phieunhap/types",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"types"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Danh sách phiếu nhập",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Lấy danh sách phiếu nhập thành công\", () => {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});\r",
+											"\r",
+											"let jsonData = pm.response.json();\r",
+											"pm.environment.set(\"phieunhap_id\", jsonData.data[0].id);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer  {{access_token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"idKho\":[],\r\n    \"trangThai\":null,\r\n    \"soPhieu\":\"\",\r\n    \"loaiPhieu\":5,\r\n    \"PageSize\": 20,\r\n    \"PageIndex\": 0,\r\n    \"IdTaiKhoanDangNhap\": 152,\r\n    \"LuongQT\": 1\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieunhap/tim-kiem",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"tim-kiem"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Chi tiết phiếu nhập",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"GET phiếu xuất thành công\", () => {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{host}}/phieunhap/91501",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"91501"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy danh sách cuộn mất nhãn để chọn gán lại mã QR",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"idDonHangVatTu\": 85627,\r\n    \"idVatTu\": 6951,\r\n    \"idKho\": 3\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieunhap/cuon/mat-nhan",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"cuon",
+										"mat-nhan"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Gán lại mã QR cho cuộn",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"idTheKhoCuon\":123,\r\n    \"idPhieuNhapVT\": 234,\r\n    \"qrCode\":\"content\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieunhap/qrcode",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"qrcode"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy thông tin cuộn từ QR code",
+							"request": {
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{host}}/phieunhap/cuon/{{qrcode}}",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"cuon",
+										"{{qrcode}}"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Xác nhận phiếu nhập",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"idPhieuNhap\": 107406,\r\n  \"cuons\": [\r\n    {\r\n      \"idVatTuCuon\": 406,\r\n      \"idDonHangVatTu\": 0,\r\n      \"idVatTu\": 35843,\r\n      \"soLuong\": 69,\r\n      \"idVitri\": 55\r\n    }\r\n  ]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieunhap/xacnhan",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"xacnhan"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Danh sách vị trí gợi ý",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieunhap/nguyenlieu-vitri/100793/1",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"nguyenlieu-vitri",
+										"100793",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Vị trí",
+					"item": [
+						{
+							"name": "Tim kiếm dãy theo id kho",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"idKho\": 4,\r\n    \"maNha\": \"\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/vitri/day/tim-kiem",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"vitri",
+										"day",
+										"tim-kiem"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy danh sách nhà kho theo id kho",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer  {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{host}}/vitri/3/nha/152",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"vitri",
+										"3",
+										"nha",
+										"152"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy thông tin vị trí qua mã QR",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/vitri/BK21STA111",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"vitri",
+										"BK21STA111"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy danh sách vị trí trong dãy",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{host}}/vitri/5/A.N7/day/C/mavt/none/taikhoan/1",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"vitri",
+										"5",
+										"A.N7",
+										"day",
+										"C",
+										"mavt",
+										"none",
+										"taikhoan",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy danh sách cuộn trong vị trí",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/vitri/5633/chitiet",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"vitri",
+										"5633",
+										"chitiet"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy danh sách vị trí theo mã vật tư",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "125.212.207.52:5010/vitri/5/nha/1",
+									"host": [
+										"125",
+										"212",
+										"207",
+										"52"
+									],
+									"port": "5010",
+									"path": [
+										"vitri",
+										"5",
+										"nha",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Phụ liệu",
+			"item": [
+				{
+					"name": "Kho",
+					"item": [
+						{
+							"name": "Lấy tất cả kho",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": ""
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Quét Qr kiện kho phụ liệu",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/kho/phu-lieu/kien/VT0000000158",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"kho",
+										"phu-lieu",
+										"kien",
+										"VT0000000158"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Giám định",
+					"item": [
+						{
+							"name": "Danh sách biên bản giám định",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"idKho\":[3],\r\n    \"soBienBan\": \"0010\",\r\n    \"PageSize\": 20,\r\n    \"PageIndex\": 0,\r\n    \"IdTaiKhoanDangNhap\":1,\r\n    \"LuongQT\":2\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/giamdinh/tim-kiem",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"tim-kiem"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Thông tin chi tiết kiện từ mã QR",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/giamdinh/phu-lieu/qr-code-100",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"phu-lieu",
+										"qr-code-100"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Danh sách VT biên bản",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiaG9uZ3B0IiwiZXhwIjoxNzAwNTg1OTk5LCJpc3MiOiJ6NzYuY29tIiwiYXVkIjoiejc2LmNvbSJ9.-cfvbbUNFkXuUh7N5eFoxCpgY3g-OuBFpScL5DW3Nz4",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:65497/giamdinh/5454/phu-lieu/dsvt",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"giamdinh",
+										"5454",
+										"phu-lieu",
+										"dsvt"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Chi tiết biên bản giám định phụ liệu Copy",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"GET biên bản giám định thành công\", () => {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer {{access_token}}",
+										"type": "text"
+									}
+								],
+								"url": {
+									"raw": "{{host}}/giamdinh/58042/phu-lieu",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"58042",
+										"phu-lieu"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Thêm kiện",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"SoLuongKien\":1,\r\n    \"ID_GiamDinhVT\":57841,\r\n    \"ID_PhieuNhapVT\":0\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/giamdinh/phu-lieu/addKien",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"phu-lieu",
+										"addKien"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Xóa kiện",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "\r\n{\r\n   \"idGiamDinhVT\":57850,\r\n   \"idKien\": [25,26]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/giamdinh/phu-lieu/xoaKien",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"phu-lieu",
+										"xoaKien"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Thêm chi tiết trong kiện",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"ID_Kien\": 72,\r\n  \"vatTus\": [\r\n    {\r\n      \"ID_DonHang_VatTu\": 114841,\r\n      \"ID_VatTu\": 31204,\r\n      \"SoLuong\": 100\r\n    }\r\n  ]\r\n}\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/giamdinh/phu-lieu/addKienChiTiet",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"phu-lieu",
+										"addKienChiTiet"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Gán QR cho kiện",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/giamdinh/phu-lieu/addQrCodeKien/qr-code-003/15",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"phu-lieu",
+										"addQrCodeKien",
+										"qr-code-003",
+										"15"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Gán vị trí cho kiện",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiaG9uZ3B0IiwiZXhwIjoxNzAwNjcyMzk5LCJpc3MiOiJ6NzYuY29tIiwiYXVkIjoiejc2LmNvbSJ9.8fx5_C-liN6sVmqZ88Y3nzXNFVqrD6SuKtpL0hQWpQk",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"viTriVatTuKiens\": [{\r\n    \"QrCode\":\"BK21STA111\",\r\n    \"ID_ViTriKho\":4555,\r\n    \"ID_Kien\": 3\r\n    },\r\n    {\r\n    \"QrCode\":\"BK21STA111\",\r\n    \"ID_ViTriKho\":4555,\r\n    \"ID_Kien\": 6\r\n    }\r\n    ]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:65497/giamdinh/phu-lieu/addViTriKien",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"giamdinh",
+										"phu-lieu",
+										"addViTriKien"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Xác nhận BBGĐ",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoidGVzdDEyIiwiZXhwIjoxNjk2MzI1MDQ5LCJpc3MiOiJ6NzYuY29tIiwiYXVkIjoiejc2LmNvbSJ9.3vMEMJYqc_Gb5M0tV8AN4MzOiIIg8BovWBQavkiarrE",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/giamdinh/phu-lieu/xacnhanBBGD/50857",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"phu-lieu",
+										"xacnhanBBGD",
+										"50857"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Danh sách vị trí gợi ý",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiYWRtaW4iLCJleHAiOjE3MjY2Nzg3OTksImlzcyI6Ino3Ni5jb20iLCJhdWQiOiJ6NzYuY29tIn0.zKqI70mn3xAg7qqUaol-vJ9AmxfJ1B5H-vQhOdanhhA",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieunhap/phulieu-vitri/1474/1",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"phulieu-vitri",
+										"1474",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Phiếu nhập",
+					"item": [
+						{
+							"name": "Danh sách loại phiếu nhập",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": ""
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Danh sách phiếu nhập",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Lấy danh sách phiếu nhập thành công\", () => {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});\r",
+											"\r",
+											"let jsonData = pm.response.json();\r",
+											"pm.environment.set(\"phieunhap_id\", jsonData.data[0].id);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer  {{access_token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"idKho\":[],\r\n    \"trangThai\":null,\r\n    \"soPhieu\":\"\",\r\n    \"loaiPhieu\":null,\r\n    \"PageSize\": 20,\r\n    \"PageIndex\": 0,\r\n    \"IdTaiKhoanDangNhap\": 151,\r\n    \"LuongQT\": 2\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieunhap/tim-kiem",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"tim-kiem"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Chi tiết phiếu nhập",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieunhap/phu-lieu/145759",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"phu-lieu",
+										"145759"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Thêm kiện",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"SoLuongKien\":2,\r\n    \"ID_GiamDinhVT\":0,\r\n    \"ID_PhieuNhapVT\":145759\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieunhap/phu-lieu/addKien",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"phu-lieu",
+										"addKien"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Thêm chi tiết kiện",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiaG9hbmd1eWVuYTgiLCJleHAiOjE3MTcxNzQ3OTksImlzcyI6Ino3Ni5jb20iLCJhdWQiOiJ6NzYuY29tIn0.sUesxaYLaUKI023UkkwH5UaK7KHvpfkV9Oy5t13DKhQ",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"ID_Kien\":6884,\r\n    \"vatTus\":[\r\n        {\r\n        \"ID_DonHang_VatTu\":114207,\r\n        \"ID_VatTu\":1208,\r\n        \"SoLuong\":2500\r\n        }\r\n    ]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/giamdinh/phu-lieu/addKienChiTiet",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"giamdinh",
+										"phu-lieu",
+										"addKienChiTiet"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Xóa kiện",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "\r\n{\r\n   \"idGiamDinhVT\":0,\r\n   \"idPhieuNhapVT\":145548,\r\n   \"idKien\": [29,31]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieunhap/phu-lieu/xoaKien",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"phu-lieu",
+										"xoaKien"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Quét QR của kiện",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJodHRwOi8vc2NoZW1hcy54bWxzb2FwLm9yZy93cy8yMDA1LzA1L2lkZW50aXR5L2NsYWltcy9uYW1lIjoiaG9uZ3B0IiwiZXhwIjoxNzAzMDA1MTk5LCJpc3MiOiJ6NzYuY29tIiwiYXVkIjoiejc2LmNvbSJ9.wW__pcQ7_EeRkGWSpj4fEBAb461QBXGqA7Dk0bJn1Cc",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:65497/phieunhap/phu-lieu/kien/qr-code-101",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"phieunhap",
+										"phu-lieu",
+										"kien",
+										"qr-code-101"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Gán QR cho kiện",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieunhap/phu-lieu/addQrCodeKien/qr-code-1190/26",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"phu-lieu",
+										"addQrCodeKien",
+										"qr-code-1190",
+										"26"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Gán vị trí cho kiện",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"viTriVatTuKiens\": [{\r\n    \"QrCode\":\"BK21STA111\",\r\n    \"ID_ViTriKho\":4555,\r\n    \"ID_Kien\": 27\r\n    }\r\n    ]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieunhap/phu-lieu/addViTriKien",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"phu-lieu",
+										"addViTriKien"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Xác nhận phiếu nhập",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n \"idPhieuNhap\": 173137,\r\n  \"kiens\": [\r\n    {\r\n      \"IdKien\": 7788,\r\n      \"SoKien\": null,\r\n      \"qrCode\": \"Test01\",\r\n      \"IdViTriKho\": 5555,\r\n      \"IdDonHangVatTu\": 114826,\r\n      \"IdVatTu\": 38082,\r\n      \"soLuong_NhapKho\":7000\r\n    },\r\n    {\r\n      \"IdKien\": 7789,\r\n      \"SoKien\": null,\r\n      \"qrCode\": \"Test02\",\r\n      \"IdViTriKho\": 5555,\r\n      \"IdDonHangVatTu\": 114860,\r\n      \"IdVatTu\": 38082,\r\n      \"soLuong_NhapKho\":10000\r\n    }\r\n  ]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:65497/phieunhap/phu-lieu/xacnhan",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"phieunhap",
+										"phu-lieu",
+										"xacnhan"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Danh sách vị trí gợi ý",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieunhap/phulieu-vitri/1474/1",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"phulieu-vitri",
+										"1474",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Vị trí",
+					"item": [
+						{
+							"name": "Lấy danh sách nhà kho theo id kho",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:65497/vitri/3/nha/1",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"vitri",
+										"3",
+										"nha",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy thông tin vị trí qua mã QR",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/vitri/phu-lieu/BK22STD1723",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"vitri",
+										"phu-lieu",
+										"BK22STD1723"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy danh sách vị trí trong dãy",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/vitri/phu-lieu/3/B.K21/day/A1/mavt/none/taikhoan/1",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"vitri",
+										"phu-lieu",
+										"3",
+										"B.K21",
+										"day",
+										"A1",
+										"mavt",
+										"none",
+										"taikhoan",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy danh sách kiện từ vị trí",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/vitri/phu-lieu/4569/chitiet",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"vitri",
+										"phu-lieu",
+										"4569",
+										"chitiet"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Phiếu xuất",
+					"item": [
+						{
+							"name": "Danh sách phiếu xuất",
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"exec": [
+											"pm.test(\"Lấy danh sách phiếu xuất thành công\", () => {\r",
+											"    pm.response.to.have.status(200);\r",
+											"});\r",
+											"\r",
+											"let jsonData = pm.response.json();\r",
+											"pm.environment.set(\"phieuxuat_id\", jsonData.data[0].id);"
+										],
+										"type": "text/javascript"
+									}
+								}
+							],
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [
+									{
+										"key": "Authorization",
+										"value": "Bearer  {{access_token}}",
+										"type": "text"
+									}
+								],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n  \"idKho\": [\r\n    3\r\n  ],\r\n  \"trangThai\": null,\r\n  \"soPhieu\": \"\",\r\n  \"loaiPhieu\": null,\r\n  \"PageSize\": 20,\r\n  \"PageIndex\": 0,\r\n  \"IdTaiKhoanDangNhap\": 151,\r\n  \"LuongQT\": 2\r\n}\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieuxuat/tim-kiem",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"tim-kiem"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Danh sách loại phiếu xuất",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieuxuat/types",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"types"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Chi tiết phiếu xuất",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieuxuat/phu-lieu/279827",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"phu-lieu",
+										"279827"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Chi tiết kiện phiếu xuất từ mã QR",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieuxuat/phu-lieu/kien/chitiet/VT0000000131",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"phu-lieu",
+										"kien",
+										"chitiet",
+										"VT0000000131"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Xác nhận phiếu xuất",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": " {\r\n  \"idPhieuXuat\": 279822,\r\n  \"kiens\": [\r\n    {\r\n      \"IdTheKhoKien\": 2,\r\n      \"IdDonHangVatTu\": 114122,\r\n      \"IdVatTu\": 23482,\r\n      \"IdTheKhoKienChiTiet\": 4,\r\n      \"SoLuongXuatKho\": 100\r\n    },\r\n    {\r\n      \"IdTheKhoKien\": 3,\r\n      \"IdDonHangVatTu\": 114122,\r\n      \"IdVatTu\": 23482,\r\n      \"IdTheKhoKienChiTiet\": 5,\r\n      \"SoLuongXuatKho\": 100\r\n    }\r\n  ]\r\n}\r\n\r\n",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieuxuat/phu-lieu/xacnhan",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"phu-lieu",
+										"xacnhan"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy danh sách kiện theo phiếu xuất",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieuxuat/list-kien?idPhieuXuat=279834",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"list-kien"
+									],
+									"query": [
+										{
+											"key": "maNha",
+											"value": "B.K22",
+											"disabled": true
+										},
+										{
+											"key": "idVatTu",
+											"value": "13758",
+											"disabled": true
+										},
+										{
+											"key": "idPhieuXuat",
+											"value": "279834"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Bán thành phẩm",
+			"item": [
+				{
+					"name": "Kho",
+					"item": [
+						{
+							"name": "Quét Qr kiện kho Bán thành phẩm",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/kho/btp/kien/BP0000000361",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"kho",
+										"btp",
+										"kien",
+										"BP0000000361"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Phiếu nhập",
+					"item": [
+						{
+							"name": "Danh sách loại phiếu nhập",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieunhap/btp/types",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"btp",
+										"types"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Chi tiết phiếu",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieunhap/btp/123548",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"btp",
+										"123548"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Chi tiết kiện",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieunhap/btp/kien/qrcode-100/4",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"btp",
+										"kien",
+										"qrcode-100",
+										"4"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Thêm kiện",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"soLuongKien\": 2,\r\n    \"id_PhieuNhapBTP\":123469\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieunhap/btp/addKien",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"btp",
+										"addKien"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Thêm kiện chi tiết",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"ID_TheKhoKienBTP\":4,\r\n    \"ID_PhieuNhapBTP\":123469,\r\n    \"bTPs\":[ \r\n        {\r\n        \"IdDonHangLoSanXuat\": 1,\r\n        \"IdDonHangSanPham\":12935,\r\n        \"ItemCode\":\"50395382\",\r\n        \"tenSanPham\":\"PÄRKLA stor case 55x49x19\",\r\n        \"IdQuyTrinhSanXuat\":5,\r\n        \"Ten_QuyTrinhSanXuat\": \"May\",\r\n        \"IdDonHang\": 11277,\r\n        \"SoLuong\":400\r\n        }\r\n    ]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieunhap/btp/addKienBTPChiTiet",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"btp",
+										"addKienBTPChiTiet"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Xóa kiện",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "\r\n{\r\n   \"idPhieuNhapBTP\":1,\r\n   \"idTheKhoKienBTP\": [2]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:65497/phieunhap/btp/xoaKien",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"phieunhap",
+										"btp",
+										"xoaKien"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Danh sách phiếu",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"idKho\": [5],\r\n    \"trangThai\": null,\r\n    \"soPhieu\": \"\",\r\n    \"loaiPhieu\": null,\r\n    \"PageSize\": 20,\r\n    \"PageIndex\": 0,\r\n    \"IdTaiKhoanDangNhap\": 1,\r\n    \"LuongQT\": 2\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieunhap/tim-kiem/BTP",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"tim-kiem",
+										"BTP"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Gán vị trí cho kiện",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"viTriKienBTPs\": [\r\n        {\r\n            \"QrCode\":\"AN7STA12\",\r\n            \"ID_ViTriKho\":12213,\r\n            \"ID_TheKhoKienBTP\": 10\r\n        }\r\n    ]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieunhap/btp/addViTriKien",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"btp",
+										"addViTriKien"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Gán QR cho kiện",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:65497/phieunhap/btp/addQrCodeKien/hello/2",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"phieunhap",
+										"btp",
+										"addQrCodeKien",
+										"hello",
+										"2"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Gán dấu tuần cho kiện",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:65497/phieunhap/btp/addDauTuanKien/hello/1",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"phieunhap",
+										"btp",
+										"addDauTuanKien",
+										"hello",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Xác nhận phiếu nhập",
+							"request": {
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"IdPhieuNhap\": 123534,\r\n    \"kiens\": [\r\n        {\r\n            \"idTheKhoKienBTP\": 19,\r\n            \"idViTriKho\": 12252,\r\n            \"maViTriKho\": \"B11\",\r\n            \"qrCode\": \"VT0000000203\",\r\n            \"soLuongTon\": 0,\r\n            \"bTPs\": [\r\n                {\r\n                    \"idTheKhoKienBTPChiTiet\": 16,\r\n                    \"idTheKhoKienBTP\": 19,\r\n                    \"idKien\": 0,\r\n                    \"soLuongTon\": 1500.00,\r\n                    \"itemCode\": \"00566550\",\r\n                    \"tenSanPham\": \"DRÖNA N box 33x38x33 pink\",\r\n                    \"donViTinh\": null,\r\n                    \"tenNhaCungCap\": null,\r\n                    \"idKeHoachSanXuat\": 43077,\r\n                    \"idDonHangLoSanXuat\": 14165,\r\n                    \"soLoSanXuat\": \"2301\",\r\n                    \"idDonHangSanPham\": 10524,\r\n                    \"idQuyTrinhSanXuat\": 5,\r\n                    \"ten_QuyTrinhSanXuat\": \"May\",\r\n                    \"idDonHang\": 9657,\r\n                    \"maDonHang\": \"DRO PI\",\r\n                    \"tuoiTon\": 0\r\n                }\r\n            ]\r\n        },\r\n        {\r\n            \"idTheKhoKienBTP\": 23,\r\n            \"idViTriKho\": 12252,\r\n            \"maViTriKho\": \"B11\",\r\n            \"qrCode\": \"VT0000000204\",\r\n            \"soLuongTon\": 0,\r\n            \"bTPs\": [\r\n                {\r\n                    \"idTheKhoKienBTPChiTiet\": 17,\r\n                    \"idTheKhoKienBTP\": 23,\r\n                    \"idKien\": 0,\r\n                    \"soLuongTon\": 612.00,\r\n                    \"itemCode\": \"20566549\",\r\n                    \"tenSanPham\": \"DRÖNA box 33x38x33 triangle white/black\",\r\n                    \"donViTinh\": null,\r\n                    \"tenNhaCungCap\": null,\r\n                    \"idDonHangLoSanXuat\": 14168,\r\n                    \"soLoSanXuat\": \"2326\",\r\n                    \"idKeHoachSanXuat\":47120,\r\n                    \"idDonHangSanPham\": 10527,\r\n                    \"idQuyTrinhSanXuat\": 5,\r\n                    \"ten_QuyTrinhSanXuat\": \"May\",\r\n                    \"idDonHang\": 9658,\r\n                    \"maDonHang\": \"DRO TRI WH BLK\",\r\n                    \"tuoiTon\": 0\r\n                }\r\n            ]\r\n        }\r\n    ]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:65497/phieunhap/btp/xacnhan",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"phieunhap",
+										"btp",
+										"xacnhan"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Danh mục kho BTP",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieunhap/btp/khos",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"btp",
+										"khos"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Danh sách vị trí gợi ý",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieunhap/btp-vitri/2606289.C/1",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieunhap",
+										"btp-vitri",
+										"2606289.C",
+										"1"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Phiếu xuất",
+					"item": [
+						{
+							"name": "Danh sách phiếu xuất",
+							"request": {
+								"auth": {
+									"type": "bearer",
+									"bearer": [
+										{
+											"key": "token",
+											"value": "{{access_token}}",
+											"type": "string"
+										}
+									]
+								},
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"idKho\": [],\r\n    // \"trangThai\": true,\r\n    \"soPhieu\": \"\",\r\n    // \"loaiPhieu\": ,\r\n    \"PageSize\": 20,\r\n    \"PageIndex\": 4,\r\n    \"IdTaiKhoanDangNhap\": 1\r\n    // \"LuongQT\": 2\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{host}}/phieuxuat/tim-kiem/btp",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"tim-kiem",
+										"btp"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Chi tiết phiếu xuất",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieuxuat/btp/134967",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"btp",
+										"134967"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Chi tiết kiện phiếu xuất từ mã QR",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieuxuat/btp/kien/chitiet/0000000299/146778/15710",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"btp",
+										"kien",
+										"chitiet",
+										"0000000299",
+										"146778",
+										"15710"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Xác nhận phiếu xuất",
+							"request": {
+								"method": "PUT",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"IdPhieuXuat\": 146778,\r\n    \"Kiens\": [\r\n        {\r\n        \"IdTheKhoKienBTPChiTiet\": 162,\r\n        \"IdDonHangLoSanXuat\": 0,\r\n        \"IdDonHangSanPham\": 0,\r\n        \"IdDonHang\": 10628,\r\n        \"SoLuongXuatKho\": 50\r\n        }\r\n    ]\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:65497/phieuxuat/btp/xacnhan",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"phieuxuat",
+										"btp",
+										"xacnhan"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy danh sách kiện theo phiếu xuất",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieuxuat/btp/list-kien?idPhieuXuat=134972&idDonHangLoSanxuat=14483&idDonHangSanPham=10745&idDonHang=9809&IdQuyTrinhSanXuat=5",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"btp",
+										"list-kien"
+									],
+									"query": [
+										{
+											"key": "idPhieuXuat",
+											"value": "134972"
+										},
+										{
+											"key": "idDonHangLoSanxuat",
+											"value": "14483"
+										},
+										{
+											"key": "idDonHangSanPham",
+											"value": "10745"
+										},
+										{
+											"key": "idDonHang",
+											"value": "9809"
+										},
+										{
+											"key": "IdQuyTrinhSanXuat",
+											"value": "5"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Danh sách loại phiếu xuất",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/phieuxuat/btp/types",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"phieuxuat",
+										"btp",
+										"types"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Danh mục kho BTP",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:65497/phieunhap/btp/khos",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"phieunhap",
+										"btp",
+										"khos"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Vị trí",
+					"item": [
+						{
+							"name": "Lấy thông tin vị trí qua mã QR",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{host}}/vitri/btp/BK3STC251",
+									"host": [
+										"{{host}}"
+									],
+									"path": [
+										"vitri",
+										"btp",
+										"BK3STC251"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy danh sách vị trí trong dãy",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:65497/vitri/btp/4/A.N7/day/A/mavt/none/taikhoan/1",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"vitri",
+										"btp",
+										"4",
+										"A.N7",
+										"day",
+										"A",
+										"mavt",
+										"none",
+										"taikhoan",
+										"1"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Lấy danh sách kiện từ vị trí",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "http://localhost:65497/vitri/btp/12212/chitiet",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"vitri",
+										"btp",
+										"12212",
+										"chitiet"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Danh mục",
+			"item": [
+				{
+					"name": "Danh mục vật tư nguyên liệu",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Truy nguyên",
+			"item": [
+				{
+					"name": "Gán RFID cho QR",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Layout Kho",
+			"item": [
+				{
+					"name": "BTP",
+					"item": [
+						{
+							"name": "LayoutBTP",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"tenNha\":\"Kho K3\",\r\n    \"idKho\":5,\r\n    \"maVung\":\"B\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:65497/layoutkho/btp",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"layoutkho",
+										"btp"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Layout BTP by Lệnh Xuất",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"soLenhXuatBTP\": \"LXBTP-2023-10-1879\",\r\n    \"itemCode\": \"\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:65497/layoutkho/bylenhxuatbtp",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"layoutkho",
+										"bylenhxuatbtp"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "LayoutNPL",
+							"request": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\r\n    \"tenNha\":\"Kho K1\",\r\n    \"idKho\":3,\r\n    \"maVung\":\"B\"\r\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "http://localhost:65497/layoutkho/npl",
+									"protocol": "http",
+									"host": [
+										"localhost"
+									],
+									"port": "65497",
+									"path": [
+										"layoutkho",
+										"npl"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "NPL",
+					"item": [
+						{
+							"name": "LayoutNPL",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": ""
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Mua hàng",
+			"item": [
+				{
+					"name": "Danh sách Chưa đặt hàng",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:65497/muahang/all",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "65497",
+							"path": [
+								"muahang",
+								"all"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Vật tư chưa đặt hàng",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "NhapXuatTon",
+			"item": [
+				{
+					"name": "Nguyên phụ liệu",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Tồn Itemcode theo tuần",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "AutoBot",
+			"item": [
+				{
+					"name": "Thẻ kho VT",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Thẻ kho BTP",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Thẻ kho TP",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Xác nhận TK",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "New Request",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": ""
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"variable": [
+		{
+			"key": "host",
+			"value": "125.212.207.52:5000"
+		}
+	]
+}
