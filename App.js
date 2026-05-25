@@ -9,6 +9,13 @@ import { StyleSheet } from "react-native";
 import ScannedDetail from "./src/screens/kho-btp/ScannedDetail";
 import ScannedDetailNL from "./src/screens/kho-nl/ScannedDetailNL";
 import ScannedDetailPL from "./src/screens/kho-pl/ScannedDetailPL";
+import KhoPLInspectionListScreen from "./src/screens/kho-pl/KhoPLInspectionListScreen";
+import KhoPLInspectionDetailScreen from "./src/screens/kho-pl/KhoPLInspectionDetailScreen";
+import KhoPLExportListScreen from "./src/screens/kho-pl/KhoPLExportListScreen";
+import KhoPLExportDetailScreen from "./src/screens/kho-pl/KhoPLExportDetailScreen";
+import KhoPLExportQrFirstScreen from "./src/screens/kho-pl/KhoPLExportQrFirstScreen";
+import KhoPLExportQrFirstCandidatesScreen from "./src/screens/kho-pl/KhoPLExportQrFirstCandidatesScreen";
+import KhoPLTransferLocationScreen from "./src/screens/kho-pl/KhoPLTransferLocationScreen";
 import SelectLocationScreen from "./src/screens/shared/SelectLocationScreen";
 import PhieuXuatBTP from "./src/screens/kho-btp/PhieuXuatBTP";
 import PhieuXuatBTP_Detail from "./src/screens/kho-btp/PhieuXuatBTP_Detail";
@@ -89,6 +96,41 @@ export default function App() {
             name="ScannedDetailPL"
             component={ScannedDetailPL}
             options={{ headerShown: false, title: "Thông tin kiện PL" }}
+          />
+          <Stack.Screen
+            name="KhoPLInspectionList"
+            component={KhoPLInspectionListScreen}
+            options={{ headerShown: false, title: "Biên bản giám định PL" }}
+          />
+          <Stack.Screen
+            name="KhoPLInspectionDetail"
+            component={KhoPLInspectionDetailScreen}
+            options={{ headerShown: false, title: "Chi tiết giám định PL" }}
+          />
+          <Stack.Screen
+            name="KhoPLExportList"
+            component={KhoPLExportListScreen}
+            options={{ headerShown: false, title: "Phiếu xuất PL" }}
+          />
+          <Stack.Screen
+            name="KhoPLExportDetail"
+            component={KhoPLExportDetailScreen}
+            options={{ headerShown: false, title: "Chi tiết phiếu xuất PL" }}
+          />
+          <Stack.Screen
+            name="KhoPLExportQrFirst"
+            component={KhoPLExportQrFirstScreen}
+            options={{ headerShown: false, title: "Quét QR trước" }}
+          />
+          <Stack.Screen
+            name="KhoPLExportQrFirstCandidates"
+            component={KhoPLExportQrFirstCandidatesScreen}
+            options={{ headerShown: false, title: "Chọn phiếu xuất" }}
+          />
+          <Stack.Screen
+            name="KhoPLTransferLocation"
+            component={KhoPLTransferLocationScreen}
+            options={{ headerShown: false, title: "Điều chuyển vị trí PL" }}
           />
         </Stack.Navigator>
       </NavigationContainer>

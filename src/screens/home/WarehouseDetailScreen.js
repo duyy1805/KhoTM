@@ -4,7 +4,6 @@ import {
     Text, 
     StyleSheet, 
     TouchableOpacity, 
-    Button, 
     StatusBar, 
     Platform,
     ScrollView 
@@ -22,6 +21,7 @@ import axios from 'axios';
 const COLORS = {
     primary: '#4F46E5',
     primaryLight: '#EEF2FF',
+    danger: '#EF4444',
     background: '#F8FAFC',
     surface: '#FFFFFF',
     textPrimary: '#1E293B',
@@ -90,12 +90,36 @@ const WarehouseDetailScreen = ({ route }) => {
     };
 
     const handleScanPress_xuat = () => {
+        if (kho.id === 3) {
+            navigation.navigate('KhoPLExportList', { kho });
+            return;
+        }
         setScanType('export');
         setIsScanning(true);
     };
 
     const handleInspectionReportPress = () => {
+        if (kho.id === 3) {
+            navigation.navigate('KhoPLInspectionList', { kho });
+            return;
+        }
         console.log('Biên bản giám định');
+    };
+
+    const handleExportPress = () => {
+        if (kho.id === 3) {
+            navigation.navigate('KhoPLExportList', { kho });
+            return;
+        }
+        console.log('Phiếu xuất');
+    };
+
+    const handleTransferPress = () => {
+        if (kho.id === 3) {
+            navigation.navigate('KhoPLTransferLocation', { kho });
+            return;
+        }
+        console.log('Điều chuyển');
     };
 
     const handleCancelScan = () => {
@@ -180,6 +204,15 @@ const WarehouseDetailScreen = ({ route }) => {
             setQrData(data);
 
             if (scanType === 'export') {
+                if (kho.id === 3) {
+                    navigation.navigate("KhoPLExportList", { qrCode: data, kho });
+                    setTimeout(() => {
+                        setScanned(false);
+                        setIsScanning(false);
+                        setScanType(null);
+                    }, 300);
+                    return;
+                }
                 navigation.navigate("PhieuXuatBTP", { qrCode: data, kho });
                 setTimeout(() => {
                     setScanned(false);
@@ -244,7 +277,7 @@ const WarehouseDetailScreen = ({ route }) => {
                                 title="Phiếu xuất"
                                 description="Quản lý và phê duyệt phiếu xuất kho"
                                 iconName="upload"
-                                onPress={() => console.log('Phiếu xuất')}
+                                onPress={handleExportPress}
                             />
                             {showInspectionReport && (
                                 <OptionItem
@@ -264,7 +297,7 @@ const WarehouseDetailScreen = ({ route }) => {
                                 title="Điều chuyển vị trí"
                                 description="Thay đổi vị trí lưu trữ của kiện hàng"
                                 iconName="swap-horizontal"
-                                onPress={() => console.log('Điều chuyển')}
+                                onPress={handleTransferPress}
                             />
                         </View>
                     </ScrollView>

@@ -17,9 +17,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import apiConfig from '../../constants/apiConfig.json';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
+import { KHO_PL_BASE_URL } from '../../services/khoPhuLieuApi';
 
 const { width, height } = Dimensions.get('window');
 
@@ -113,18 +113,24 @@ const LoginScreen = () => {
         if (!validate()) return;
         setLoading(true);
         try {
-            const response = await axios.post(`${apiConfig.API_BASE_URL}/login`, {
+            const response = await axios.post(`${KHO_PL_BASE_URL}/login`, {
                 userName: username,
                 passWord: password,
             });
 
-            await AsyncStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify(response.data));
+            const accessToken = response?.data?.token || response?.data?.accessToken || response?.data?.access_token;
+            const refreshToken = response?.data?.refreshToken || response?.data?.refresh_token;
+            await AsyncStorage.setItem(STORAGE_KEYS.AUTH, JSON.stringify({
+                ...response.data,
+                token: accessToken,
+                accessToken,
+                refreshToken,
+            }));
 
             try {
-                const refreshToken = response?.data?.refreshToken;
                 const res = await axios.post(
-                    `${apiConfig.API_BASE_URL}/login/userInfo`,
-                    refreshToken,
+                    `${KHO_PL_BASE_URL}/login/userInfo`,
+                    JSON.stringify(refreshToken),
                     { headers: { 'Content-Type': 'application/json' } }
                 );
                 await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.data));
@@ -134,7 +140,7 @@ const LoginScreen = () => {
 
             await saveRememberedIfNeeded();
 
-            if (response.data && response.data.token) {
+            if (response.data && accessToken) {
                 Toast.show({
                     type: 'success',
                     text1: 'Đăng nhập thành công!',
