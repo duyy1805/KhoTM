@@ -90,6 +90,10 @@ const WarehouseDetailScreen = ({ route }) => {
     };
 
     const handleScanPress_xuat = () => {
+        if (kho.id === 1) {
+            navigation.navigate('KhoNLExportList', { kho });
+            return;
+        }
         if (kho.id === 3) {
             navigation.navigate('KhoPLExportList', { kho });
             return;
@@ -99,6 +103,10 @@ const WarehouseDetailScreen = ({ route }) => {
     };
 
     const handleInspectionReportPress = () => {
+        if (kho.id === 1) {
+            navigation.navigate('KhoNLInspectionList', { kho });
+            return;
+        }
         if (kho.id === 3) {
             navigation.navigate('KhoPLInspectionList', { kho });
             return;
@@ -107,6 +115,10 @@ const WarehouseDetailScreen = ({ route }) => {
     };
 
     const handleExportPress = () => {
+        if (kho.id === 1) {
+            navigation.navigate('KhoNLExportList', { kho });
+            return;
+        }
         if (kho.id === 3) {
             navigation.navigate('KhoPLExportList', { kho });
             return;
@@ -115,6 +127,10 @@ const WarehouseDetailScreen = ({ route }) => {
     };
 
     const handleTransferPress = () => {
+        if (kho.id === 1) {
+            navigation.navigate('KhoNLTransferLocation', { kho });
+            return;
+        }
         if (kho.id === 3) {
             navigation.navigate('KhoPLTransferLocation', { kho });
             return;
@@ -204,6 +220,15 @@ const WarehouseDetailScreen = ({ route }) => {
             setQrData(data);
 
             if (scanType === 'export') {
+                if (kho.id === 1) {
+                    navigation.navigate("KhoNLExportList", { qrCode: data, kho });
+                    setTimeout(() => {
+                        setScanned(false);
+                        setIsScanning(false);
+                        setScanType(null);
+                    }, 300);
+                    return;
+                }
                 if (kho.id === 3) {
                     navigation.navigate("KhoPLExportList", { qrCode: data, kho });
                     setTimeout(() => {

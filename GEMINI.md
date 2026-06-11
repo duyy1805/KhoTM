@@ -55,8 +55,13 @@ KhoTM is a React Native / Expo application designed for warehouse management. It
 ## API Integration
 
 The app interacts with multiple backends:
+
 - Primary: `https://apilayoutkho.z76.vn`
 - Node API (Package management): `https://nodeapi.z76.vn/khotm`
 - TAG_QTKD API (Inventory/Locations): `https://apipccc.z76.vn/api/TAG_QTKD`
 
 Refer to `request(main).http` for specific endpoint examples and payload structures.
+
+#note
+
+API gọi trong GDVT đang gọi chay không có stored

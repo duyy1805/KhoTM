@@ -8,6 +8,12 @@ import LoginScreen from "./src/screens/auth/LoginScreen";
 import { StyleSheet } from "react-native";
 import ScannedDetail from "./src/screens/kho-btp/ScannedDetail";
 import ScannedDetailNL from "./src/screens/kho-nl/ScannedDetailNL";
+import KhoNLInspectionListScreen from "./src/screens/kho-nl/KhoNLInspectionListScreen";
+import KhoNLInspectionDetailScreen from "./src/screens/kho-nl/KhoNLInspectionDetailScreen";
+import KhoNLInspectionCoilDetailScreen from "./src/screens/kho-nl/KhoNLInspectionCoilDetailScreen";
+import KhoNLExportListScreen from "./src/screens/kho-nl/KhoNLExportListScreen";
+import KhoNLExportDetailScreen from "./src/screens/kho-nl/KhoNLExportDetailScreen";
+import KhoNLTransferLocationScreen from "./src/screens/kho-nl/KhoNLTransferLocationScreen";
 import ScannedDetailPL from "./src/screens/kho-pl/ScannedDetailPL";
 import KhoPLInspectionListScreen from "./src/screens/kho-pl/KhoPLInspectionListScreen";
 import KhoPLInspectionDetailScreen from "./src/screens/kho-pl/KhoPLInspectionDetailScreen";
@@ -90,6 +96,36 @@ export default function App() {
             name="ScannedDetailNL"
             component={ScannedDetailNL}
             options={{ headerShown: false, title: "Thông tin kiện NL" }}
+          />
+          <Stack.Screen
+            name="KhoNLInspectionList"
+            component={KhoNLInspectionListScreen}
+            options={{ headerShown: false, title: "Biên bản giám định NL" }}
+          />
+          <Stack.Screen
+            name="KhoNLInspectionDetail"
+            component={KhoNLInspectionDetailScreen}
+            options={{ headerShown: false, title: "Chi tiết giám định NL" }}
+          />
+          <Stack.Screen
+            name="KhoNLInspectionCoilDetail"
+            component={KhoNLInspectionCoilDetailScreen}
+            options={{ headerShown: false, title: "Chi tiết cuộn NL" }}
+          />
+          <Stack.Screen
+            name="KhoNLExportList"
+            component={KhoNLExportListScreen}
+            options={{ headerShown: false, title: "Phiếu xuất NL" }}
+          />
+          <Stack.Screen
+            name="KhoNLExportDetail"
+            component={KhoNLExportDetailScreen}
+            options={{ headerShown: false, title: "Chi tiết phiếu xuất NL" }}
+          />
+          <Stack.Screen
+            name="KhoNLTransferLocation"
+            component={KhoNLTransferLocationScreen}
+            options={{ headerShown: false, title: "Điều chuyển vị trí NL" }}
           />
 
           <Stack.Screen

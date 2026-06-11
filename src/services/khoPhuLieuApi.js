@@ -1,7 +1,7 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const POSTMAN_HOST = '125.212.207.52:5010';
+const POSTMAN_HOST = '125.212.207.52:5000';
 export const KHO_PL_BASE_URL = `http://${POSTMAN_HOST}`;
 export const KHO_TM_TEST_BASE_URL = 'https://nodeapi.z76.vn/khotmtest';
 
@@ -80,6 +80,27 @@ function getList(data, keys = []) {
     return [];
 }
 
+function getIdValue(item) {
+    if (item && typeof item === 'object') {
+        return item.ID_Kien
+            ?? item.IdKien
+            ?? item.idKien
+            ?? item.ID_TheKhoKien
+            ?? item.IdTheKhoKien
+            ?? item.idTheKhoKien
+            ?? item.id;
+    }
+
+    return item;
+}
+
+function normalizeIdList(ids) {
+    const list = Array.isArray(ids) ? ids : [ids];
+    return list
+        .map((id) => Number(getIdValue(id)))
+        .filter((id) => Number.isFinite(id) && id > 0);
+}
+
 export async function getCurrentUserId() {
     const userInfo = await AsyncStorage.getItem('userInfor');
     if (!userInfo) return 1;
@@ -140,10 +161,17 @@ export const khoPhuLieuApi = {
     },
 
     async deleteInspectionPackages({ idGiamDinhVT, idKien }) {
+        const idList = normalizeIdList(idKien);
+        if (!idList.length) throw new Error('Không có kiện hợp lệ để xóa');
+
         return request({
             method: 'POST',
             url: '/giamdinh/phu-lieu/xoaKien',
-            data: { idGiamDinhVT, idKien },
+            headers: { 'Content-Type': 'application/json' },
+            data: {
+                idGiamDinhVT: Number(idGiamDinhVT) || 0,
+                idKien: idList,
+            },
         });
     },
 

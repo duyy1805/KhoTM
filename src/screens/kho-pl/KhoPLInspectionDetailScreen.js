@@ -115,7 +115,7 @@ export default function KhoPLInspectionDetailScreen({ navigation, route }) {
         confirm('Xóa kiện', 'Chỉ các kiện trống mới xóa được. Bạn muốn tiếp tục?', async () => {
             try {
                 setLoading(true);
-                await khoPhuLieuApi.deleteInspectionPackages({ idGiamDinhVT: inspectionId, idKien: selectedPackageIds });
+                await khoPhuLieuApi.deleteInspectionPackages({ idGiamDinhVT: inspectionId, idKien: selectedPackages });
                 setSelectedPackageIds([]);
                 Toast.show({ type: 'success', text1: 'Đã xóa kiện' });
                 await fetchDetail();

@@ -22,6 +22,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import axios from 'axios';
 import apiConfig from '../../constants/apiConfig.json';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { khoNguyenLieuApi } from '../../services/khoNguyenLieuApi';
 
 // Design Tokens
 const COLORS = {
@@ -35,10 +36,42 @@ const COLORS = {
     border: '#E2E8F0',
 };
 
+function asArray(payload) {
+    if (Array.isArray(payload)) return payload;
+    if (Array.isArray(payload?.data)) return payload.data;
+    return [];
+}
+
+function readValue(item, keys, fallback = '') {
+    for (const key of keys) {
+        if (item?.[key] !== undefined && item?.[key] !== null && item?.[key] !== '') return item[key];
+    }
+    return fallback;
+}
+
+function getLocationId(item) {
+    return readValue(item, ['ID_ViTriKho', 'IdViTriKho', 'idViTriKho', 'idViTri', 'idVitri', 'id', 'value'], null);
+}
+
+function normalizeLocation(item, qrCode = '') {
+    const id = getLocationId(item);
+    const name = readValue(item, ['TenViTriKho', 'tenViTriKho', 'MaViTriKho', 'maViTriKho', 'QrCode', 'qrCode', 'label'], qrCode || `ID: ${id}`);
+    const maNha = readValue(item, ['MaNha', 'maNha'], '');
+    return {
+        ...item,
+        label: maNha ? `${name} (${maNha})` : String(name),
+        value: id,
+        ID_ViTriKho: id,
+        MaViTriKho: readValue(item, ['MaViTriKho', 'maViTriKho'], name),
+        QrCode: readValue(item, ['QrCode', 'QRCode', 'qrCode'], qrCode),
+    };
+}
+
 export default function SelectLocationScreen({ route }) {
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
-    const { onSelect, ID_TheKhoKienBTP, currentLocation } = route.params || {};
+    const { onSelect, ID_TheKhoKienBTP, currentLocation, locationMode = 'btp', idKho: routeIdKho = 1 } = route.params || {};
+    const isNguyenLieu = locationMode === 'nguyen-lieu' || locationMode === 'nl';
 
     const [modalVisible, setModalVisible] = useState(false);
     const [selectingFor, setSelectingFor] = useState('kho');
@@ -48,6 +81,7 @@ export default function SelectLocationScreen({ route }) {
     const [khoList, setKhoList] = useState([]);
     const [viTriList, setViTriList] = useState([]);
     const [selectedLocationId, setSelectedLocationId] = useState(null);
+    const [selectedLocation, setSelectedLocation] = useState(null);
     const [loading, setLoading] = useState(false);
     const [items, setItems] = useState([]);
     const [isScanning, setIsScanning] = useState(false);
@@ -61,6 +95,7 @@ export default function SelectLocationScreen({ route }) {
     }, []);
 
     const fetchLocations = async () => {
+        if (isNguyenLieu) return;
         try {
             setLoadingLocations(true);
             const res = await axios.get('https://apipccc.z76.vn/api/TAG_QTKD/danhmucvitri');
@@ -81,10 +116,16 @@ export default function SelectLocationScreen({ route }) {
 
     const fetchWarehouses = async () => {
         try {
+            setLoading(true);
+            if (isNguyenLieu) {
+                const res = await khoNguyenLieuApi.getWarehouses();
+                setKhoList(asArray(res));
+                return;
+            }
+
             const kho = JSON.parse(await AsyncStorage.getItem('selectedWarehouse'));
             const userInfor = JSON.parse(await AsyncStorage.getItem('userInfor'));
             const authToken = await AsyncStorage.getItem('authToken');
-            setLoading(true);
             const token = JSON.parse(authToken).token;
             const res = await axios.post(
                 `${apiConfig.API_BASE_URL}/vitri/${kho.id}/nha/${userInfor.id}`,
@@ -111,12 +152,23 @@ export default function SelectLocationScreen({ route }) {
     const handleSelectKho = async (kho) => {
         setSelectedKho(kho);
         setSelectedDay(null);
+        setViTriList([]);
+        setSelectedLocationId(null);
+        setSelectedLocation(null);
         setSelectingFor('day');
-        const authToken = await AsyncStorage.getItem('authToken');
-        const token = JSON.parse(authToken).token;
         try {
+            const idKho = readValue(kho, ['idKho', 'ID_Kho', 'id'], routeIdKho);
+            const maNha = readValue(kho, ['maNha', 'MaNha'], '');
+            if (isNguyenLieu) {
+                const res = await khoNguyenLieuApi.getAisles({ idKho, maNha });
+                setCurrentAisles(asArray(res));
+                return;
+            }
+
+            const authToken = await AsyncStorage.getItem('authToken');
+            const token = JSON.parse(authToken).token;
             const res = await axios.post(`${apiConfig.API_BASE_URL}/vitri/day/tim-kiem`,
-                { "idKho": kho.idKho, "maNha": kho.maNha },
+                { "idKho": idKho, "maNha": maNha },
                 { headers: { Authorization: `Bearer ${token}` } }
             );
             setCurrentAisles(res.data);
@@ -128,8 +180,19 @@ export default function SelectLocationScreen({ route }) {
     const handleSelectDay = async (day) => {
         setSelectedDay(day);
         setModalVisible(false);
+        setSelectedLocationId(null);
+        setSelectedLocation(null);
         try {
-            const res = await axios.get(`${apiConfig.API_BASE_URL}/vitri/btp/${selectedKho.idKho}/${selectedKho.maNha}/day/${day.maDay}/mavt/none/taikhoan/1`);
+            const idKho = readValue(selectedKho, ['idKho', 'ID_Kho', 'id'], routeIdKho);
+            const maNha = readValue(selectedKho, ['maNha', 'MaNha'], '');
+            const maDay = readValue(day, ['maDay', 'MaDay'], '');
+            if (isNguyenLieu) {
+                const res = await khoNguyenLieuApi.getLocations({ idKho, maNha, maDay, maVatTu: 'none' });
+                setViTriList(asArray(res));
+                return;
+            }
+
+            const res = await axios.get(`${apiConfig.API_BASE_URL}/vitri/btp/${idKho}/${maNha}/day/${maDay}/mavt/none/taikhoan/1`);
             setViTriList(res.data);
         } catch (error) {
             console.error('Error fetching locations info:', error);
@@ -137,6 +200,22 @@ export default function SelectLocationScreen({ route }) {
     };
 
     const handleQRCodeScanned = async (qrCode) => {
+        if (isNguyenLieu) {
+            try {
+                const response = await khoNguyenLieuApi.getLocationByQr(qrCode);
+                const rawLocation = Array.isArray(response?.data)
+                    ? response.data[0]
+                    : response?.data || response;
+                const location = normalizeLocation(rawLocation, qrCode);
+                if (!location.value) throw new Error('Không tìm thấy vị trí tương ứng');
+                if (onSelect) onSelect(location);
+                navigation.goBack();
+            } catch {
+                Toast.show({ type: 'error', text1: 'Không tìm thấy vị trí tương ứng' });
+            }
+            return;
+        }
+
         const matchedItem = items.find(item =>
             item.label.startsWith(qrCode) || item.label.includes(qrCode)
         );
@@ -161,23 +240,27 @@ export default function SelectLocationScreen({ route }) {
     };
 
     const renderLocationItem = ({ item }) => {
-        const isSelected = item.tenViTriKho === selectedLocationId;
+        const location = normalizeLocation(item);
+        const isSelected = location.value === selectedLocationId;
         return (
             <TouchableOpacity
                 style={[styles.locationCard, isSelected && styles.locationCardSelected]}
-                onPress={() => setSelectedLocationId(item.tenViTriKho)}
+                onPress={() => {
+                    setSelectedLocationId(location.value);
+                    setSelectedLocation(location);
+                }}
             >
                 <View style={[styles.codeBadge, { backgroundColor: isSelected ? COLORS.primary : COLORS.primaryLight }]}>
                     <Text style={[styles.codeBadgeText, { color: isSelected ? COLORS.white : COLORS.primary }]}>
-                        {item.maViTriKho?.trim().slice(0, 5)}
+                        {String(readValue(item, ['maViTriKho', 'MaViTriKho', 'tenViTriKho', 'TenViTriKho'], '')).trim().slice(0, 8)}
                     </Text>
                 </View>
                 <View style={styles.locationDetails}>
-                    <Text style={styles.locationTitle} numberOfLines={1}>{item.tenViTriKho}</Text>
+                    <Text style={styles.locationTitle} numberOfLines={1}>{readValue(item, ['tenViTriKho', 'TenViTriKho', 'maViTriKho', 'MaViTriKho'], location.label)}</Text>
                     <View style={styles.locationMeta}>
-                        <Text style={styles.metaLabel}>Dãy: {item.tenDay}</Text>
-                        <Text style={styles.metaLabel}>Tầng: {item.tenTang}</Text>
-                        <Text style={styles.metaLabel}>Kiện: {item.soLuongKien}</Text>
+                        <Text style={styles.metaLabel}>Dãy: {readValue(item, ['tenDay', 'TenDay', 'maDay', 'MaDay'], '-')}</Text>
+                        <Text style={styles.metaLabel}>Tầng: {readValue(item, ['tenTang', 'TenTang'], '-')}</Text>
+                        <Text style={styles.metaLabel}>SL: {readValue(item, ['soLuongCuon', 'SoLuongCuon', 'soLuongKien', 'SoLuongKien'], 0)}</Text>
                     </View>
                 </View>
             </TouchableOpacity>
@@ -250,7 +333,7 @@ export default function SelectLocationScreen({ route }) {
                             <FlatList
                                 data={viTriList}
                                 renderItem={renderLocationItem}
-                                keyExtractor={(item) => item.id?.toString()}
+                                keyExtractor={(item, index) => String(getLocationId(item) || index)}
                                 numColumns={2}
                                 contentContainerStyle={styles.listContent}
                                 showsVerticalScrollIndicator={false}
@@ -262,7 +345,10 @@ export default function SelectLocationScreen({ route }) {
                         <TouchableOpacity 
                             style={[styles.confirmBtn, !selectedLocationId && styles.btnDisabled]} 
                             onPress={() => {
-                                if (selectedLocationId) handleQRCodeScanned(selectedLocationId);
+                                if (selectedLocation) {
+                                    if (onSelect) onSelect(selectedLocation);
+                                    navigation.goBack();
+                                }
                                 else Toast.show({ type: 'info', text1: 'Vui lòng chọn một vị trí' });
                             }}
                         >
@@ -286,15 +372,21 @@ export default function SelectLocationScreen({ route }) {
                                             key={idx}
                                             style={[
                                                 styles.chip,
-                                                (selectingFor === 'kho' ? selectedKho?.maNha === item.maNha : selectedDay?.maDay === item.maDay) && styles.chipSelected
+                                                (selectingFor === 'kho'
+                                                    ? readValue(selectedKho, ['maNha', 'MaNha'], '') === readValue(item, ['maNha', 'MaNha'], '')
+                                                    : readValue(selectedDay, ['maDay', 'MaDay'], '') === readValue(item, ['maDay', 'MaDay'], '')) && styles.chipSelected
                                             ]}
                                             onPress={() => selectingFor === 'kho' ? handleSelectKho(item) : handleSelectDay(item)}
                                         >
                                             <Text style={[
                                                 styles.chipText,
-                                                (selectingFor === 'kho' ? selectedKho?.maNha === item.maNha : selectedDay?.maDay === item.maDay) && styles.chipTextSelected
+                                                (selectingFor === 'kho'
+                                                    ? readValue(selectedKho, ['maNha', 'MaNha'], '') === readValue(item, ['maNha', 'MaNha'], '')
+                                                    : readValue(selectedDay, ['maDay', 'MaDay'], '') === readValue(item, ['maDay', 'MaDay'], '')) && styles.chipTextSelected
                                             ]}>
-                                                {selectingFor === 'kho' ? item.tenNha : item.tenDay}
+                                                {selectingFor === 'kho'
+                                                    ? readValue(item, ['tenNha', 'TenNha', 'maNha', 'MaNha'], '-')
+                                                    : readValue(item, ['tenDay', 'TenDay', 'maDay', 'MaDay'], '-')}
                                             </Text>
                                         </TouchableOpacity>
                                     ))}
