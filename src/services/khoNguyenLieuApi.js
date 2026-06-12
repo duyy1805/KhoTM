@@ -62,7 +62,11 @@ export const khoNguyenLieuApi = {
     },
 
     async getInspectionDetail(idBienBan) {
-        return request({ method: 'GET', url: `/giamdinh/${idBienBan}` });
+        return request({
+            method: 'POST',
+            url: 'https://nodeapi.z76.vn/khotm/giamdinhvt-detail',
+            data: { ID_GiamDinhVT: idBienBan },
+        });
     },
 
     async assignInspectionCoilQr({ idCuon, qrCode }) {

@@ -9,6 +9,7 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    DeviceEventEmitter,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -32,7 +33,7 @@ function getQrCode(item) {
 }
 
 function getMaterialName(item) {
-    return getValue(item, ['QuyCach', 'quyCach', 'TenVatTu', 'Ten_VatTu', 'tenVatTu', 'ItemName', 'itemName'], '-');
+    return getValue(item, ['QuyCach', 'quyCach', 'Ingredient', 'ingredient', 'TenVatTu', 'Ten_VatTu', 'tenVatTu', 'ItemName', 'itemName'], '-');
 }
 
 function getLocationText(item) {
@@ -51,7 +52,7 @@ function DetailRow({ label, value, multiline = false }) {
 
 export default function KhoNLInspectionCoilDetailScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
-    const { coil, inspection, onCoilUpdated } = route.params || {};
+    const { coil, inspection, inspectionId } = route.params || {};
     const [detail, setDetail] = useState(coil || {});
     const [qty, setQty] = useState(String(getQuantity(coil || {}) || ''));
     const [loading, setLoading] = useState(false);
@@ -65,8 +66,8 @@ export default function KhoNLInspectionCoilDetailScreen({ navigation, route }) {
     const notifyParent = useCallback((patch) => {
         const next = { ...detail, ...patch };
         setDetail(next);
-        if (typeof onCoilUpdated === 'function') onCoilUpdated(next);
-    }, [detail, onCoilUpdated]);
+        DeviceEventEmitter.emit('KhoNLInspectionCoilUpdated', { inspectionId, coil: next });
+    }, [detail, inspectionId]);
 
     useEffect(() => {
         let mounted = true;
@@ -161,12 +162,25 @@ export default function KhoNLInspectionCoilDetailScreen({ navigation, route }) {
         Toast.show({ type: 'success', text1: 'Đã chọn vị trí' });
     };
 
+    useEffect(() => {
+        const subscription = DeviceEventEmitter.addListener('KhoNLInspectionCoilLocationSelected', ({ inspectionId: eventInspectionId, coilId, location }) => {
+            if (String(eventInspectionId) !== String(inspectionId) || String(coilId) !== String(getCoilId(detail)) || !location) return;
+            applyLocation(location);
+        });
+
+        return () => subscription.remove();
+    }, [detail, inspectionId]);
+
     const openLocationPicker = () => {
         navigation.navigate('SelectLocationScreen', {
             locationMode: 'nguyen-lieu',
             idKho: 1,
             currentLocation: getLocationText(detail),
-            onSelect: applyLocation,
+            returnEvent: 'KhoNLInspectionCoilLocationSelected',
+            returnPayload: {
+                inspectionId,
+                coilId: getCoilId(detail),
+            },
         });
     };
 
@@ -206,10 +220,11 @@ export default function KhoNLInspectionCoilDetailScreen({ navigation, route }) {
                 <View style={styles.infoCard}>
                     <Text style={styles.locationText}>Vị trí: {getLocationText(detail)}</Text>
                     <DetailRow label="Nhà cung cấp" value={getValue(detail, ['TenNhaCungCap', 'tenNhaCungCap', 'NhaCungCap', 'nhaCungCap', 'Ten_NhaCungCap'], getValue(inspection, ['TenNhaCungCap', 'tenNhaCungCap', 'NhaCungCap', 'nhaCungCap', 'Ten_NhaCungCap'], ''))} multiline />
-                    <DetailRow label="Số đơn hàng" value={getValue(detail, ['Ma_DonHang', 'MaDonHang', 'So_DonHang', 'SoDonHang', 'PoNo', 'PONo'], getValue(inspection, ['Ma_DonHang', 'MaDonHang', 'So_DonHang', 'SoDonHang', 'PoNo', 'PONo'], ''))} />
+                    <DetailRow label="Số đơn hàng" value={getValue(detail, ['Ma_DonHang', 'MaDonHang', 'So_DonHang', 'SoDonHang', 'PoNo', 'PONo', 'PO_No'], getValue(inspection, ['Ma_DonHang', 'MaDonHang', 'So_DonHang', 'SoDonHang', 'PoNo', 'PONo', 'PO_No'], ''))} />
                     <DetailRow label="Quy cách" value={getMaterialName(detail)} multiline />
-                    <DetailRow label="Màu vật tư" value={getValue(detail, ['MauVatTu', 'mauVatTu', 'Mau_VatTu', 'Mau', 'mau', 'Color', 'color'], '')} />
-                    <DetailRow label="Mã vật tư" value={getValue(detail, ['Ma_VatTu', 'MaVatTu', 'maVatTu', 'ItemCode', 'itemCode'], '')} />
+                    <DetailRow label="Màu vật tư" value={getValue(detail, ['MauVatTu', 'mauVatTu', 'Mau_VatTu', 'Mau', 'mau', 'ColorCode', 'Color', 'color'], '')} />
+                    <DetailRow label="Mã vật tư" value={getValue(detail, ['Ma_VatTu', 'MaVatTu', 'maVatTu', 'ItemCode', 'itemCode', 'MaVatTu'], '')} />
+                    <DetailRow label="Cỡ vật tư" value={getValue(detail, ['CoVatTu', 'coVatTu', 'Width', 'width'], '')} />
                     <DetailRow label="Model No" value={getValue(detail, ['ModelNo', 'Model_No', 'modelNo', 'Model', 'model'], '')} />
                     <DetailRow label="Roll No" value={rollNo} />
                     <DetailRow label="Lot No" value={getLotNo(detail)} />

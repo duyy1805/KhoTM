@@ -102,7 +102,7 @@ export function getQuantity(item) {
 }
 
 export function getLocationId(item) {
-    return getValue(item, ['ID_ViTriKho', 'IdViTriKho', 'idViTriKho', 'idViTri', 'idVitri', 'id'], null);
+    return getValue(item, ['ID_ViTriKho', 'IdViTriKho', 'idViTriKho', 'IdViTri', 'idViTri', 'idVitri', 'id'], null);
 }
 
 export function confirm(title, message, onConfirm) {

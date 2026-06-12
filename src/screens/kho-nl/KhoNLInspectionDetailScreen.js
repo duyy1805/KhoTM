@@ -9,6 +9,7 @@ import {
     TextInput,
     TouchableOpacity,
     View,
+    DeviceEventEmitter,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -40,10 +41,51 @@ function formatDate(value) {
 }
 
 function getCoilStatus(item) {
+    const qr = getCoilQr(item);
+    if (qr) return String(qr);
     const raw = getValue(item, ['TrangThaiCuon', 'trangThaiCuon', 'TenTrangThai', 'tenTrangThai', 'TrangThai', 'trangThai', 'Status', 'status', 'TinhTrang', 'tinhTrang'], '');
-    if (typeof raw === 'boolean') return raw ? 'Đã gán QR' : 'Chưa gán QR';
+    if (typeof raw === 'boolean') return 'Chưa có QR';
     if (raw) return String(raw);
-    return getValue(item, ['QRCode', 'QrCode', 'qrCode'], '') ? 'Đã gán QR' : 'Chưa gán QR';
+    return 'Chưa có QR';
+}
+
+function getCoilQr(item) {
+    const keys = [
+        'QRCode',
+        'QrCode',
+        'qrCode',
+        'qRCode',
+        'QR_Code',
+        'qr_code',
+        'MaQRCode',
+        'maQRCode',
+        'MaQR',
+        'maQR',
+        'QrContent',
+        'qrContent',
+        'QRCodeCuon',
+        'QrCodeCuon',
+        'qrCodeCuon',
+        'QRCode_Cuon',
+        'QR_Cuon',
+        'qr',
+    ];
+    const direct = getValue(item, keys, '');
+    if (direct) return direct;
+
+    if (!item || typeof item !== 'object') return '';
+    const keySet = new Set(keys.map((key) => key.toLowerCase()));
+    const stack = Object.values(item).filter((value) => value && typeof value === 'object');
+    while (stack.length) {
+        const current = stack.shift();
+        for (const [key, value] of Object.entries(current)) {
+            if (keySet.has(key.toLowerCase()) && value !== undefined && value !== null && value !== '') {
+                return value;
+            }
+            if (value && typeof value === 'object') stack.push(value);
+        }
+    }
+    return '';
 }
 
 function InspectionInfoCard({ detail, coilCount }) {
@@ -51,7 +93,7 @@ function InspectionInfoCard({ detail, coilCount }) {
     const rows = [
         ['Loại phiếu', getValue(detail, ['LoaiPhieu', 'loaiPhieu', 'TenLoaiPhieu', 'tenLoaiPhieu'], 'Biên bản giám định')],
         ['Nhà cung cấp', getValue(detail, ['TenNhaCungCap', 'tenNhaCungCap', 'NhaCungCap', 'nhaCungCap', 'Ten_NhaCungCap', 'TenNCC', 'tenNCC', 'SupplierName', 'supplierName'], '')],
-        ['Số đơn hàng', getValue(detail, ['Ma_DonHang', 'MaDonHang', 'maDonHang', 'So_DonHang', 'SoDonHang', 'soDonHang', 'PoNo', 'PONo', 'PO', 'po', 'DonHang', 'donHang'], '')],
+        ['Số đơn hàng', getValue(detail, ['Ma_DonHang', 'MaDonHang', 'maDonHang', 'So_DonHang', 'SoDonHang', 'soDonHang', 'PoNo', 'PONo', 'PO_No', 'PO', 'po', 'DonHang', 'donHang'], '')],
         ['Tên kho nhập', getValue(detail, ['TenKhoNhap', 'tenKhoNhap', 'KhoNhap', 'khoNhap', 'Ten_KhoNhap', 'TenKho', 'tenKho', 'WarehouseName', 'warehouseName'], 'Kho Nguyên Liệu')],
         ['Số cuộn vải', getValue(detail, ['SoCuon', 'soCuon', 'So_Cuon', 'TongSoCuon', 'tongSoCuon', 'Tong_Cuon', 'SoLuongCuon', 'soLuongCuon'], coilCount)],
         ['Ngày giám định', formatDate(getValue(detail, ['Ngay_GiamDinh', 'ngayGiamDinh', 'NgayGiamDinh', 'NgayTao', 'ngayTao', 'NgayLap', 'ngayLap', 'CreatedDate', 'createdDate'], ''))],
@@ -73,9 +115,9 @@ function InspectionInfoCard({ detail, coilCount }) {
 function CoilCard({ item, selected, onPress, onToggleSelect, onAssignQr }) {
     const roll = getValue(item, ['Roll_No', 'RollNo', 'rollNo', 'SoThuTu', 'soThuTu', 'STT', 'stt', 'SoCuon', 'soCuon', 'No', 'no'], getCoilId(item) || '-');
     const lot = getValue(item, ['Lot_No', 'LotNo', 'lotNo', 'SoLot', 'soLot', 'MaLot', 'maLot', 'Lot', 'lot'], '-');
-    const qr = getValue(item, ['QRCode', 'QrCode', 'qrCode', 'MaQRCode', 'maQRCode'], '');
+    const qr = getCoilQr(item);
     const location = getValue(item, ['MaViTriKho', 'TenViTriKho', 'maViTriKho', 'QrCodeViTri', 'Ten_ViTriKho', 'ViTri', 'viTri'], getLocationId(item) ? `ID: ${getLocationId(item)}` : 'Chưa có vị trí');
-    const material = getValue(item, ['QuyCach', 'quyCach', 'TenVatTu', 'Ten_VatTu', 'tenVatTu', 'Ma_VatTu', 'MaVatTu', 'Item_No', 'ItemNo', 'ItemName', 'itemName'], 'Vật tư');
+    const material = getValue(item, ['QuyCach', 'quyCach', 'Ingredient', 'ingredient', 'TenVatTu', 'Ten_VatTu', 'tenVatTu', 'Ma_VatTu', 'MaVatTu', 'Item_No', 'ItemNo', 'ItemName', 'itemName'], 'Vật tư');
     const status = getCoilStatus(item);
 
     return (
@@ -109,7 +151,7 @@ function CoilCard({ item, selected, onPress, onToggleSelect, onAssignQr }) {
                 <Text style={styles.compactText} numberOfLines={1}>RollNo: {roll}</Text>
                 <Text style={styles.compactText} numberOfLines={1}>Vị trí: {location}</Text>
                 <View style={styles.statusPill}>
-                    <Text style={styles.statusText} numberOfLines={1}>{status}</Text>
+                    <Text style={styles.statusText} numberOfLines={1}>{qr || status}</Text>
                 </View>
                 <TouchableOpacity
                     style={styles.qrButton}
@@ -121,7 +163,6 @@ function CoilCard({ item, selected, onPress, onToggleSelect, onAssignQr }) {
                     <Ionicons name="qr-code-outline" size={20} color={COLORS.white} />
                 </TouchableOpacity>
             </View>
-            {!!qr && <Text style={styles.qrText} numberOfLines={1}>QR: {qr}</Text>}
         </TouchableOpacity>
     );
 }
@@ -161,11 +202,12 @@ export default function KhoNLInspectionDetailScreen({ navigation, route }) {
             setLoading(true);
             const response = await khoNguyenLieuApi.getInspectionDetail(inspectionId);
             const object = extractObject(response, ['header', 'giamDinh', 'phieu']);
-            const rows = extractList(response, ['cuons', 'listCuon', 'listCuons', 'vatTuCuons', 'listVatTuCuon', 'danhSachCuon', 'dsCuon', 'details', 'items']);
-            setDetail({ ...(inspection || {}), ...object });
+            const rows = extractList(response, ['data', 'cuons', 'listCuon', 'listCuons', 'vatTuCuons', 'listVatTuCuon', 'danhSachCuon', 'dsCuon', 'details', 'items']);
+            setDetail({ ...(inspection || {}), ...object, ...(rows[0] || {}) });
             setCoils(rows);
             setSelectedIds([]);
-        } catch {
+        } catch (error) {
+            console.log('KhoNL inspection detail error:', error?.response?.status, error?.response?.data || error?.message);
             Toast.show({ type: 'error', text1: 'Lỗi tải chi tiết biên bản' });
         } finally {
             setLoading(false);
@@ -207,6 +249,25 @@ export default function KhoNLInspectionDetailScreen({ navigation, route }) {
         Toast.show({ type: 'success', text1: 'Đã gán vị trí' });
     };
 
+    useEffect(() => {
+        const coilSubscription = DeviceEventEmitter.addListener('KhoNLInspectionCoilUpdated', ({ inspectionId: eventInspectionId, coil }) => {
+            if (String(eventInspectionId) !== String(inspectionId) || !coil) return;
+            setCoils((prev) => prev.map((row) => getCoilId(row) === getCoilId(coil) ? { ...row, ...coil } : row));
+        });
+
+        const locationSubscription = DeviceEventEmitter.addListener('KhoNLInspectionBulkLocationSelected', ({ inspectionId: eventInspectionId, coilIds = [], location }) => {
+            if (String(eventInspectionId) !== String(inspectionId) || !location || !coilIds.length) return;
+            const ids = coilIds.map(String);
+            const targets = coils.filter((item) => ids.includes(String(getCoilId(item))));
+            applyLocationToCoils(targets, location);
+        });
+
+        return () => {
+            coilSubscription.remove();
+            locationSubscription.remove();
+        };
+    }, [coils, inspectionId]);
+
     const handleBarCodeScanned = async ({ data }) => {
         if (scanned || !scanTarget) return;
         setScanned(true);
@@ -241,9 +302,6 @@ export default function KhoNLInspectionDetailScreen({ navigation, route }) {
             coil: item,
             inspection: detail,
             inspectionId,
-            onCoilUpdated: (nextCoil) => {
-                setCoils((prev) => prev.map((row) => getCoilId(row) === getCoilId(nextCoil) ? { ...row, ...nextCoil } : row));
-            },
         });
     };
 
@@ -261,7 +319,11 @@ export default function KhoNLInspectionDetailScreen({ navigation, route }) {
         navigation.navigate('SelectLocationScreen', {
             locationMode: 'nguyen-lieu',
             idKho: 1,
-            onSelect: (location) => applyLocationToCoils(selectedCoils, location),
+            returnEvent: 'KhoNLInspectionBulkLocationSelected',
+            returnPayload: {
+                inspectionId,
+                coilIds: selectedCoils.map((item) => getCoilId(item)).filter(Boolean),
+            },
         });
     };
 
@@ -287,7 +349,7 @@ export default function KhoNLInspectionDetailScreen({ navigation, route }) {
         const payload = coils
             .filter((item) => getCoilId(item) && getLocationId(item))
             .map((item) => ({
-                idChungTuNhapChiTiet: getValue(item, ['ID_ChungTuNhap_ChiTiet', 'ID_ChungTuNhapChiTiet', 'idChungTuNhapChiTiet'], 0),
+                idChungTuNhapChiTiet: getValue(item, ['ID_ChungTuNhap_ChiTiet', 'ID_ChungTuNhapChiTiet', 'IdChungTuNhapChiTiet', 'idChungTuNhapChiTiet'], 0),
                 idVatTuCuon: getCoilId(item),
                 soLuong: getQuantity(item),
                 idViTri: getLocationId(item),

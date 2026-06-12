@@ -39,6 +39,6 @@ yarn-error.*
 *.tsbuildinfo
 
 *.doc
-*.docx
+# *.docx
 
 *.sql

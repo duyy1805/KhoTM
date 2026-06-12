@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
@@ -6,15 +6,13 @@ import {
     StatusBar,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
     View,
+    DeviceEventEmitter,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { CameraView, useCameraPermissions } from 'expo-camera';
 import Toast from 'react-native-toast-message';
-import ScanOverlay from '../../components/warehouse/ScanOverlay';
 import { COLORS, getValue } from '../../components/kho-pl';
 import { khoNguyenLieuApi } from '../../services/khoNguyenLieuApi';
 import {
@@ -24,56 +22,105 @@ import {
     getDocId,
     getMaterialId,
     getOrderMaterialId,
-    getQuantity,
     getStockCoilId,
 } from './nlScreenUtils';
 
-function MaterialCard({ item, selected, onPress }) {
-    const name = getValue(item, ['TenVatTu', 'Ten_VatTu', 'QuyCach', 'Ma_VatTu', 'MaVatTu'], 'Vật tư');
-    const code = getValue(item, ['Ma_VatTu', 'MaVatTu', 'Item_No', 'ItemNo'], '');
-    const qty = getValue(item, ['SoLuong', 'SoLuong_Xuat', 'soLuong', 'SoLuongYeuCau'], '');
+function formatDate(value) {
+    if (!value) return '';
+    const text = String(value);
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(text)) return text.slice(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}/.test(text)) {
+        const [year, month, day] = text.slice(0, 10).split('-');
+        return `${day}/${month}/${year}`;
+    }
+    return text.slice(0, 10);
+}
+
+function toNumber(value) {
+    const number = Number(String(value ?? 0).replace(',', '.'));
+    return Number.isFinite(number) ? number : 0;
+}
+
+function getMaterialName(item) {
+    return getValue(item, ['QuyCach', 'quyCach', 'Ingredient', 'TenVatTu', 'Ten_VatTu', 'Ma_VatTu', 'MaVatTu'], 'Vật tư');
+}
+
+function getRequiredQty(item) {
+    const keys = [
+        'SoLuongLenhXuat',
+        'soLuongLenhXuat',
+        'SoLuong_LenhXuat',
+        'SoLuong_XuatKho',
+        'SoLuongXuatKho',
+        'soLuongXuatKho',
+        'SoLuong_Xuat',
+        'SoLuongYeuCau',
+        'SoLuongCanXuat',
+        'soLuongCanXuat',
+        'SoLuongDeXuat',
+        'soLuongDeXuat',
+        'SoLuong',
+        'soLuong',
+        'Qty',
+        'qty',
+    ];
+
+    for (const key of keys) {
+        const value = item?.[key];
+        if (value === undefined || value === null || value === '') continue;
+        const number = toNumber(value);
+        if (number > 0) return number;
+    }
+
+    return 0;
+}
+
+function ExportInfoCard({ detail, totalScanned }) {
+    const rows = [
+        ['Loại phiếu', getValue(detail, ['LoaiPhieu', 'TenLoaiPhieu', 'tenLoaiPhieu'], 'Xuất sản xuất')],
+        ['Số lệnh xuất', getValue(detail, ['So_PhieuXuat', 'So_PhieuXuatVT', 'SoPhieu', 'soPhieu', 'SoLenhXuat'], '')],
+        ['Tên kho xuất', getValue(detail, ['TenKhoXuat', 'Ten_KhoXuat', 'tenKhoXuat', 'KhoXuat', 'TenKho'], 'Kho Nguyên Liệu')],
+        ['Tên kho nhập', getValue(detail, ['TenKhoNhap', 'Ten_KhoNhap', 'tenKhoNhap', 'KhoNhap'], '')],
+        ['Tổng số lượng', getValue(detail, ['TongSoLuong', 'tongSoLuong', 'SoLuong', 'soLuong'], totalScanned)],
+        ['Ngày xuất kho', formatDate(getValue(detail, ['Ngay_Xuat', 'Ngay_XuatKho', 'Ngay_XuatVT', 'ngayXuat', 'NgayTao', 'ngayTao'], ''))],
+        ['Ghi chú', getValue(detail, ['GhiChu', 'ghiChu', 'DienGiai', 'dienGiai'], '')],
+    ].filter(([, value]) => value !== undefined && value !== null && value !== '');
+
     return (
-        <TouchableOpacity style={[styles.materialCard, selected && styles.selectedCard]} onPress={onPress} activeOpacity={0.85}>
-            <View style={styles.materialIcon}>
-                <Ionicons name={selected ? 'checkmark' : 'layers-outline'} size={20} color={selected ? COLORS.white : COLORS.primary} />
-            </View>
-            <View style={styles.flex}>
-                <Text style={styles.materialTitle} numberOfLines={2}>{name}</Text>
-                {!!code && <Text style={styles.materialCode}>{code}</Text>}
-            </View>
-            {qty !== '' && (
-                <View style={styles.qtyBadge}>
-                    <Text style={styles.qtyText}>{qty}</Text>
+        <View style={styles.infoCard}>
+            {rows.map(([label, value]) => (
+                <View key={label} style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>{label}</Text>
+                    <Text style={styles.detailValue} numberOfLines={3}>{value}</Text>
                 </View>
-            )}
-        </TouchableOpacity>
+            ))}
+        </View>
     );
 }
 
-function ExportCoilCard({ item, onQtyChange, onRemove }) {
-    const qr = getValue(item, ['QRCode', 'QrCode', 'qrCode'], '-');
-    const roll = getValue(item, ['Roll_No', 'RollNo', 'SoCuon', 'soCuon'], getStockCoilId(item) || '-');
+function MaterialCard({ item, onPress }) {
+    const name = getMaterialName(item);
+    const code = getValue(item, ['Ma_DonHang', 'MaDonHang', 'Ma_VatTu', 'MaVatTu', 'Item_No', 'ItemNo'], '');
+    const qty = getRequiredQty(item);
+    const scanned = toNumber(item.scannedQty);
+    const percent = qty > 0 ? Math.min(100, (scanned / qty) * 100) : 0;
     return (
-        <View style={styles.coilCard}>
-            <View style={styles.coilHeader}>
-                <View style={styles.flex}>
-                    <Text style={styles.coilTitle}>Cuộn {roll}</Text>
-                    <Text style={styles.coilSub} numberOfLines={1}>{qr}</Text>
+        <TouchableOpacity style={styles.materialCard} onPress={onPress} activeOpacity={0.85}>
+            <View style={styles.materialIcon}>
+                <Ionicons name="layers-outline" size={20} color={COLORS.primary} />
+            </View>
+            <View style={styles.flex}>
+                {!!code && <Text style={styles.materialCode}>{code}</Text>}
+                <Text style={styles.materialTitle} numberOfLines={2}>{name}</Text>
+                <Text style={styles.materialMeta}>{scanned} / {qty}</Text>
+                <View style={styles.progressTrack}>
+                    <View style={[styles.progressFill, { width: `${percent}%` }]} />
                 </View>
-                <TouchableOpacity style={styles.removeBtn} onPress={onRemove}>
-                    <Ionicons name="trash-outline" size={18} color={COLORS.danger} />
-                </TouchableOpacity>
             </View>
-            <View style={styles.qtyInputRow}>
-                <Text style={styles.qtyInputLabel}>Qty xuất</Text>
-                <TextInput
-                    style={styles.qtyInput}
-                    keyboardType="numeric"
-                    value={String(item.soLuong ?? '')}
-                    onChangeText={onQtyChange}
-                />
+            <View style={styles.percentBadge}>
+                <Text style={styles.percentText}>{percent.toFixed(0)}%</Text>
             </View>
-        </View>
+        </TouchableOpacity>
     );
 }
 
@@ -83,12 +130,22 @@ export default function KhoNLExportDetailScreen({ navigation, route }) {
     const exportId = routeId || getDocId(exportDoc);
     const [detail, setDetail] = useState({});
     const [materials, setMaterials] = useState([]);
-    const [selectedMaterial, setSelectedMaterial] = useState(null);
     const [exportCoils, setExportCoils] = useState([]);
-    const [scanType, setScanType] = useState(null);
-    const [scanned, setScanned] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [permission, requestPermission] = useCameraPermissions();
+
+    const scannedQtyByMaterial = useMemo(() => {
+        const map = new Map();
+        for (const coil of exportCoils) {
+            const key = String(coil.idDonHangVatTu || getOrderMaterialId(coil) || coil.idVatTu || getMaterialId(coil) || '');
+            map.set(key, (map.get(key) || 0) + toNumber(coil.soLuong));
+        }
+        return map;
+    }, [exportCoils]);
+
+    const materialsWithProgress = useMemo(() => materials.map((item) => {
+        const key = String(getOrderMaterialId(item) || getMaterialId(item) || '');
+        return { ...item, scannedQty: scannedQtyByMaterial.get(key) || 0 };
+    }), [materials, scannedQtyByMaterial]);
 
     const fetchDetail = useCallback(async () => {
         if (!exportId) return;
@@ -99,63 +156,58 @@ export default function KhoNLExportDetailScreen({ navigation, route }) {
             const rows = extractList(response, ['vatTus', 'listVatTu', 'materials', 'details', 'items']);
             setDetail({ ...(exportDoc || {}), ...object });
             setMaterials(rows);
-            if (!selectedMaterial && rows.length) setSelectedMaterial(rows[0]);
         } catch {
             Toast.show({ type: 'error', text1: 'Lỗi tải chi tiết phiếu xuất' });
         } finally {
             setLoading(false);
         }
-    }, [exportId]);
+    }, [exportDoc, exportId]);
 
     useEffect(() => {
         fetchDetail();
     }, [fetchDetail]);
 
-    const startScan = async () => {
-        if (!selectedMaterial) {
-            Toast.show({ type: 'info', text1: 'Chọn vật tư trước khi quét cuộn' });
-            return;
-        }
-        if (!permission?.granted) {
-            const result = await requestPermission();
-            if (!result.granted) return;
-        }
-        setScanned(false);
-        setScanType('coil');
-    };
+    useEffect(() => {
+        const subscription = DeviceEventEmitter.addListener('KhoNLExportMaterialCoilsChanged', ({
+            exportId: eventExportId,
+            orderMaterialId,
+            materialId,
+            selectedCoils = [],
+        }) => {
+            if (String(eventExportId) !== String(exportId)) return;
+            setExportCoils((prev) => {
+                const unrelated = prev.filter((item) => {
+                    const sameMaterial = (orderMaterialId && String(item.idDonHangVatTu || getOrderMaterialId(item)) === String(orderMaterialId))
+                        || (materialId && String(item.idVatTu || getMaterialId(item)) === String(materialId));
+                    return !sameMaterial;
+                });
+                return [...unrelated, ...selectedCoils];
+            });
+        });
 
-    const handleBarCodeScanned = async ({ data }) => {
-        if (scanned) return;
-        setScanned(true);
-        try {
-            setLoading(true);
-            const response = await khoNguyenLieuApi.getExportCoilByQr(data, exportId);
-            const coil = extractObject(response, ['cuon', 'coil', 'data']);
-            const idTheKhoCuon = getStockCoilId(coil);
-            if (!idTheKhoCuon) throw new Error('Không tìm thấy cuộn');
+        return () => subscription.remove();
+    }, [exportId]);
 
-            const next = {
-                ...coil,
-                QRCode: data,
-                idTheKhoCuon,
-                idDonHangVatTu: getOrderMaterialId(selectedMaterial) || getOrderMaterialId(coil),
-                idVatTu: getMaterialId(selectedMaterial) || getMaterialId(coil),
-                soLuong: getQuantity(coil),
-            };
-            setExportCoils((prev) => prev.some((item) => getStockCoilId(item) === idTheKhoCuon) ? prev : [...prev, next]);
-            Toast.show({ type: 'success', text1: 'Đã thêm cuộn vào phiếu xuất' });
-            setScanType(null);
-        } catch (error) {
-            Toast.show({ type: 'error', text1: error.message || 'Quét cuộn thất bại' });
-            setTimeout(() => setScanned(false), 800);
-        } finally {
-            setLoading(false);
-        }
-    };
+    const openMaterialCoils = (material) => {
+        const orderMaterialId = getOrderMaterialId(material);
+        const materialId = getMaterialId(material);
+        const initialCoils = exportCoils.filter((item) =>
+            (orderMaterialId && (item.idDonHangVatTu || getOrderMaterialId(item)) === orderMaterialId)
+            || (materialId && (item.idVatTu || getMaterialId(item)) === materialId)
+        );
 
-    const updateQty = (index, value) => {
-        const nextValue = value.replace(',', '.');
-        setExportCoils((prev) => prev.map((item, i) => i === index ? { ...item, soLuong: nextValue } : item));
+        navigation.navigate('KhoNLExportMaterialCoils', {
+            exportId,
+            material,
+            detail,
+            initialCoils,
+            returnEvent: 'KhoNLExportMaterialCoilsChanged',
+            returnPayload: {
+                exportId,
+                orderMaterialId,
+                materialId,
+            },
+        });
     };
 
     const saveExport = () => {
@@ -188,31 +240,10 @@ export default function KhoNLExportDetailScreen({ navigation, route }) {
         });
     };
 
-    if (scanType) {
-        return (
-            <View style={styles.scannerWrapper}>
-                <TouchableOpacity style={[styles.backScanButton, { top: insets.top + 20 }]} onPress={() => setScanType(null)}>
-                    <Ionicons name="close" size={28} color={COLORS.white} />
-                </TouchableOpacity>
-                <CameraView
-                    style={styles.camera}
-                    cameraType="back"
-                    onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-                    barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-                />
-                <ScanOverlay />
-                <View style={styles.scanHint}>
-                    <Text style={styles.scanHintText}>Quét QR cuộn vải</Text>
-                </View>
-                <Toast />
-            </View>
-        );
-    }
-
     const title = getValue(detail, ['So_PhieuXuat', 'So_PhieuXuatVT', 'SoPhieu', 'soPhieu'], 'Chi tiết phiếu xuất');
 
     return (
-        <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+        <View style={styles.container}>
             <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
             <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}>
                 <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
@@ -225,41 +256,30 @@ export default function KhoNLExportDetailScreen({ navigation, route }) {
             </View>
 
             <FlatList
-                data={exportCoils}
+                data={[]}
                 keyExtractor={(item, index) => String(getStockCoilId(item) || index)}
                 contentContainerStyle={styles.content}
-                renderItem={({ item, index }) => (
-                    <ExportCoilCard
-                        item={item}
-                        onQtyChange={(value) => updateQty(index, value)}
-                        onRemove={() => setExportCoils((prev) => prev.filter((_, i) => i !== index))}
-                    />
-                )}
+                renderItem={() => null}
                 ListHeaderComponent={
                     <View>
-                        <Text style={styles.sectionTitle}>Vật tư trong phiếu</Text>
-                        {materials.map((item, index) => (
+                        <ExportInfoCard detail={detail} totalScanned={exportCoils.reduce((sum, item) => sum + toNumber(item.soLuong), 0)} />
+                        <Text style={styles.sectionTitle}>Danh sách vật tư</Text>
+                        {materialsWithProgress.map((item, index) => (
                             <MaterialCard
-                                key={String(getMaterialId(item) || index)}
+                                key={String(getOrderMaterialId(item) || getMaterialId(item) || index)}
                                 item={item}
-                                selected={selectedMaterial === item}
-                                onPress={() => setSelectedMaterial(item)}
+                                onPress={() => openMaterialCoils(item)}
                             />
                         ))}
-                        <View style={styles.toolbar}>
-                            <TouchableOpacity style={styles.scanBtn} onPress={startScan}>
-                                <Ionicons name="qr-code-outline" size={18} color={COLORS.white} />
-                                <Text style={styles.scanText}>Thêm cuộn</Text>
-                            </TouchableOpacity>
-                            <TouchableOpacity style={styles.saveBtn} onPress={saveExport}>
-                                <Text style={styles.saveText}>Lưu</Text>
-                            </TouchableOpacity>
-                        </View>
-                        <Text style={styles.sectionTitle}>Cuộn đã quét</Text>
                     </View>
                 }
-                ListEmptyComponent={<Text style={styles.emptyText}>Chưa quét cuộn nào</Text>}
             />
+
+            <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
+                <TouchableOpacity style={styles.saveButton} onPress={saveExport} activeOpacity={0.85}>
+                    <Text style={styles.saveText}>Lưu</Text>
+                </TouchableOpacity>
+            </View>
 
             {loading && (
                 <View style={styles.loadingOverlay}>
@@ -273,7 +293,6 @@ export default function KhoNLExportDetailScreen({ navigation, route }) {
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
-    scannerWrapper: { flex: 1, backgroundColor: '#000' },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -287,7 +306,18 @@ const styles = StyleSheet.create({
     backButton: { padding: 8 },
     headerAction: { padding: 8 },
     headerTitle: { flex: 1, textAlign: 'center', fontSize: 17, fontWeight: '800', color: COLORS.white },
-    content: { padding: 16, paddingBottom: 40 },
+    content: { padding: 16, paddingBottom: 112 },
+    infoCard: {
+        backgroundColor: COLORS.surface,
+        borderRadius: 18,
+        padding: 16,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        marginBottom: 16,
+    },
+    detailRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginBottom: 12 },
+    detailLabel: { width: 112, fontSize: 13, color: COLORS.textSecondary, fontWeight: '800' },
+    detailValue: { flex: 1, minWidth: 0, fontSize: 14, color: COLORS.textPrimary, fontWeight: '800', lineHeight: 20 },
     sectionTitle: { fontSize: 16, color: COLORS.textPrimary, fontWeight: '900', marginBottom: 12, marginTop: 4 },
     materialCard: {
         flexDirection: 'row',
@@ -299,30 +329,27 @@ const styles = StyleSheet.create({
         padding: 12,
         marginBottom: 10,
     },
-    selectedCard: { borderColor: COLORS.primary, backgroundColor: '#F7F8FF' },
     materialIcon: { width: 38, height: 38, borderRadius: 11, backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
     flex: { flex: 1, minWidth: 0 },
     materialTitle: { fontSize: 14, color: COLORS.textPrimary, fontWeight: '900' },
     materialCode: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-    qtyBadge: { backgroundColor: COLORS.primaryLight, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 5 },
-    qtyText: { color: COLORS.primary, fontWeight: '900' },
-    toolbar: { flexDirection: 'row', gap: 10, marginVertical: 14 },
-    scanBtn: { flex: 1, height: 46, borderRadius: 14, backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 },
-    scanText: { color: COLORS.white, fontWeight: '900' },
-    saveBtn: { width: 92, height: 46, borderRadius: 14, backgroundColor: COLORS.success, alignItems: 'center', justifyContent: 'center' },
-    saveText: { color: COLORS.white, fontWeight: '900' },
-    coilCard: { backgroundColor: COLORS.surface, borderRadius: 16, padding: 14, borderWidth: 1, borderColor: COLORS.border, marginBottom: 10 },
-    coilHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-    coilTitle: { fontSize: 15, fontWeight: '900', color: COLORS.textPrimary },
-    coilSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 2 },
-    removeBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center' },
-    qtyInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-    qtyInputLabel: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '800' },
-    qtyInput: { flex: 1, height: 42, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, color: COLORS.textPrimary, fontWeight: '800' },
-    emptyText: { textAlign: 'center', color: COLORS.textSecondary, marginTop: 20, fontWeight: '700' },
-    camera: { flex: 1 },
-    backScanButton: { position: 'absolute', left: 20, zIndex: 10, backgroundColor: 'rgba(0,0,0,0.5)', padding: 8, borderRadius: 20 },
-    scanHint: { position: 'absolute', bottom: 80, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
-    scanHintText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+    materialMeta: { fontSize: 12, color: COLORS.primary, fontWeight: '900', marginTop: 6 },
+    progressTrack: { height: 6, borderRadius: 999, backgroundColor: COLORS.primaryLight, marginTop: 7, overflow: 'hidden' },
+    progressFill: { height: '100%', borderRadius: 999, backgroundColor: COLORS.primary },
+    percentBadge: { width: 54, height: 54, borderRadius: 27, backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center', marginLeft: 10 },
+    percentText: { color: COLORS.primary, fontSize: 12, fontWeight: '900' },
+    footer: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        bottom: 0,
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        backgroundColor: COLORS.background,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.border,
+    },
+    saveButton: { height: 52, borderRadius: 16, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+    saveText: { color: COLORS.white, fontWeight: '900', fontSize: 16 },
     loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.55)', alignItems: 'center', justifyContent: 'center' },
 });

@@ -11,7 +11,8 @@ import {
     Pressable,
     StatusBar,
     Platform,
-    ActivityIndicator
+    ActivityIndicator,
+    DeviceEventEmitter
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -70,7 +71,15 @@ function normalizeLocation(item, qrCode = '') {
 export default function SelectLocationScreen({ route }) {
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
-    const { onSelect, ID_TheKhoKienBTP, currentLocation, locationMode = 'btp', idKho: routeIdKho = 1 } = route.params || {};
+    const {
+        onSelect,
+        ID_TheKhoKienBTP,
+        currentLocation,
+        locationMode = 'btp',
+        idKho: routeIdKho = 1,
+        returnEvent,
+        returnPayload = {},
+    } = route.params || {};
     const isNguyenLieu = locationMode === 'nguyen-lieu' || locationMode === 'nl';
 
     const [modalVisible, setModalVisible] = useState(false);
@@ -88,6 +97,15 @@ export default function SelectLocationScreen({ route }) {
     const [permission, requestPermission] = useCameraPermissions();
     const [scanned, setScanned] = useState(false);
     const [loadingLocations, setLoadingLocations] = useState(false);
+
+    const finishSelection = (location) => {
+        if (returnEvent) {
+            DeviceEventEmitter.emit(returnEvent, { ...returnPayload, location });
+        } else if (typeof onSelect === 'function') {
+            onSelect(location);
+        }
+        navigation.goBack();
+    };
 
     useEffect(() => {
         fetchLocations();
@@ -208,8 +226,7 @@ export default function SelectLocationScreen({ route }) {
                     : response?.data || response;
                 const location = normalizeLocation(rawLocation, qrCode);
                 if (!location.value) throw new Error('Không tìm thấy vị trí tương ứng');
-                if (onSelect) onSelect(location);
-                navigation.goBack();
+                finishSelection(location);
             } catch {
                 Toast.show({ type: 'error', text1: 'Không tìm thấy vị trí tương ứng' });
             }
@@ -224,8 +241,7 @@ export default function SelectLocationScreen({ route }) {
             Toast.show({ type: 'error', text1: 'Không tìm thấy vị trí tương ứng' });
             return;
         }
-        if (onSelect) onSelect(matchedItem);
-        navigation.goBack();
+        finishSelection(matchedItem);
     };
 
     const handleBarCodeScanned = ({ data }) => {
@@ -346,8 +362,7 @@ export default function SelectLocationScreen({ route }) {
                             style={[styles.confirmBtn, !selectedLocationId && styles.btnDisabled]} 
                             onPress={() => {
                                 if (selectedLocation) {
-                                    if (onSelect) onSelect(selectedLocation);
-                                    navigation.goBack();
+                                    finishSelection(selectedLocation);
                                 }
                                 else Toast.show({ type: 'info', text1: 'Vui lòng chọn một vị trí' });
                             }}

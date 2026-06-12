@@ -13,6 +13,7 @@ import KhoNLInspectionDetailScreen from "./src/screens/kho-nl/KhoNLInspectionDet
 import KhoNLInspectionCoilDetailScreen from "./src/screens/kho-nl/KhoNLInspectionCoilDetailScreen";
 import KhoNLExportListScreen from "./src/screens/kho-nl/KhoNLExportListScreen";
 import KhoNLExportDetailScreen from "./src/screens/kho-nl/KhoNLExportDetailScreen";
+import KhoNLExportMaterialCoilsScreen from "./src/screens/kho-nl/KhoNLExportMaterialCoilsScreen";
 import KhoNLTransferLocationScreen from "./src/screens/kho-nl/KhoNLTransferLocationScreen";
 import ScannedDetailPL from "./src/screens/kho-pl/ScannedDetailPL";
 import KhoPLInspectionListScreen from "./src/screens/kho-pl/KhoPLInspectionListScreen";
@@ -121,6 +122,11 @@ export default function App() {
             name="KhoNLExportDetail"
             component={KhoNLExportDetailScreen}
             options={{ headerShown: false, title: "Chi tiết phiếu xuất NL" }}
+          />
+          <Stack.Screen
+            name="KhoNLExportMaterialCoils"
+            component={KhoNLExportMaterialCoilsScreen}
+            options={{ headerShown: false, title: "Cuộn vải xuất NL" }}
           />
           <Stack.Screen
             name="KhoNLTransferLocation"
