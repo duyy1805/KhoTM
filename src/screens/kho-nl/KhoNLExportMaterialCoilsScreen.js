@@ -41,6 +41,46 @@ function getLot(item) {
     return getValue(item, ['LotNo', 'Lot_No', 'SoLot', 'MaLot'], '');
 }
 
+function getAvailableQty(item) {
+    return toNumber(getValue(item, [
+        'soLuongTon',
+        'SoLuongTon',
+        'SoLuongConLai',
+        'soLuongConLai',
+        'SoLuong',
+        'soLuong',
+        'Qty',
+        'qty',
+    ], getQuantity(item)));
+}
+
+function getRequiredQty(item) {
+    const keys = [
+        'SoLuongLenhXuat',
+        'soLuongLenhXuat',
+        'SoLuong_LenhXuat',
+        'SoLuong_XuatKho',
+        'SoLuongXuatKho',
+        'soLuongXuatKho',
+        'SoLuong_Xuat',
+        'SoLuongYeuCau',
+        'SoLuongCanXuat',
+        'soLuongCanXuat',
+        'SoLuong',
+        'soLuong',
+        'Qty',
+        'qty',
+    ];
+
+    for (const key of keys) {
+        const value = item?.[key];
+        if (value === undefined || value === null || value === '') continue;
+        const number = toNumber(value);
+        if (number > 0) return number;
+    }
+    return 0;
+}
+
 function CoilPickerCard({ item, selected, onPress }) {
     return (
         <TouchableOpacity style={[styles.coilCard, selected && styles.coilSelected]} onPress={onPress} activeOpacity={0.85}>
@@ -56,7 +96,7 @@ function CoilPickerCard({ item, selected, onPress }) {
                 {!!getLot(item) && <Text style={styles.coilSub} numberOfLines={1}>LotNo: {getLot(item)}</Text>}
             </View>
             <View style={styles.qtyBadge}>
-                <Text style={styles.qtyText}>{getQuantity(item)}</Text>
+                <Text style={styles.qtyText}>{getAvailableQty(item)}</Text>
                 <Text style={styles.qtyUnit}>Mét</Text>
             </View>
         </TouchableOpacity>
@@ -64,6 +104,7 @@ function CoilPickerCard({ item, selected, onPress }) {
 }
 
 function SelectedCoilCard({ item, onQtyChange, onRemove }) {
+    const availableQty = getAvailableQty(item);
     return (
         <View style={styles.selectedCoilCard}>
             <View style={styles.selectedHeader}>
@@ -78,13 +119,17 @@ function SelectedCoilCard({ item, onQtyChange, onRemove }) {
             <View style={styles.qtyInputRow}>
                 <Text style={styles.qtyInputLabel}>Qty xuất</Text>
                 <TextInput
-                    style={styles.qtyInput}
+                    style={[
+                        styles.qtyInput,
+                        toNumber(item.soLuong) > availableQty && styles.qtyInputError,
+                    ]}
                     keyboardType="numeric"
                     value={String(item.soLuong ?? '')}
                     onChangeText={onQtyChange}
                 />
                 <Text style={styles.qtyUnitDark}>{getValue(item, ['DonViTinh', 'donViTinh'], 'Mét')}</Text>
             </View>
+            <Text style={styles.availableText}>Tồn cuộn: {availableQty} {getValue(item, ['DonViTinh', 'donViTinh'], 'Mét')}</Text>
         </View>
     );
 }
@@ -109,6 +154,8 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
     const materialId = getMaterialId(material);
     const orderMaterialId = getOrderMaterialId(material);
     const selectedIds = useMemo(() => new Set(selectedCoils.map((item) => String(getStockCoilId(item)))), [selectedCoils]);
+    const requiredQty = getRequiredQty(material);
+    const selectedQty = useMemo(() => selectedCoils.reduce((sum, item) => sum + toNumber(item.soLuong), 0), [selectedCoils]);
 
     const normalizeCoil = useCallback((coil, qrCode = '') => ({
         ...coil,
@@ -116,7 +163,8 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
         idTheKhoCuon: getStockCoilId(coil),
         idDonHangVatTu: orderMaterialId || getOrderMaterialId(coil),
         idVatTu: materialId || getMaterialId(coil),
-        soLuong: getQuantity(coil),
+        soLuongTon: getAvailableQty(coil),
+        soLuong: getAvailableQty(coil),
     }), [materialId, orderMaterialId]);
 
     const loadAvailableCoils = useCallback(async () => {
@@ -158,7 +206,14 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
             if (prev.some((item) => getStockCoilId(item) === id)) {
                 return prev.filter((item) => getStockCoilId(item) !== id);
             }
-            return [...prev, normalizeCoil(coil)];
+            const next = normalizeCoil(coil);
+            const currentTotal = prev.reduce((sum, item) => sum + toNumber(item.soLuong), 0);
+            const remainingQty = requiredQty > 0 ? requiredQty - currentTotal : toNumber(next.soLuong);
+            if (requiredQty > 0 && remainingQty <= 0) {
+                Toast.show({ type: 'info', text1: 'Số lượng xuất vượt số lượng cần xuất' });
+                return prev;
+            }
+            return [...prev, { ...next, soLuong: Math.min(toNumber(next.soLuong), remainingQty) }];
         });
     };
 
@@ -171,9 +226,28 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
             const coil = extractObject(response, ['cuon', 'coil', 'data']);
             const idTheKhoCuon = getStockCoilId(coil);
             if (!idTheKhoCuon) throw new Error('Không tìm thấy cuộn');
-            setSelectedCoils((prev) => prev.some((item) => getStockCoilId(item) === idTheKhoCuon) ? prev : [...prev, normalizeCoil(coil, data)]);
-            Toast.show({ type: 'success', text1: 'Đã thêm cuộn vào phiếu xuất' });
-            setScanMode(false);
+            let didAdd = false;
+            setSelectedCoils((prev) => {
+                if (prev.some((item) => getStockCoilId(item) === idTheKhoCuon)) {
+                    Toast.show({ type: 'info', text1: 'Cuộn đã được chọn' });
+                    return prev;
+                }
+                const next = normalizeCoil(coil, data);
+                const currentTotal = prev.reduce((sum, item) => sum + toNumber(item.soLuong), 0);
+                const remainingQty = requiredQty > 0 ? requiredQty - currentTotal : toNumber(next.soLuong);
+                if (requiredQty > 0 && remainingQty <= 0) {
+                    Toast.show({ type: 'info', text1: 'Số lượng xuất vượt số lượng cần xuất' });
+                    return prev;
+                }
+                didAdd = true;
+                return [...prev, { ...next, soLuong: Math.min(toNumber(next.soLuong), remainingQty) }];
+            });
+            if (didAdd) {
+                Toast.show({ type: 'success', text1: 'Đã thêm cuộn vào phiếu xuất' });
+                setScanMode(false);
+            } else {
+                setTimeout(() => setScanned(false), 800);
+            }
         } catch (error) {
             Toast.show({ type: 'error', text1: error.message || 'Quét cuộn thất bại' });
             setTimeout(() => setScanned(false), 800);
@@ -185,10 +259,34 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
     const updateQty = (target, value) => {
         const nextValue = value.replace(',', '.');
         const targetId = getStockCoilId(target);
-        setSelectedCoils((prev) => prev.map((item) => getStockCoilId(item) === targetId ? { ...item, soLuong: nextValue } : item));
+        const nextQty = toNumber(nextValue);
+        const availableQty = getAvailableQty(target);
+        if (nextQty > availableQty) {
+            Toast.show({ type: 'info', text1: `Số lượng xuất không được vượt tồn cuộn (${availableQty})` });
+            return;
+        }
+
+        setSelectedCoils((prev) => {
+            const nextList = prev.map((item) => getStockCoilId(item) === targetId ? { ...item, soLuong: nextValue } : item);
+            const nextTotal = nextList.reduce((sum, item) => sum + toNumber(item.soLuong), 0);
+            if (requiredQty > 0 && nextTotal > requiredQty) {
+                Toast.show({ type: 'info', text1: `Tổng số lượng xuất không được vượt ${requiredQty}` });
+                return prev;
+            }
+            return nextList;
+        });
     };
 
     const commitAndBack = () => {
+        const invalidCoil = selectedCoils.find((item) => toNumber(item.soLuong) > getAvailableQty(item));
+        if (invalidCoil) {
+            Toast.show({ type: 'error', text1: 'Có cuộn xuất vượt số lượng tồn' });
+            return;
+        }
+        if (requiredQty > 0 && selectedQty > requiredQty) {
+            Toast.show({ type: 'error', text1: `Tổng số lượng xuất không được vượt ${requiredQty}` });
+            return;
+        }
         DeviceEventEmitter.emit(returnEvent, {
             ...returnPayload,
             exportId,
@@ -248,7 +346,7 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
                     <View>
                         <View style={styles.materialInfo}>
                             <Text style={styles.materialTitle} numberOfLines={3}>{getMaterialName(material)}</Text>
-                            <Text style={styles.materialMeta}>Đã chọn {selectedCoils.length} cuộn</Text>
+                            <Text style={styles.materialMeta}>Đã chọn {selectedCoils.length} cuộn - {selectedQty} / {requiredQty || '-'}</Text>
                         </View>
                         <TouchableOpacity style={styles.primaryButton} onPress={startScan}>
                             <Ionicons name="qr-code-outline" size={20} color={COLORS.white} />
@@ -332,7 +430,9 @@ const styles = StyleSheet.create({
     qtyInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     qtyInputLabel: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '800' },
     qtyInput: { flex: 1, height: 42, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, color: COLORS.textPrimary, fontWeight: '800' },
+    qtyInputError: { borderColor: COLORS.danger, backgroundColor: '#FEF2F2' },
     qtyUnitDark: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '800' },
+    availableText: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '800', marginTop: 8 },
     footer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 12, backgroundColor: COLORS.background, borderTopWidth: 1, borderTopColor: COLORS.border },
     saveButton: { height: 52, borderRadius: 16, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
     saveText: { color: COLORS.white, fontSize: 16, fontWeight: '900' },

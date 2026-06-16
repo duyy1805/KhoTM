@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    DeviceEventEmitter,
     Platform,
     StatusBar,
     StyleSheet,
@@ -50,15 +51,6 @@ export default function KhoPLTransferLocationScreen({ navigation }) {
                 setPackageQr(data);
             }
 
-            if (scanType === 'location') {
-                const response = await khoPhuLieuApi.getLocationByQr(data);
-                const object = extractObject(response, ['viTri', 'location', 'data']);
-                const id = getValue(object, ['ID_ViTriKho', 'IdViTriKho', 'idViTriKho', 'id'], null);
-                if (!id) throw new Error('Không tìm thấy vị trí');
-                setLocationInfo(object);
-                setLocationQr(data);
-            }
-
             setScanType(null);
         } catch (error) {
             Toast.show({ type: 'error', text1: error.message || 'Quét mã thất bại' });
@@ -68,9 +60,34 @@ export default function KhoPLTransferLocationScreen({ navigation }) {
         }
     };
 
+    useEffect(() => {
+        const subscription = DeviceEventEmitter.addListener('KhoPLTransferLocationSelected', ({ location }) => {
+            if (!location) return;
+            const id = getValue(location, ['ID_ViTriKho', 'IdViTriKho', 'idViTriKho', 'id', 'value'], null);
+            if (!id) {
+                Toast.show({ type: 'error', text1: 'Vị trí không hợp lệ' });
+                return;
+            }
+            setLocationInfo(location);
+            setLocationQr(getValue(location, ['QrCode', 'QRCode', 'qrCode', 'MaViTriKho', 'maViTriKho', 'label'], ''));
+            Toast.show({ type: 'success', text1: 'Đã chọn vị trí' });
+        });
+
+        return () => subscription.remove();
+    }, []);
+
+    const openLocationPicker = () => {
+        navigation.navigate('SelectLocationScreen', {
+            locationMode: 'phu-lieu',
+            idKho: 3,
+            currentLocation: getValue(locationInfo, ['MaViTriKho', 'maViTriKho', 'label'], ''),
+            returnEvent: 'KhoPLTransferLocationSelected',
+        });
+    };
+
     const handleConfirm = () => {
         if (!packageInfo || !locationInfo) {
-            Toast.show({ type: 'info', text1: 'Quét kiện và vị trí trước khi xác nhận' });
+            Toast.show({ type: 'info', text1: 'Quét kiện và chọn vị trí trước khi xác nhận' });
             return;
         }
 
@@ -79,7 +96,7 @@ export default function KhoPLTransferLocationScreen({ navigation }) {
                 setLoading(true);
                 await khoPhuLieuApi.assignInspectionPackageLocations([{
                     QrCode: locationQr,
-                    ID_ViTriKho: getValue(locationInfo, ['ID_ViTriKho', 'IdViTriKho', 'idViTriKho', 'id'], null),
+                    ID_ViTriKho: getValue(locationInfo, ['ID_ViTriKho', 'IdViTriKho', 'idViTriKho', 'id', 'value'], null),
                     ID_Kien: getPackageId(packageInfo),
                 }]);
                 Toast.show({ type: 'success', text1: 'Đã điều chuyển vị trí' });
@@ -109,7 +126,7 @@ export default function KhoPLTransferLocationScreen({ navigation }) {
                 />
                 <ScanOverlay />
                 <View style={styles.scanHint}>
-                    <Text style={styles.scanHintText}>{scanType === 'package' ? 'Quét QR kiện phụ liệu' : 'Quét QR vị trí mới'}</Text>
+                    <Text style={styles.scanHintText}>Quét QR kiện phụ liệu</Text>
                 </View>
                 <Toast />
             </View>
@@ -133,9 +150,9 @@ export default function KhoPLTransferLocationScreen({ navigation }) {
                         <Ionicons name="cube-outline" size={24} color={COLORS.primary} />
                         <Text style={styles.actionText}>Quét kiện</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionBtn} onPress={() => startScan('location')}>
+                    <TouchableOpacity style={styles.actionBtn} onPress={openLocationPicker}>
                         <Ionicons name="location-outline" size={24} color={COLORS.primary} />
-                        <Text style={styles.actionText}>Quét vị trí</Text>
+                        <Text style={styles.actionText}>Chọn vị trí</Text>
                     </TouchableOpacity>
                 </View>
 
@@ -151,8 +168,8 @@ export default function KhoPLTransferLocationScreen({ navigation }) {
 
                 <Text style={styles.sectionTitle}>Vị trí mới</Text>
                 <View style={styles.locationCard}>
-                    <Text style={styles.locationLabel}>QR vị trí</Text>
-                    <Text style={styles.locationValue}>{locationQr || 'Chưa quét vị trí'}</Text>
+                    <Text style={styles.locationLabel}>Vị trí</Text>
+                    <Text style={styles.locationValue}>{locationQr || 'Chưa chọn vị trí'}</Text>
                     {!!locationInfo && (
                         <Text style={styles.locationMeta} numberOfLines={2}>
                             {getValue(locationInfo, ['TenViTriKho', 'MaViTriKho', 'tenViTriKho'], '')}

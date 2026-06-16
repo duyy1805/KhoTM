@@ -279,15 +279,6 @@ export default function KhoNLInspectionDetailScreen({ navigation, route }) {
                 Toast.show({ type: 'success', text1: 'Đã gán QR cho cuộn' });
             }
 
-            if (scanTarget.type === 'location') {
-                const response = await khoNguyenLieuApi.getLocationByQr(data);
-                const location = extractObject(response, ['viTri', 'location', 'data']);
-                const idViTri = getLocationId(location);
-                if (!idViTri) throw new Error('Không tìm thấy vị trí');
-                const targets = scanTarget.coils?.length ? scanTarget.coils : [scanTarget.coil];
-                applyLocationToCoils(targets, { ...location, QrCode: data });
-            }
-
             setScanTarget(null);
         } catch (error) {
             Toast.show({ type: 'error', text1: error.message || 'Quét mã thất bại' });
@@ -389,7 +380,7 @@ export default function KhoNLInspectionDetailScreen({ navigation, route }) {
                 />
                 <ScanOverlay />
                 <View style={styles.scanHint}>
-                    <Text style={styles.scanHintText}>{scanTarget.type === 'location' ? 'Quét QR vị trí' : 'Quét QR cuộn'}</Text>
+                    <Text style={styles.scanHintText}>Quét QR cuộn</Text>
                 </View>
                 <Toast />
             </View>

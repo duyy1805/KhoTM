@@ -4,12 +4,22 @@ import { Ionicons } from '@expo/vector-icons';
 import PLMaterialCard from './PLMaterialCard';
 import { COLORS, getValue } from './styles';
 
+function isRealPackageMaterial(row) {
+    const materialCode = getValue(row, ['Ma_VatTu', 'MaVatTu', 'maVatTu', 'ItemCode'], '');
+    const materialName = getValue(row, ['QuyCach', 'quyCach', 'Ten_VatTu', 'TenVatTu', 'TenHang', 'tenVatTu'], '');
+    const materialId = getValue(row, ['ID_VatTu', 'IdVatTu', 'idVatTu'], null);
+    const packageQty = Number(getValue(row, ['SoLuong', 'soLuong'], 0) || 0);
+
+    return Boolean(materialCode || materialName || materialId || packageQty > 0);
+}
+
 export default function PLPackageDetailModal({ visible, item, onClose }) {
-    const materials = Array.isArray(item?.vatTus)
+    const rawMaterials = Array.isArray(item?.vatTus)
         ? item.vatTus
         : Array.isArray(item?.VatTus)
             ? item.VatTus
             : [];
+    const materials = rawMaterials.filter(isRealPackageMaterial);
     const id = getValue(item, ['ID_Kien', 'IdKien', 'idKien', 'IdTheKhoKien', 'id'], '-');
     const qr = getValue(item, ['QrCode', 'QRCode', 'qrCode'], 'Chưa gán');
     const location = getValue(item, ['TenViTriKho', 'MaViTriKho', 'maViTriKho', 'QrCodeViTri'], 'Chưa có vị trí');
@@ -43,7 +53,10 @@ export default function PLPackageDetailModal({ visible, item, onClose }) {
                     <Text style={styles.sectionTitle}>Vật tư trong kiện</Text>
                     <FlatList
                         data={materials}
-                        keyExtractor={(material, index) => String(getValue(material, ['idDonHangVatTu', 'ID_DonHang_VatTu', 'idVatTu', 'ID_VatTu'], index))}
+                        keyExtractor={(material, index) => {
+                            const materialId = getValue(material, ['idDonHangVatTu', 'ID_DonHang_VatTu', 'idVatTu', 'ID_VatTu'], '');
+                            return `package-${id}-material-${materialId || index}-${index}`;
+                        }}
                         renderItem={({ item: material }) => <PLMaterialCard item={material} />}
                         contentContainerStyle={styles.listContent}
                         ListEmptyComponent={<Text style={styles.emptyText}>Kiện chưa có vật tư</Text>}

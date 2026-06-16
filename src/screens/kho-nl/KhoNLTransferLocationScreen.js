@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
+    DeviceEventEmitter,
     Platform,
     StatusBar,
     StyleSheet,
@@ -50,14 +51,6 @@ export default function KhoNLTransferLocationScreen({ navigation }) {
                 setCoilQr(data);
             }
 
-            if (scanType === 'location') {
-                const response = await khoNguyenLieuApi.getLocationByQr(data);
-                const object = extractObject(response, ['viTri', 'location', 'data']);
-                if (!getLocationId(object)) throw new Error('Không tìm thấy vị trí');
-                setLocationInfo(object);
-                setLocationQr(data);
-            }
-
             setScanType(null);
         } catch (error) {
             Toast.show({ type: 'error', text1: error.message || 'Quét mã thất bại' });
@@ -67,9 +60,33 @@ export default function KhoNLTransferLocationScreen({ navigation }) {
         }
     };
 
+    useEffect(() => {
+        const subscription = DeviceEventEmitter.addListener('KhoNLTransferLocationSelected', ({ location }) => {
+            if (!location) return;
+            if (!getLocationId(location)) {
+                Toast.show({ type: 'error', text1: 'Vị trí không hợp lệ' });
+                return;
+            }
+            setLocationInfo(location);
+            setLocationQr(getValue(location, ['QrCode', 'QRCode', 'qrCode', 'MaViTriKho', 'maViTriKho', 'label'], ''));
+            Toast.show({ type: 'success', text1: 'Đã chọn vị trí' });
+        });
+
+        return () => subscription.remove();
+    }, []);
+
+    const openLocationPicker = () => {
+        navigation.navigate('SelectLocationScreen', {
+            locationMode: 'nguyen-lieu',
+            idKho: 1,
+            currentLocation: getValue(locationInfo, ['MaViTriKho', 'maViTriKho', 'label'], ''),
+            returnEvent: 'KhoNLTransferLocationSelected',
+        });
+    };
+
     const handleConfirm = () => {
         if (!coilInfo || !locationInfo) {
-            Toast.show({ type: 'info', text1: 'Quét cuộn và vị trí trước khi xác nhận' });
+            Toast.show({ type: 'info', text1: 'Quét cuộn và chọn vị trí trước khi xác nhận' });
             return;
         }
         Toast.show({
@@ -93,7 +110,7 @@ export default function KhoNLTransferLocationScreen({ navigation }) {
                 />
                 <ScanOverlay />
                 <View style={styles.scanHint}>
-                    <Text style={styles.scanHintText}>{scanType === 'coil' ? 'Quét QR cuộn vải' : 'Quét QR vị trí mới'}</Text>
+                    <Text style={styles.scanHintText}>Quét QR cuộn vải</Text>
                 </View>
                 <Toast />
             </View>
@@ -117,7 +134,7 @@ export default function KhoNLTransferLocationScreen({ navigation }) {
                         <Ionicons name="albums-outline" size={24} color={COLORS.primary} />
                         <Text style={styles.actionText}>Thêm cuộn</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionBtn} onPress={() => startScan('location')}>
+                    <TouchableOpacity style={styles.actionBtn} onPress={openLocationPicker}>
                         <Ionicons name="location-outline" size={24} color={COLORS.primary} />
                         <Text style={styles.actionText}>Chọn vị trí</Text>
                     </TouchableOpacity>
@@ -137,8 +154,8 @@ export default function KhoNLTransferLocationScreen({ navigation }) {
 
                 <Text style={styles.sectionTitle}>Vị trí mới</Text>
                 <View style={styles.infoCard}>
-                    <Text style={styles.infoLabel}>QR vị trí</Text>
-                    <Text style={styles.infoValue}>{locationQr || 'Chưa quét vị trí'}</Text>
+                    <Text style={styles.infoLabel}>Vị trí</Text>
+                    <Text style={styles.infoValue}>{locationQr || 'Chưa chọn vị trí'}</Text>
                     {!!locationInfo && (
                         <Text style={styles.infoMeta}>
                             {getValue(locationInfo, ['MaViTriKho', 'TenViTriKho', 'tenViTriKho'], `ID: ${getLocationId(locationInfo)}`)}

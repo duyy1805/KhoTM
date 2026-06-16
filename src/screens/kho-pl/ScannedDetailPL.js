@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
+import {
+    DeviceEventEmitter,
     View, 
     Text, 
     StyleSheet, 
@@ -125,22 +126,31 @@ const ScannedDetailPL = ({ route }) => {
         setTimeout(() => setHasScanned(false), 600);
     };
 
+    useEffect(() => {
+        const subscription = DeviceEventEmitter.addListener('ScannedDetailPLLocationSelected', async ({ packageId, location }) => {
+            if (String(packageId) !== String(kienInfo?.ID_Kien) || !location) return;
+            try {
+                await axios.post(
+                    'https://nodeapi.z76.vn/khotm/khopl/updatevitrikien',
+                    { ID_Kien: kienInfo?.ID_Kien, ID_ViTriKho: location.value }
+                );
+                await loadData();
+                Toast.show({ type: 'success', text1: 'Cập nhật vị trí thành công' });
+            } catch {
+                Toast.show({ type: 'error', text1: 'Cập nhật vị trí thất bại' });
+            }
+        });
+
+        return () => subscription.remove();
+    }, [kienInfo?.ID_Kien, loadData]);
+
     const handleUpdateLocation = () => {
         navigation.navigate('SelectLocationScreen', {
-            ID_Kien: kienInfo?.ID_Kien,
+            locationMode: 'phu-lieu',
+            idKho: 3,
             currentLocation: kienInfo?.MaViTriKho,
-            onSelect: async (selectedLocation) => {
-                try {
-                    await axios.post(
-                        'https://nodeapi.z76.vn/khotm/khopl/updatevitrikien',
-                        { ID_Kien: kienInfo?.ID_Kien, ID_ViTriKho: selectedLocation.value }
-                    );
-                    await loadData();
-                    Toast.show({ type: 'success', text1: 'Cập nhật vị trí thành công' });
-                } catch {
-                    Toast.show({ type: 'error', text1: 'Cập nhật vị trí thất bại' });
-                }
-            }
+            returnEvent: 'ScannedDetailPLLocationSelected',
+            returnPayload: { packageId: kienInfo?.ID_Kien },
         });
     };
 

@@ -24,6 +24,7 @@ import axios from 'axios';
 import apiConfig from '../../constants/apiConfig.json';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { khoNguyenLieuApi } from '../../services/khoNguyenLieuApi';
+import { getCurrentUserId, khoPhuLieuApi } from '../../services/khoPhuLieuApi';
 
 // Design Tokens
 const COLORS = {
@@ -72,7 +73,6 @@ export default function SelectLocationScreen({ route }) {
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
     const {
-        onSelect,
         ID_TheKhoKienBTP,
         currentLocation,
         locationMode = 'btp',
@@ -81,6 +81,7 @@ export default function SelectLocationScreen({ route }) {
         returnPayload = {},
     } = route.params || {};
     const isNguyenLieu = locationMode === 'nguyen-lieu' || locationMode === 'nl';
+    const isPhuLieu = locationMode === 'phu-lieu' || locationMode === 'pl';
 
     const [modalVisible, setModalVisible] = useState(false);
     const [selectingFor, setSelectingFor] = useState('kho');
@@ -101,8 +102,6 @@ export default function SelectLocationScreen({ route }) {
     const finishSelection = (location) => {
         if (returnEvent) {
             DeviceEventEmitter.emit(returnEvent, { ...returnPayload, location });
-        } else if (typeof onSelect === 'function') {
-            onSelect(location);
         }
         navigation.goBack();
     };
@@ -113,7 +112,7 @@ export default function SelectLocationScreen({ route }) {
     }, []);
 
     const fetchLocations = async () => {
-        if (isNguyenLieu) return;
+        if (isNguyenLieu || isPhuLieu) return;
         try {
             setLoadingLocations(true);
             const res = await axios.get('https://apipccc.z76.vn/api/TAG_QTKD/danhmucvitri');
@@ -137,6 +136,12 @@ export default function SelectLocationScreen({ route }) {
             setLoading(true);
             if (isNguyenLieu) {
                 const res = await khoNguyenLieuApi.getWarehouses();
+                setKhoList(asArray(res));
+                return;
+            }
+            if (isPhuLieu) {
+                const userId = await getCurrentUserId();
+                const res = await khoPhuLieuApi.getWarehouses(userId);
                 setKhoList(asArray(res));
                 return;
             }
@@ -182,6 +187,11 @@ export default function SelectLocationScreen({ route }) {
                 setCurrentAisles(asArray(res));
                 return;
             }
+            if (isPhuLieu) {
+                const res = await khoPhuLieuApi.getAisles({ idKho, maNha });
+                setCurrentAisles(asArray(res));
+                return;
+            }
 
             const authToken = await AsyncStorage.getItem('authToken');
             const token = JSON.parse(authToken).token;
@@ -209,6 +219,12 @@ export default function SelectLocationScreen({ route }) {
                 setViTriList(asArray(res));
                 return;
             }
+            if (isPhuLieu) {
+                const userId = await getCurrentUserId();
+                const res = await khoPhuLieuApi.getLocations({ idKho, maNha, maDay, maVatTu: 'none', userId });
+                setViTriList(asArray(res));
+                return;
+            }
 
             const res = await axios.get(`${apiConfig.API_BASE_URL}/vitri/btp/${idKho}/${maNha}/day/${maDay}/mavt/none/taikhoan/1`);
             setViTriList(res.data);
@@ -218,9 +234,11 @@ export default function SelectLocationScreen({ route }) {
     };
 
     const handleQRCodeScanned = async (qrCode) => {
-        if (isNguyenLieu) {
+        if (isNguyenLieu || isPhuLieu) {
             try {
-                const response = await khoNguyenLieuApi.getLocationByQr(qrCode);
+                const response = isNguyenLieu
+                    ? await khoNguyenLieuApi.getLocationByQr(qrCode)
+                    : await khoPhuLieuApi.getLocationByQr(qrCode);
                 const rawLocation = Array.isArray(response?.data)
                     ? response.data[0]
                     : response?.data || response;

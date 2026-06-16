@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { 
+    DeviceEventEmitter,
     View, 
     Text, 
     StyleSheet, 
@@ -41,18 +42,12 @@ const ScannedDetail = ({ route }) => {
     
     const [currentQR, setCurrentQR] = useState(qrCode);
     const [data, setData] = useState(initialData);
-    const [items, setItems] = useState([]);
-    const [loadingLocations, setLoadingLocations] = useState(false);
     
     const [isMergingScan, setIsMergingScan] = useState(false);
     const [isUpdatingQR, setIsUpdatingQR] = useState(false);
     const [hasScanned, setHasScanned] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
     const [refreshing, setRefreshing] = useState(false);
-
-    useEffect(() => {
-        fetchLocations();
-    }, []);
 
     useEffect(() => {
         setData(initialData);
@@ -81,25 +76,6 @@ const ScannedDetail = ({ route }) => {
         }
     }, [currentQR]);
 
-    const fetchLocations = async () => {
-        try {
-            setLoadingLocations(true);
-            const res = await axios.get('https://apipccc.z76.vn/api/TAG_QTKD/danhmucvitri');
-            const formatted = res.data.map(loc => {
-                const last4 = loc.TenViTriKho?.slice(-4);
-                return {
-                    label: `${loc.TenViTriKho} (${last4} - ${loc.MaNha})`,
-                    value: loc.ID_ViTriKho
-                };
-            });
-            setItems(formatted);
-        } catch (err) {
-            console.error('Lỗi lấy danh sách vị trí:', err);
-        } finally {
-            setLoadingLocations(false);
-        }
-    };
-
     const handleUpdateLocation = async (selectedLocation) => {
         if (!selectedLocation) return;
         try {
@@ -119,6 +95,15 @@ const ScannedDetail = ({ route }) => {
             Toast.show({ type: 'error', text1: 'Cập nhật vị trí thất bại' });
         }
     };
+
+    useEffect(() => {
+        const subscription = DeviceEventEmitter.addListener('ScannedDetailBTPLocationSelected', ({ packageId, location }) => {
+            if (String(packageId) !== String(data?.[0]?.ID_TheKhoKienBTP) || !location) return;
+            handleUpdateLocation(location);
+        });
+
+        return () => subscription.remove();
+    }, [data]);
 
     const openMergeScan = async () => {
         if (!permission?.granted) {
@@ -280,9 +265,13 @@ const ScannedDetail = ({ route }) => {
                                 <TouchableOpacity 
                                     style={styles.infoItem} 
                                     onPress={() => navigation.navigate('SelectLocationScreen', {
-                                        onSelect: handleUpdateLocation,
-                                        ID_TheKhoKienBTP: data[0].ID_TheKhoKienBTP,
-                                        currentLocation: data[0].MaViTriKho,
+                                        locationMode: 'btp',
+                                        idKho: kho?.id || 1,
+                                        currentLocation: data[0]?.MaViTriKho,
+                                        returnEvent: 'ScannedDetailBTPLocationSelected',
+                                        returnPayload: {
+                                            packageId: data[0]?.ID_TheKhoKienBTP,
+                                        },
                                     })}
                                 >
                                     <View style={[styles.infoIconBg, { backgroundColor: '#E0F2FE' }]}>

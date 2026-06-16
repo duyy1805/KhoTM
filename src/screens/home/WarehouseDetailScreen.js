@@ -138,6 +138,14 @@ const WarehouseDetailScreen = ({ route }) => {
         console.log('Điều chuyển');
     };
 
+    const handleReportPress = () => {
+        if (kho.id === 1) {
+            navigation.navigate('KhoNLReport', { kho });
+            return;
+        }
+        console.log('Báo cáo');
+    };
+
     const handleCancelScan = () => {
         setIsScanning(false);
         setScanned(false);
@@ -316,7 +324,7 @@ const WarehouseDetailScreen = ({ route }) => {
                                 title="Báo cáo thống kê"
                                 description="Xem biểu đồ và dữ liệu tồn kho"
                                 iconName="file-chart"
-                                onPress={() => console.log('Báo cáo')}
+                                onPress={handleReportPress}
                             />
                             <OptionItem
                                 title="Điều chuyển vị trí"

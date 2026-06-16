@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
+    DeviceEventEmitter,
     Platform,
     StatusBar,
     StyleSheet,
@@ -25,7 +26,15 @@ import {
     PLQuantityInputModal,
 } from '../../components/kho-pl';
 import { khoPhuLieuApi } from '../../services/khoPhuLieuApi';
-import { confirm, extractList, extractObject, getDocId, getMaterialPayload, getPackageId } from './plScreenUtils';
+import {
+    confirm,
+    extractList,
+    extractObject,
+    getDocId,
+    getMaterialPayload,
+    getPackageId,
+    groupInspectionPackages,
+} from './plScreenUtils';
 
 export default function KhoPLInspectionDetailScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
@@ -55,6 +64,8 @@ export default function KhoPLInspectionDetailScreen({ navigation, route }) {
     const warehouseName = getValue(detail, ['khoNhap', 'KhoNhap', 'tenKhoNhap', 'TenKhoNhap', 'tenKho', 'TenKho'], getValue(inspection, ['khoNhap', 'tenKhoNhap', 'TenKhoNhap'], '-'));
     const quantity = getValue(detail, ['soCuon', 'SoCuon', 'soLuong', 'SoLuong', 'tongSoLuong', 'TongSoLuong'], getValue(inspection, ['soCuon', 'SoCuon', 'soLuong', 'SoLuong'], '-'));
     const inspectionDate = getValue(detail, ['ngayGiamDinh', 'NgayGiamDinh', 'Ngay_GiamDinh'], getValue(inspection, ['ngayGiamDinh', 'NgayGiamDinh', 'Ngay_GiamDinh'], '-'));
+    const listStatus = getValue(inspection, ['TrangThai', 'trangThai', 'Status', 'status'], null);
+    const isConfirmed = listStatus === true || Number(listStatus) === 1;
 
     const fetchDetail = useCallback(async () => {
         if (!inspectionId) return;
@@ -66,7 +77,8 @@ export default function KhoPLInspectionDetailScreen({ navigation, route }) {
             ]);
             const detailObject = extractObject(detailRes, ['header', 'giamDinh', 'phieu']);
             const materialList = extractList(materialRes, ['vatTus', 'listVatTu', 'materials', 'items']);
-            const packageList = extractList(detailRes, ['kiens', 'listKien', 'kienVatTus', 'packages', 'details']);
+            const packageRows = extractList(detailRes, ['kiens', 'listKien', 'kienVatTus', 'packages', 'details']);
+            const packageList = groupInspectionPackages(packageRows);
 
             setDetail({ ...(inspection || {}), ...detailObject });
             setMaterials(materialList);
@@ -168,11 +180,16 @@ export default function KhoPLInspectionDetailScreen({ navigation, route }) {
         setScanTarget(target);
     };
 
-    const assignLocationToPackages = async (locationQr, targetPackages) => {
-        const locationRes = await khoPhuLieuApi.getLocationByQr(locationQr);
-        const location = extractObject(locationRes, ['viTri', 'location']);
-        const idViTriKho = getValue(location, ['ID_ViTriKho', 'IdViTriKho', 'idViTriKho', 'id'], null);
+    const assignLocationToPackages = async (locationValue, targetPackages) => {
+        const isLocationObject = locationValue && typeof locationValue === 'object';
+        const location = isLocationObject
+            ? locationValue
+            : extractObject(await khoPhuLieuApi.getLocationByQr(locationValue), ['viTri', 'location']);
+        const idViTriKho = getValue(location, ['ID_ViTriKho', 'IdViTriKho', 'idViTriKho', 'id', 'value'], null);
         if (!idViTriKho) throw new Error('Không tìm thấy vị trí');
+        const locationQr = isLocationObject
+            ? getValue(location, ['QrCode', 'QRCode', 'qrCode', 'MaViTriKho', 'maViTriKho', 'label'], '')
+            : locationValue;
 
         const viTriVatTuKiens = targetPackages.map((item) => ({
             QrCode: locationQr,
@@ -180,6 +197,44 @@ export default function KhoPLInspectionDetailScreen({ navigation, route }) {
             ID_Kien: getPackageId(item),
         }));
         await khoPhuLieuApi.assignInspectionPackageLocations(viTriVatTuKiens);
+    };
+
+    useEffect(() => {
+        const subscription = DeviceEventEmitter.addListener('KhoPLInspectionPackageLocationSelected', async ({ inspectionId: eventInspectionId, packageIds = [], location }) => {
+            if (String(eventInspectionId) !== String(inspectionId) || !location || !packageIds.length) return;
+            const ids = packageIds.map(String);
+            const targetPackages = packages.filter((item) => ids.includes(String(getPackageId(item))));
+            if (!targetPackages.length) return;
+            try {
+                setLoading(true);
+                await assignLocationToPackages(location, targetPackages);
+                Toast.show({ type: 'success', text1: 'Đã gán vị trí cho kiện' });
+                await fetchDetail();
+            } catch (error) {
+                Toast.show({ type: 'error', text1: error.message || 'Gán vị trí thất bại' });
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        return () => subscription.remove();
+    }, [packages, inspectionId, fetchDetail]);
+
+    const openLocationPicker = (targetPackages) => {
+        const packageIds = targetPackages.map((item) => getPackageId(item)).filter(Boolean);
+        if (!packageIds.length) {
+            Toast.show({ type: 'info', text1: 'Không tìm thấy kiện cần gán vị trí' });
+            return;
+        }
+        navigation.navigate('SelectLocationScreen', {
+            locationMode: 'phu-lieu',
+            idKho: 3,
+            returnEvent: 'KhoPLInspectionPackageLocationSelected',
+            returnPayload: {
+                inspectionId,
+                packageIds,
+            },
+        });
     };
 
     const handleBarCodeScanned = async ({ data }) => {
@@ -192,12 +247,6 @@ export default function KhoPLInspectionDetailScreen({ navigation, route }) {
                     idKien: getPackageId(scanTarget.package),
                 });
                 Toast.show({ type: 'success', text1: 'Đã gán QR cho kiện' });
-            }
-
-            if (scanTarget.type === 'location') {
-                await assignLocationToPackages(data, scanTarget.packages);
-                setSelectedPackageIds([]);
-                Toast.show({ type: 'success', text1: 'Đã gán vị trí cho kiện' });
             }
 
             setScanTarget(null);
@@ -215,8 +264,8 @@ export default function KhoPLInspectionDetailScreen({ navigation, route }) {
                 await khoPhuLieuApi.confirmInspection(inspectionId);
                 Toast.show({ type: 'success', text1: 'Đã xác nhận biên bản' });
                 await fetchDetail();
-            } catch {
-                Toast.show({ type: 'error', text1: 'Xác nhận thất bại' });
+            } catch (error) {
+                Toast.show({ type: 'error', text1: error.message || 'Xác nhận thất bại' });
             } finally {
                 setLoading(false);
             }
@@ -236,7 +285,8 @@ export default function KhoPLInspectionDetailScreen({ navigation, route }) {
                 onSelect={() => togglePackage(item)}
                 onAddMaterial={() => openMaterialPicker(item)}
                 onAssignQr={() => startScan({ type: 'packageQr', package: item })}
-                onAssignLocation={() => startScan({ type: 'location', packages: [item] })}
+                onAssignLocation={() => openLocationPicker([item])}
+                showAddMaterialAction={!isConfirmed}
             />
         );
     };
@@ -255,9 +305,7 @@ export default function KhoPLInspectionDetailScreen({ navigation, route }) {
                 />
                 <ScanOverlay />
                 <View style={styles.scanHint}>
-                    <Text style={styles.scanHintText}>
-                        {scanTarget.type === 'location' ? 'Quét QR vị trí' : 'Quét QR kiện'}
-                    </Text>
+                    <Text style={styles.scanHintText}>Quét QR kiện</Text>
                 </View>
                 <Toast />
             </View>
@@ -331,7 +379,7 @@ export default function KhoPLInspectionDetailScreen({ navigation, route }) {
             {activeTab === 'packages' ? (
                 <FlatList
                     data={packages}
-                    keyExtractor={(item, index) => String(getPackageId(item) || index)}
+                    keyExtractor={(item, index) => `package-${getPackageId(item) || index}`}
                     renderItem={renderPackage}
                     contentContainerStyle={styles.listContent}
                     ListEmptyComponent={!loading && <Text style={styles.emptyText}>Chưa có kiện phụ liệu</Text>}
@@ -346,26 +394,21 @@ export default function KhoPLInspectionDetailScreen({ navigation, route }) {
                 />
             )}
 
-            <View style={styles.footer}>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={() => setCreateVisible(true)}>
-                    <Ionicons name="add" size={20} color={COLORS.primary} />
-                    <Text style={styles.secondaryText}>Tạo kiện</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.secondaryBtn} onPress={handleDeleteSelected}>
-                    <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
-                    <Text style={[styles.secondaryText, { color: COLORS.danger }]}>Xóa</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={styles.secondaryBtn}
-                    onPress={() => selectedPackages.length ? startScan({ type: 'location', packages: selectedPackages }) : Toast.show({ type: 'info', text1: 'Chọn kiện cần gán vị trí' })}
-                >
-                    <Ionicons name="location-outline" size={20} color={COLORS.primary} />
-                    <Text style={styles.secondaryText}>Vị trí</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.primaryBtn} onPress={handleConfirmInspection}>
-                    <Text style={styles.primaryText}>Lưu</Text>
-                </TouchableOpacity>
-            </View>
+            {!isConfirmed && (
+                <View style={styles.footer}>
+                    <TouchableOpacity style={styles.secondaryBtn} onPress={() => setCreateVisible(true)}>
+                        <Ionicons name="add" size={20} color={COLORS.primary} />
+                        <Text style={styles.secondaryText}>Tạo kiện</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.secondaryBtn} onPress={handleDeleteSelected}>
+                        <Ionicons name="trash-outline" size={20} color={COLORS.danger} />
+                        <Text style={[styles.secondaryText, { color: COLORS.danger }]}>Xóa</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.primaryBtn} onPress={handleConfirmInspection}>
+                        <Text style={styles.primaryText}>Lưu biên bản</Text>
+                    </TouchableOpacity>
+                </View>
+            )}
 
             {loading && (
                 <View style={styles.loadingOverlay}>
@@ -491,7 +534,7 @@ const styles = StyleSheet.create({
     },
     secondaryText: { fontSize: 12, fontWeight: '800', color: COLORS.primary },
     primaryBtn: {
-        width: 74,
+        flex: 1.35,
         height: 48,
         borderRadius: 14,
         backgroundColor: COLORS.success,

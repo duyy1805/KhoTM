@@ -13,11 +13,20 @@ export default function PLPackageCard({
     onAssignQr,
     onAssignLocation,
     showActions = true,
+    showAddMaterialAction = true,
 }) {
     const id = getValue(item, ['ID_Kien', 'IdKien', 'idKien', 'IdTheKhoKien', 'id'], '');
     const qr = getValue(item, ['QrCode', 'QRCode', 'qrCode'], 'Chưa gán');
     const location = getValue(item, ['TenViTriKho', 'MaViTriKho', 'maViTriKho', 'QrCodeViTri'], 'Chưa có vị trí');
-    const material = getValue(item, ['QuyCach', 'quyCach', 'Ma_VatTu', 'MaVatTu', 'ItemCode', 'TenVatTu', 'Ten_VatTu'], 'Chưa có vật tư');
+    const packageMaterials = Array.isArray(item?.vatTus) ? item.vatTus : [];
+    const firstMaterial = packageMaterials.length ? packageMaterials[0] : null;
+    const materialCode = getValue(firstMaterial, ['Ma_VatTu', 'MaVatTu', 'maVatTu', 'ItemCode'], '');
+    const materialName = getValue(firstMaterial || item, ['QuyCach', 'quyCach', 'Ten_VatTu', 'TenVatTu', 'TenHang', 'tenVatTu'], '');
+    const material = packageMaterials.length > 1
+        ? `Có ${packageMaterials.length} vật tư trong kiện`
+        : materialCode || materialName
+            ? [materialCode, materialName].filter(Boolean).join(' - ')
+            : 'Chưa có vật tư';
     const qty = getValue(item, ['SoLuong', 'SoLuongTon', 'SoLuong_NhapKho', 'SoLuongXuatKho'], '');
 
     return (
@@ -27,7 +36,7 @@ export default function PLPackageCard({
                     <View style={[styles.iconBox, selected && styles.iconBoxSelected]}>
                         <Icon name={selected ? 'check' : 'cube-outline'} size={20} color={selected ? COLORS.white : COLORS.primary} />
                     </View>
-                    <View>
+                    <View style={styles.titleContent}>
                         <Text style={styles.title}>Kiện #{id || '-'}</Text>
                         <Text style={styles.subtitle} numberOfLines={1}>{material}</Text>
                     </View>
@@ -56,10 +65,14 @@ export default function PLPackageCard({
                         <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={18} color={COLORS.primary} />
                         <Text style={styles.actionText}>Chọn</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionBtn} onPress={onAddMaterial}>
-                        <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
-                        <Text style={styles.actionText}>Vật tư</Text>
-                    </TouchableOpacity>
+                    {showAddMaterialAction ? (
+                        <TouchableOpacity style={styles.actionBtn} onPress={onAddMaterial}>
+                            <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
+                            <Text style={styles.actionText}>Vật tư</Text>
+                        </TouchableOpacity>
+                    ) : (
+                        <View style={styles.actionPlaceholder} />
+                    )}
                     <TouchableOpacity style={styles.actionBtn} onPress={onAssignQr}>
                         <Ionicons name="qr-code-outline" size={18} color={COLORS.primary} />
                         <Text style={styles.actionText}>QR</Text>
@@ -97,6 +110,11 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         flex: 1,
+        minWidth: 0,
+    },
+    titleContent: {
+        flex: 1,
+        minWidth: 0,
     },
     iconBox: {
         width: 40,
@@ -125,6 +143,7 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         paddingHorizontal: 10,
         paddingVertical: 5,
+        marginLeft: 8,
     },
     qtyBadgeText: {
         fontSize: 13,
@@ -173,5 +192,9 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '700',
         color: COLORS.primary,
+    },
+    actionPlaceholder: {
+        flex: 1,
+        height: 38,
     },
 });

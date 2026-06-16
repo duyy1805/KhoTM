@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { 
+    DeviceEventEmitter,
     View, 
     Text, 
     TouchableOpacity, 
@@ -55,6 +56,16 @@ export default function SplitPackageScreen() {
             setChiTiet([{ ...originalPackage, SoLuong_Tach: 0 }]);
         }
     }, [originalPackage]);
+
+    useEffect(() => {
+        const subscription = DeviceEventEmitter.addListener('BTPSplitPackageLocationSelected', ({ location }) => {
+            if (!location) return;
+            setSelectedLocation(location);
+            Toast.show({ type: 'success', text1: 'Đã chọn vị trí' });
+        });
+
+        return () => subscription.remove();
+    }, []);
 
     const openQRScanner = async () => {
         if (!permission?.granted) {
@@ -199,11 +210,9 @@ export default function SplitPackageScreen() {
                                         style={styles.locationPicker}
                                         onPress={() => {
                                             navigation.navigate('SelectLocationScreen', {
-                                                currentLocation: selectedLocation?.label || originalPackage?.MaViTriKho,
-                                                onSelect: async (loc) => {
-                                                    setSelectedLocation(loc);
-                                                    Toast.show({ type: 'success', text1: 'Đã chọn vị trí' });
-                                                },
+                                                locationMode: 'btp',
+                                                currentLocation: selectedLocation?.label || originalPackage?.[0]?.MaViTriKho || originalPackage?.MaViTriKho,
+                                                returnEvent: 'BTPSplitPackageLocationSelected',
                                             });
                                         }}
                                     >

@@ -108,20 +108,6 @@ export default function KhoNLInspectionCoilDetailScreen({ navigation, route }) {
         setScanned(true);
         try {
             setLoading(true);
-            if (scanMode === 'location') {
-                const response = await khoNguyenLieuApi.getLocationByQr(data);
-                const location = extractObject(response, ['viTri', 'location', 'data']);
-                const idViTri = getLocationId(location);
-                if (!idViTri) throw new Error('Không tìm thấy vị trí');
-                notifyParent({
-                    ID_ViTriKho: idViTri,
-                    idViTri,
-                    MaViTriKho: getValue(location, ['MaViTriKho', 'TenViTriKho', 'QrCode'], data),
-                    QrCodeViTri: data,
-                });
-                Toast.show({ type: 'success', text1: 'Đã chọn vị trí' });
-            }
-
             if (scanMode === 'qr') {
                 await khoNguyenLieuApi.assignInspectionCoilQr({ idCuon: getCoilId(detail), qrCode: data });
                 notifyParent({ QRCode: data, QrCode: data });
@@ -198,7 +184,7 @@ export default function KhoNLInspectionCoilDetailScreen({ navigation, route }) {
                 />
                 <ScanOverlay />
                 <View style={styles.scanHint}>
-                    <Text style={styles.scanHintText}>{scanMode === 'location' ? 'Quét QR vị trí' : 'Quét QR cuộn'}</Text>
+                    <Text style={styles.scanHintText}>Quét QR cuộn</Text>
                 </View>
                 <Toast />
             </View>
@@ -250,10 +236,6 @@ export default function KhoNLInspectionCoilDetailScreen({ navigation, route }) {
                         <Text style={styles.secondaryText}>Gán QR</Text>
                     </TouchableOpacity>
                 )}
-                <TouchableOpacity style={styles.secondaryButton} onPress={() => startScan('location')}>
-                    <Ionicons name="qr-code-outline" size={20} color={COLORS.primary} />
-                    <Text style={styles.secondaryText}>Quét vị trí</Text>
-                </TouchableOpacity>
                 <TouchableOpacity style={styles.primaryButton} onPress={openLocationPicker}>
                     <Text style={styles.primaryText}>Chọn vị trí</Text>
                 </TouchableOpacity>

@@ -78,6 +78,60 @@ export function getMaterialPayload(material, quantity) {
     };
 }
 
+export function isRealPackageMaterial(row) {
+    const materialCode = getValue(row, ['Ma_VatTu', 'MaVatTu', 'maVatTu', 'ItemCode'], '');
+    const materialName = getValue(row, ['QuyCach', 'quyCach', 'Ten_VatTu', 'TenVatTu', 'TenHang', 'tenVatTu'], '');
+    const materialId = getValue(row, ['ID_VatTu', 'IdVatTu', 'idVatTu'], null);
+    const packageQty = Number(getValue(row, ['SoLuong', 'soLuong'], 0) || 0);
+
+    return Boolean(materialCode || materialName || materialId || packageQty > 0);
+}
+
+export function groupInspectionPackages(rows = []) {
+    const groups = new Map();
+
+    rows.forEach((row) => {
+        const id = getPackageId(row);
+        if (!id) return;
+
+        if (!groups.has(id)) {
+            groups.set(id, {
+                ...row,
+                vatTus: [],
+            });
+        }
+
+        const group = groups.get(id);
+        const nestedMaterials = Array.isArray(row?.vatTus) ? row.vatTus : Array.isArray(row?.VatTus) ? row.VatTus : null;
+        if (nestedMaterials) {
+            group.vatTus = nestedMaterials.filter(isRealPackageMaterial);
+            return;
+        }
+
+        if (!isRealPackageMaterial(row)) return;
+
+        group.vatTus.push({
+            ...row,
+            ID_DonHang_VatTu: getValue(row, ['ID_DonHang_VatTu', 'ID_DonHangVatTu', 'IdDonHangVatTu', 'idDonHangVatTu'], null),
+            ID_VatTu: getValue(row, ['ID_VatTu', 'IdVatTu', 'idVatTu'], null),
+            Ma_VatTu: getValue(row, ['Ma_VatTu', 'MaVatTu', 'maVatTu'], ''),
+            Ma_DonHang: getValue(row, ['Ma_DonHang', 'MaDonHang', 'maDonHang'], ''),
+            QuyCach: getValue(row, ['QuyCach', 'quyCach'], ''),
+            SoLuong: getValue(row, ['SoLuong', 'soLuong'], 0),
+            SoLuong_ChungTu: getValue(row, ['SoLuong_ChungTu', 'soLuongChungTuQuyDoi'], 0),
+            SoLuong_ConLai: getValue(row, ['SoLuong_ConLai', 'soLuongConLaiQuyDoi'], 0),
+        });
+    });
+
+    return Array.from(groups.values()).map((item) => {
+        const totalQty = item.vatTus.reduce((sum, material) => sum + Number(getValue(material, ['SoLuong', 'soLuong'], 0) || 0), 0);
+        return {
+            ...item,
+            SoLuong: totalQty,
+        };
+    });
+}
+
 export function confirm(title, message, onConfirm) {
     Alert.alert(title, message, [
         { text: 'Hủy', style: 'cancel' },

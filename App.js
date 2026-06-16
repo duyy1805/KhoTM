@@ -15,6 +15,8 @@ import KhoNLExportListScreen from "./src/screens/kho-nl/KhoNLExportListScreen";
 import KhoNLExportDetailScreen from "./src/screens/kho-nl/KhoNLExportDetailScreen";
 import KhoNLExportMaterialCoilsScreen from "./src/screens/kho-nl/KhoNLExportMaterialCoilsScreen";
 import KhoNLTransferLocationScreen from "./src/screens/kho-nl/KhoNLTransferLocationScreen";
+import KhoNLReportScreen from "./src/screens/kho-nl/KhoNLReportScreen";
+import KhoNLReportLocationCoilsScreen from "./src/screens/kho-nl/KhoNLReportLocationCoilsScreen";
 import ScannedDetailPL from "./src/screens/kho-pl/ScannedDetailPL";
 import KhoPLInspectionListScreen from "./src/screens/kho-pl/KhoPLInspectionListScreen";
 import KhoPLInspectionDetailScreen from "./src/screens/kho-pl/KhoPLInspectionDetailScreen";
@@ -132,6 +134,16 @@ export default function App() {
             name="KhoNLTransferLocation"
             component={KhoNLTransferLocationScreen}
             options={{ headerShown: false, title: "Điều chuyển vị trí NL" }}
+          />
+          <Stack.Screen
+            name="KhoNLReport"
+            component={KhoNLReportScreen}
+            options={{ headerShown: false, title: "Báo cáo thống kê NL" }}
+          />
+          <Stack.Screen
+            name="KhoNLReportLocationCoils"
+            component={KhoNLReportLocationCoilsScreen}
+            options={{ headerShown: false, title: "Cuộn theo vị trí NL" }}
           />
 
           <Stack.Screen

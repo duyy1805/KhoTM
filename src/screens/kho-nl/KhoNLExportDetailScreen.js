@@ -75,6 +75,19 @@ function getRequiredQty(item) {
     return 0;
 }
 
+function getAvailableQty(item) {
+    return toNumber(getValue(item, [
+        'soLuongTon',
+        'SoLuongTon',
+        'SoLuongConLai',
+        'soLuongConLai',
+        'SoLuong',
+        'soLuong',
+        'Qty',
+        'qty',
+    ], 0));
+}
+
 function ExportInfoCard({ detail, totalScanned }) {
     const rows = [
         ['Loại phiếu', getValue(detail, ['LoaiPhieu', 'TenLoaiPhieu', 'tenLoaiPhieu'], 'Xuất sản xuất')],
@@ -175,6 +188,26 @@ export default function KhoNLExportDetailScreen({ navigation, route }) {
             selectedCoils = [],
         }) => {
             if (String(eventExportId) !== String(exportId)) return;
+            const material = materials.find((item) =>
+                (orderMaterialId && String(getOrderMaterialId(item)) === String(orderMaterialId))
+                || (materialId && String(getMaterialId(item)) === String(materialId))
+            );
+            const requiredQty = getRequiredQty(material || {});
+            const selectedQty = selectedCoils.reduce((sum, item) => sum + toNumber(item.soLuong), 0);
+            const invalidCoil = selectedCoils.find((item) => {
+                const availableQty = getAvailableQty(item);
+                return availableQty > 0 && toNumber(item.soLuong) > availableQty;
+            });
+
+            if (invalidCoil) {
+                Toast.show({ type: 'error', text1: 'Có cuộn xuất vượt số lượng tồn' });
+                return;
+            }
+            if (requiredQty > 0 && selectedQty > requiredQty) {
+                Toast.show({ type: 'error', text1: `Tổng số lượng xuất không được vượt ${requiredQty}` });
+                return;
+            }
+
             setExportCoils((prev) => {
                 const unrelated = prev.filter((item) => {
                     const sameMaterial = (orderMaterialId && String(item.idDonHangVatTu || getOrderMaterialId(item)) === String(orderMaterialId))
@@ -186,7 +219,7 @@ export default function KhoNLExportDetailScreen({ navigation, route }) {
         });
 
         return () => subscription.remove();
-    }, [exportId]);
+    }, [exportId, materials]);
 
     const openMaterialCoils = (material) => {
         const orderMaterialId = getOrderMaterialId(material);
@@ -211,6 +244,31 @@ export default function KhoNLExportDetailScreen({ navigation, route }) {
     };
 
     const saveExport = () => {
+        const invalidCoil = exportCoils.find((item) => {
+            const availableQty = getAvailableQty(item);
+            return availableQty > 0 && toNumber(item.soLuong) > availableQty;
+        });
+        if (invalidCoil) {
+            Toast.show({ type: 'error', text1: 'Có cuộn xuất vượt số lượng tồn' });
+            return;
+        }
+
+        for (const material of materials) {
+            const orderMaterialId = getOrderMaterialId(material);
+            const materialId = getMaterialId(material);
+            const requiredQty = getRequiredQty(material);
+            const selectedQty = exportCoils
+                .filter((item) =>
+                    (orderMaterialId && String(item.idDonHangVatTu || getOrderMaterialId(item)) === String(orderMaterialId))
+                    || (materialId && String(item.idVatTu || getMaterialId(item)) === String(materialId))
+                )
+                .reduce((sum, item) => sum + toNumber(item.soLuong), 0);
+            if (requiredQty > 0 && selectedQty > requiredQty) {
+                Toast.show({ type: 'error', text1: `Vật tư ${getMaterialName(material)} vượt số lượng cần xuất` });
+                return;
+            }
+        }
+
         const cuons = exportCoils
             .map((item) => ({
                 idTheKhoCuon: getStockCoilId(item),

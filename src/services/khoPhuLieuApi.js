@@ -1,7 +1,8 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-const POSTMAN_HOST = '125.212.207.52:5000';
+// const POSTMAN_HOST = 'apilayoutkho.z76.vn';
+const POSTMAN_HOST = '125.212.207.52:5010';
 export const KHO_PL_BASE_URL = `http://${POSTMAN_HOST}`;
 export const KHO_TM_TEST_BASE_URL = 'https://nodeapi.z76.vn/khotmtest';
 
@@ -99,6 +100,42 @@ function normalizeIdList(ids) {
     return list
         .map((id) => Number(getIdValue(id)))
         .filter((id) => Number.isFinite(id) && id > 0);
+}
+
+function extractResultMessage(payload) {
+    if (payload === undefined || payload === null) return '';
+    if (typeof payload === 'string') return payload;
+    if (typeof payload === 'boolean') return payload ? 'success' : 'failure';
+
+    if (Array.isArray(payload)) {
+        return extractResultMessage(payload[0]);
+    }
+
+    if (typeof payload === 'object') {
+        return extractResultMessage(
+            payload.InsertResult
+            ?? payload.insertResult
+            ?? payload.result
+            ?? payload.Result
+            ?? payload.message
+            ?? payload.Message
+            ?? payload.data
+            ?? payload.ok
+            ?? payload.success
+        );
+    }
+
+    return String(payload);
+}
+
+function assertStoredResultSuccess(payload, fallbackMessage = 'Thao tác thất bại') {
+    const message = extractResultMessage(payload).trim();
+    const normalized = message.toLowerCase();
+    if (normalized === 'success' || normalized === 'true' || normalized === 'ok') {
+        return payload;
+    }
+
+    throw new Error(message || fallbackMessage);
 }
 
 export async function getCurrentUserId() {
@@ -200,7 +237,8 @@ export const khoPhuLieuApi = {
     },
 
     async confirmInspection(id) {
-        return request({ method: 'POST', url: `/giamdinh/phu-lieu/xacnhanBBGD/${id}` });
+        const data = await request({ method: 'POST', url: `/giamdinh/phu-lieu/xacnhanBBGD/${id}` });
+        return assertStoredResultSuccess(data, 'Xác nhận biên bản thất bại');
     },
 
     async searchExports({ soPhieu = '', trangThai = null, loaiPhieu = null, pageIndex = 0, pageSize = 20 } = {}) {
