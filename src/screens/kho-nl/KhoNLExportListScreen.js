@@ -66,6 +66,8 @@ export default function KhoNLExportListScreen({ navigation, route }) {
                     <PLDocumentCard
                         type="export"
                         item={item}
+                        countLabel="SL xuất"
+                        countUnit=""
                         onPress={() => navigation.navigate('KhoNLExportDetail', { exportDoc: item, id: getDocId(item), kho })}
                     />
                 )}

@@ -88,6 +88,36 @@ function getAvailableQty(item) {
     ], 0));
 }
 
+function getCoilExportQty(item) {
+    return toNumber(getValue(item, [
+        'soLuongXuat',
+        'SoLuongXuat',
+        'SoLuong_Xuat',
+        'soLuong',
+        'SoLuong',
+        'Qty',
+        'qty',
+    ], getAvailableQty(item)));
+}
+
+function getNestedCoils(material) {
+    const cuons = getValue(material, ['cuons', 'Cuons', 'listCuon', 'ListCuon', 'danhSachCuon', 'DanhSachCuon'], []);
+    if (!Array.isArray(cuons)) return [];
+
+    const idDonHangVatTu = getOrderMaterialId(material);
+    const idVatTu = getMaterialId(material);
+    return cuons.map((coil) => {
+        const availableQty = getAvailableQty(coil) || getCoilExportQty(coil);
+        return {
+            ...coil,
+            idDonHangVatTu: getValue(coil, ['idDonHangVatTu', 'IdDonHangVatTu', 'ID_DonHang_VatTu'], idDonHangVatTu),
+            idVatTu: getValue(coil, ['idVatTu', 'IdVatTu', 'ID_VatTu'], idVatTu),
+            soLuong: getCoilExportQty(coil),
+            soLuongTon: availableQty,
+        };
+    });
+}
+
 function ExportInfoCard({ detail, totalScanned }) {
     const rows = [
         ['Loại phiếu', getValue(detail, ['LoaiPhieu', 'TenLoaiPhieu', 'tenLoaiPhieu'], 'Xuất sản xuất')],
@@ -150,7 +180,7 @@ export default function KhoNLExportDetailScreen({ navigation, route }) {
         const map = new Map();
         for (const coil of exportCoils) {
             const key = String(coil.idDonHangVatTu || getOrderMaterialId(coil) || coil.idVatTu || getMaterialId(coil) || '');
-            map.set(key, (map.get(key) || 0) + toNumber(coil.soLuong));
+            map.set(key, (map.get(key) || 0) + getCoilExportQty(coil));
         }
         return map;
     }, [exportCoils]);
@@ -166,9 +196,11 @@ export default function KhoNLExportDetailScreen({ navigation, route }) {
             setLoading(true);
             const response = await khoNguyenLieuApi.getExportDetail(exportId);
             const object = extractObject(response, ['header', 'phieu', 'phieuXuat']);
-            const rows = extractList(response, ['vatTus', 'listVatTu', 'materials', 'details', 'items']);
+            const rows = extractList(response, ['chiTiets', 'ChiTiets', 'vatTus', 'listVatTu', 'materials', 'details', 'items']);
+            const nestedCoils = rows.flatMap(getNestedCoils);
             setDetail({ ...(exportDoc || {}), ...object });
             setMaterials(rows);
+            setExportCoils(nestedCoils);
         } catch {
             Toast.show({ type: 'error', text1: 'Lỗi tải chi tiết phiếu xuất' });
         } finally {
@@ -193,7 +225,7 @@ export default function KhoNLExportDetailScreen({ navigation, route }) {
                 || (materialId && String(getMaterialId(item)) === String(materialId))
             );
             const requiredQty = getRequiredQty(material || {});
-            const selectedQty = selectedCoils.reduce((sum, item) => sum + toNumber(item.soLuong), 0);
+            const selectedQty = selectedCoils.reduce((sum, item) => sum + getCoilExportQty(item), 0);
             const invalidCoil = selectedCoils.find((item) => {
                 const availableQty = getAvailableQty(item);
                 return availableQty > 0 && toNumber(item.soLuong) > availableQty;
@@ -225,8 +257,8 @@ export default function KhoNLExportDetailScreen({ navigation, route }) {
         const orderMaterialId = getOrderMaterialId(material);
         const materialId = getMaterialId(material);
         const initialCoils = exportCoils.filter((item) =>
-            (orderMaterialId && (item.idDonHangVatTu || getOrderMaterialId(item)) === orderMaterialId)
-            || (materialId && (item.idVatTu || getMaterialId(item)) === materialId)
+            (orderMaterialId && String(item.idDonHangVatTu || getOrderMaterialId(item)) === String(orderMaterialId))
+            || (materialId && String(item.idVatTu || getMaterialId(item)) === String(materialId))
         );
 
         navigation.navigate('KhoNLExportMaterialCoils', {
@@ -262,7 +294,7 @@ export default function KhoNLExportDetailScreen({ navigation, route }) {
                     (orderMaterialId && String(item.idDonHangVatTu || getOrderMaterialId(item)) === String(orderMaterialId))
                     || (materialId && String(item.idVatTu || getMaterialId(item)) === String(materialId))
                 )
-                .reduce((sum, item) => sum + toNumber(item.soLuong), 0);
+                .reduce((sum, item) => sum + getCoilExportQty(item), 0);
             if (requiredQty > 0 && selectedQty > requiredQty) {
                 Toast.show({ type: 'error', text1: `Vật tư ${getMaterialName(material)} vượt số lượng cần xuất` });
                 return;
@@ -274,7 +306,7 @@ export default function KhoNLExportDetailScreen({ navigation, route }) {
                 idTheKhoCuon: getStockCoilId(item),
                 idDonHangVatTu: item.idDonHangVatTu || getOrderMaterialId(item),
                 idVatTu: item.idVatTu || getMaterialId(item),
-                soLuong: Number(item.soLuong) || 0,
+                soLuong: getCoilExportQty(item),
             }))
             .filter((item) => item.idTheKhoCuon && item.idVatTu && item.soLuong > 0);
 

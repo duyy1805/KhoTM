@@ -11,7 +11,7 @@ function formatStatus(value) {
     return value ? String(value) : '';
 }
 
-export default function PLDocumentCard({ item, type = 'inspection', onPress }) {
+export default function PLDocumentCard({ item, type = 'inspection', onPress, countLabel = '', countUnit = 'cuộn' }) {
     const codeKeys = type === 'export'
         ? ['So_PhieuXuat', 'So_PhieuXuatVT', 'SoPhieu', 'soPhieu', 'so_PhieuXuat', 'so_PhieuXuatVT', 'soPhieuXuat', 'maPhieu', 'code']
         : ['So_BienBan', 'SoBienBan', 'soBienBan', 'so_BienBan', 'soBienBanGiamDinh', 'Ma_GiamDinh', 'maGiamDinh', 'maBienBan', 'code'];
@@ -22,7 +22,10 @@ export default function PLDocumentCard({ item, type = 'inspection', onPress }) {
     const status = formatStatus(rawStatus);
     const partner = getValue(item, ['Ten_DonVi', 'tenDonVi', 'TenNhaCungCap', 'tenNhaCungCap', 'nhaCungCap', 'TenKhachHang', 'tenKhachHang', 'khachHang', 'DienGiai', 'dienGiai', 'GhiChu', 'ghiChu'], '');
     const order = getValue(item, ['maDonHang', 'MaDonHang', 'Ma_DonHang'], '');
-    const count = getValue(item, ['soCuon', 'SoCuon', 'soKien', 'SoKien'], '');
+    const count = getValue(item, ['soCuon', 'SoCuon', 'soKien', 'SoKien', 'tongSoLuong', 'TongSoLuong'], '');
+    const countText = count !== ''
+        ? `${countLabel ? `${countLabel}: ` : ''}${count}${countUnit ? ` ${countUnit}` : ''}`
+        : '';
 
     return (
         <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
@@ -42,7 +45,7 @@ export default function PLDocumentCard({ item, type = 'inspection', onPress }) {
                 <View style={styles.footerRow}>
                     {!!id && <Text style={styles.footerText}>#{id}</Text>}
                     {!!date && <Text style={styles.footerText}>{String(date).slice(0, 10)}</Text>}
-                    {count !== '' && <Text style={styles.footerText}>{count} cuộn</Text>}
+                    {!!countText && <Text style={styles.footerText}>{countText}</Text>}
                 </View>
                 {!!order && (
                     <View style={styles.orderBox}>

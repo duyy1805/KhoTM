@@ -1,12 +1,12 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
+    Modal,
     Platform,
     StatusBar,
     StyleSheet,
     Text,
-    TextInput,
     TouchableOpacity,
     View,
     DeviceEventEmitter,
@@ -103,7 +103,7 @@ function CoilPickerCard({ item, selected, onPress }) {
     );
 }
 
-function SelectedCoilCard({ item, onQtyChange, onRemove }) {
+function SelectedCoilCard({ item, onRemove }) {
     const availableQty = getAvailableQty(item);
     return (
         <View style={styles.selectedCoilCard}>
@@ -118,15 +118,9 @@ function SelectedCoilCard({ item, onQtyChange, onRemove }) {
             </View>
             <View style={styles.qtyInputRow}>
                 <Text style={styles.qtyInputLabel}>Qty xuất</Text>
-                <TextInput
-                    style={[
-                        styles.qtyInput,
-                        toNumber(item.soLuong) > availableQty && styles.qtyInputError,
-                    ]}
-                    keyboardType="numeric"
-                    value={String(item.soLuong ?? '')}
-                    onChangeText={onQtyChange}
-                />
+                <View style={styles.qtyReadOnly}>
+                    <Text style={styles.qtyReadOnlyText}>{item.soLuong ?? availableQty}</Text>
+                </View>
                 <Text style={styles.qtyUnitDark}>{getValue(item, ['DonViTinh', 'donViTinh'], 'Mét')}</Text>
             </View>
             <Text style={styles.availableText}>Tồn cuộn: {availableQty} {getValue(item, ['DonViTinh', 'donViTinh'], 'Mét')}</Text>
@@ -146,9 +140,11 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
     } = route.params || {};
     const [availableCoils, setAvailableCoils] = useState([]);
     const [selectedCoils, setSelectedCoils] = useState(initialCoils);
+    const selectedCoilsRef = useRef(initialCoils);
     const [loading, setLoading] = useState(false);
     const [scanMode, setScanMode] = useState(false);
     const [scanned, setScanned] = useState(false);
+    const [coilPickerVisible, setCoilPickerVisible] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
 
     const materialId = getMaterialId(material);
@@ -156,6 +152,14 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
     const selectedIds = useMemo(() => new Set(selectedCoils.map((item) => String(getStockCoilId(item)))), [selectedCoils]);
     const requiredQty = getRequiredQty(material);
     const selectedQty = useMemo(() => selectedCoils.reduce((sum, item) => sum + toNumber(item.soLuong), 0), [selectedCoils]);
+
+    const setSelectedCoilsSafe = useCallback((nextOrUpdater) => {
+        const current = selectedCoilsRef.current;
+        const next = typeof nextOrUpdater === 'function' ? nextOrUpdater(current) : nextOrUpdater;
+        selectedCoilsRef.current = next;
+        setSelectedCoils(next);
+        return next;
+    }, []);
 
     const normalizeCoil = useCallback((coil, qrCode = '') => ({
         ...coil,
@@ -202,19 +206,15 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
     const addOrToggleCoil = (coil) => {
         const id = getStockCoilId(coil);
         if (!id) return;
-        setSelectedCoils((prev) => {
-            if (prev.some((item) => getStockCoilId(item) === id)) {
-                return prev.filter((item) => getStockCoilId(item) !== id);
-            }
-            const next = normalizeCoil(coil);
-            const currentTotal = prev.reduce((sum, item) => sum + toNumber(item.soLuong), 0);
-            const remainingQty = requiredQty > 0 ? requiredQty - currentTotal : toNumber(next.soLuong);
-            if (requiredQty > 0 && remainingQty <= 0) {
-                Toast.show({ type: 'info', text1: 'Số lượng xuất vượt số lượng cần xuất' });
-                return prev;
-            }
-            return [...prev, { ...next, soLuong: Math.min(toNumber(next.soLuong), remainingQty) }];
-        });
+        const currentCoils = selectedCoilsRef.current;
+        const exists = currentCoils.some((item) => getStockCoilId(item) === id);
+        if (exists) {
+            setSelectedCoilsSafe(currentCoils.filter((item) => getStockCoilId(item) !== id));
+            return;
+        }
+
+        const next = normalizeCoil(coil);
+        setSelectedCoilsSafe([...currentCoils, { ...next, soLuong: getAvailableQty(next) }]);
     };
 
     const handleBarCodeScanned = async ({ data }) => {
@@ -226,28 +226,18 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
             const coil = extractObject(response, ['cuon', 'coil', 'data']);
             const idTheKhoCuon = getStockCoilId(coil);
             if (!idTheKhoCuon) throw new Error('Không tìm thấy cuộn');
-            let didAdd = false;
-            setSelectedCoils((prev) => {
-                if (prev.some((item) => getStockCoilId(item) === idTheKhoCuon)) {
-                    Toast.show({ type: 'info', text1: 'Cuộn đã được chọn' });
-                    return prev;
-                }
-                const next = normalizeCoil(coil, data);
-                const currentTotal = prev.reduce((sum, item) => sum + toNumber(item.soLuong), 0);
-                const remainingQty = requiredQty > 0 ? requiredQty - currentTotal : toNumber(next.soLuong);
-                if (requiredQty > 0 && remainingQty <= 0) {
-                    Toast.show({ type: 'info', text1: 'Số lượng xuất vượt số lượng cần xuất' });
-                    return prev;
-                }
-                didAdd = true;
-                return [...prev, { ...next, soLuong: Math.min(toNumber(next.soLuong), remainingQty) }];
-            });
-            if (didAdd) {
-                Toast.show({ type: 'success', text1: 'Đã thêm cuộn vào phiếu xuất' });
-                setScanMode(false);
-            } else {
+            const currentCoils = selectedCoilsRef.current;
+
+            if (currentCoils.some((item) => getStockCoilId(item) === idTheKhoCuon)) {
+                Toast.show({ type: 'info', text1: 'Cuộn đã được chọn' });
                 setTimeout(() => setScanned(false), 800);
+                return;
             }
+
+            const next = normalizeCoil(coil, data);
+            setSelectedCoilsSafe([...currentCoils, { ...next, soLuong: getAvailableQty(next) }]);
+            Toast.show({ type: 'success', text1: 'Đã thêm cuộn vào phiếu xuất' });
+            setScanMode(false);
         } catch (error) {
             Toast.show({ type: 'error', text1: error.message || 'Quét cuộn thất bại' });
             setTimeout(() => setScanned(false), 800);
@@ -256,35 +246,11 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
         }
     };
 
-    const updateQty = (target, value) => {
-        const nextValue = value.replace(',', '.');
-        const targetId = getStockCoilId(target);
-        const nextQty = toNumber(nextValue);
-        const availableQty = getAvailableQty(target);
-        if (nextQty > availableQty) {
-            Toast.show({ type: 'info', text1: `Số lượng xuất không được vượt tồn cuộn (${availableQty})` });
-            return;
-        }
-
-        setSelectedCoils((prev) => {
-            const nextList = prev.map((item) => getStockCoilId(item) === targetId ? { ...item, soLuong: nextValue } : item);
-            const nextTotal = nextList.reduce((sum, item) => sum + toNumber(item.soLuong), 0);
-            if (requiredQty > 0 && nextTotal > requiredQty) {
-                Toast.show({ type: 'info', text1: `Tổng số lượng xuất không được vượt ${requiredQty}` });
-                return prev;
-            }
-            return nextList;
-        });
-    };
-
     const commitAndBack = () => {
-        const invalidCoil = selectedCoils.find((item) => toNumber(item.soLuong) > getAvailableQty(item));
+        const currentCoils = selectedCoilsRef.current;
+        const invalidCoil = currentCoils.find((item) => toNumber(item.soLuong) > getAvailableQty(item));
         if (invalidCoil) {
             Toast.show({ type: 'error', text1: 'Có cuộn xuất vượt số lượng tồn' });
-            return;
-        }
-        if (requiredQty > 0 && selectedQty > requiredQty) {
-            Toast.show({ type: 'error', text1: `Tổng số lượng xuất không được vượt ${requiredQty}` });
             return;
         }
         DeviceEventEmitter.emit(returnEvent, {
@@ -292,9 +258,14 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
             exportId,
             materialId,
             orderMaterialId,
-            selectedCoils,
+            selectedCoils: currentCoils,
         });
         navigation.goBack();
+    };
+
+    const openCoilPicker = () => {
+        setCoilPickerVisible(true);
+        if (!availableCoils.length) loadAvailableCoils();
     };
 
     if (scanMode) {
@@ -332,16 +303,10 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
             </View>
 
             <FlatList
-                data={availableCoils}
+                data={[]}
                 keyExtractor={(item, index) => String(getStockCoilId(item) || index)}
                 contentContainerStyle={styles.content}
-                renderItem={({ item }) => (
-                    <CoilPickerCard
-                        item={item}
-                        selected={selectedIds.has(String(getStockCoilId(item)))}
-                        onPress={() => addOrToggleCoil(item)}
-                    />
-                )}
+                renderItem={() => null}
                 ListHeaderComponent={
                     <View>
                         <View style={styles.materialInfo}>
@@ -352,7 +317,7 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
                             <Ionicons name="qr-code-outline" size={20} color={COLORS.white} />
                             <Text style={styles.primaryText}>Thêm cuộn</Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.secondaryButton} onPress={loadAvailableCoils}>
+                        <TouchableOpacity style={styles.secondaryButton} onPress={openCoilPicker}>
                             <Ionicons name="list-outline" size={20} color={COLORS.primary} />
                             <Text style={styles.secondaryText}>Danh sách cuộn vải</Text>
                         </TouchableOpacity>
@@ -361,15 +326,49 @@ export default function KhoNLExportMaterialCoilsScreen({ navigation, route }) {
                             <SelectedCoilCard
                                 key={String(getStockCoilId(item))}
                                 item={item}
-                                onQtyChange={(value) => updateQty(item, value)}
-                                onRemove={() => setSelectedCoils((prev) => prev.filter((coil) => getStockCoilId(coil) !== getStockCoilId(item)))}
+                                onRemove={() => setSelectedCoilsSafe((prev) => prev.filter((coil) => getStockCoilId(coil) !== getStockCoilId(item)))}
                             />
                         ))}
-                        <Text style={styles.sectionTitle}>Danh sách cuộn tương ứng</Text>
                     </View>
                 }
-                ListEmptyComponent={!loading && <Text style={styles.emptyText}>Chưa tải danh sách cuộn</Text>}
             />
+
+            <Modal
+                visible={coilPickerVisible}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setCoilPickerVisible(false)}
+            >
+                <View style={styles.modalBackdrop}>
+                    <View style={[styles.modalSheet, { paddingBottom: insets.bottom + 12 }]}>
+                        <View style={styles.modalHeader}>
+                            <View>
+                                <Text style={styles.modalTitle}>Danh sách cuộn vải</Text>
+                                <Text style={styles.modalSub}>Đã chọn {selectedCoils.length} cuộn - {selectedQty} / {requiredQty || '-'}</Text>
+                            </View>
+                            <TouchableOpacity style={styles.modalCloseBtn} onPress={() => setCoilPickerVisible(false)}>
+                                <Ionicons name="close" size={22} color={COLORS.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+                        <FlatList
+                            data={availableCoils}
+                            keyExtractor={(item, index) => `coil-${getStockCoilId(item) || index}`}
+                            renderItem={({ item }) => (
+                                <CoilPickerCard
+                                    item={item}
+                                    selected={selectedIds.has(String(getStockCoilId(item)))}
+                                    onPress={() => addOrToggleCoil(item)}
+                                />
+                            )}
+                            contentContainerStyle={styles.modalList}
+                            ListEmptyComponent={!loading && <Text style={styles.emptyText}>Chưa có danh sách cuộn</Text>}
+                        />
+                        <TouchableOpacity style={styles.modalDoneButton} onPress={() => setCoilPickerVisible(false)}>
+                            <Text style={styles.saveText}>Xong</Text>
+                        </TouchableOpacity>
+                    </View>
+                </View>
+            </Modal>
 
             <View style={[styles.footer, { paddingBottom: insets.bottom + 12 }]}>
                 <TouchableOpacity style={styles.saveButton} onPress={commitAndBack}>
@@ -429,8 +428,17 @@ const styles = StyleSheet.create({
     removeBtn: { width: 36, height: 36, borderRadius: 12, backgroundColor: '#FEE2E2', alignItems: 'center', justifyContent: 'center', marginLeft: 8 },
     qtyInputRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     qtyInputLabel: { fontSize: 12, color: COLORS.textSecondary, fontWeight: '800' },
-    qtyInput: { flex: 1, height: 42, borderRadius: 12, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 12, color: COLORS.textPrimary, fontWeight: '800' },
-    qtyInputError: { borderColor: COLORS.danger, backgroundColor: '#FEF2F2' },
+    qtyReadOnly: {
+        flex: 1,
+        minHeight: 42,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        backgroundColor: COLORS.background,
+        justifyContent: 'center',
+        paddingHorizontal: 12,
+    },
+    qtyReadOnlyText: { color: COLORS.textPrimary, fontSize: 15, fontWeight: '900' },
     qtyUnitDark: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '800' },
     availableText: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '800', marginTop: 8 },
     footer: { position: 'absolute', left: 0, right: 0, bottom: 0, paddingHorizontal: 16, paddingTop: 12, backgroundColor: COLORS.background, borderTopWidth: 1, borderTopColor: COLORS.border },
@@ -442,4 +450,19 @@ const styles = StyleSheet.create({
     scanHint: { position: 'absolute', bottom: 80, alignSelf: 'center', backgroundColor: 'rgba(0,0,0,0.7)', paddingHorizontal: 20, paddingVertical: 10, borderRadius: 20 },
     scanHintText: { color: '#fff', fontSize: 14, fontWeight: '700' },
     loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.55)', alignItems: 'center', justifyContent: 'center' },
+    modalBackdrop: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.35)', justifyContent: 'flex-end' },
+    modalSheet: {
+        maxHeight: '82%',
+        backgroundColor: COLORS.background,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        paddingHorizontal: 16,
+        paddingTop: 12,
+    },
+    modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+    modalTitle: { color: COLORS.textPrimary, fontSize: 18, fontWeight: '900' },
+    modalSub: { color: COLORS.textSecondary, fontSize: 12, fontWeight: '800', marginTop: 4 },
+    modalCloseBtn: { width: 40, height: 40, borderRadius: 14, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
+    modalList: { paddingBottom: 12 },
+    modalDoneButton: { height: 50, borderRadius: 16, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
 });

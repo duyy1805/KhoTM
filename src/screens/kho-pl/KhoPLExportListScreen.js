@@ -30,6 +30,7 @@ export default function KhoPLExportListScreen({ navigation, route }) {
         try {
             setLoading(true);
             const data = await khoPhuLieuApi.searchExports({ soPhieu: searchText.trim() });
+            console.log(data)
             setExports(extractList(data, ['listPhieu', 'listPhieuXuat', 'phieuXuats', 'items', 'rows']));
         } catch {
             Toast.show({ type: 'error', text1: 'Lỗi tải phiếu xuất' });
