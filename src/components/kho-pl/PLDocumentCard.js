@@ -3,11 +3,13 @@ import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS, getFirstDisplayValue, getValue } from './styles';
 
-function formatStatus(value) {
-    if (value === true) return 'Đã kiểm';
-    if (value === false) return 'Chưa kiểm';
-    if (value === 1) return 'Đã kiểm';
-    if (value === 0) return 'Chưa kiểm';
+function formatStatus(value, type) {
+    const doneLabel = type === 'export' ? 'Đã xuất' : 'Đã kiểm';
+    const pendingLabel = type === 'export' ? 'Chưa xuất' : 'Chưa kiểm';
+    if (value === true) return doneLabel;
+    if (value === false) return pendingLabel;
+    if (value === 1) return doneLabel;
+    if (value === 0) return pendingLabel;
     return value ? String(value) : '';
 }
 
@@ -19,7 +21,7 @@ export default function PLDocumentCard({ item, type = 'inspection', onPress, cou
     const id = getValue(item, ['id', 'ID', 'Id', 'ID_GiamDinh', 'idGiamDinh', 'ID_GiamDinhVT', 'idGiamDinhVT', 'ID_PhieuXuat', 'idPhieuXuat', 'ID_PhieuXuatVT', 'idPhieuXuatVT'], '');
     const date = getValue(item, ['Ngay_GiamDinh', 'ngayGiamDinh', 'Ngay_Xuat', 'ngayXuat', 'Ngay_XuatVT', 'ngayXuatVT', 'NgayTao', 'ngayTao', 'createdAt'], '');
     const rawStatus = getValue(item, ['TenTrangThai', 'tenTrangThai', 'TrangThai', 'trangThai', 'Status', 'status'], '');
-    const status = formatStatus(rawStatus);
+    const status = formatStatus(rawStatus, type);
     const partner = getValue(item, ['Ten_DonVi', 'tenDonVi', 'TenNhaCungCap', 'tenNhaCungCap', 'nhaCungCap', 'TenKhachHang', 'tenKhachHang', 'khachHang', 'DienGiai', 'dienGiai', 'GhiChu', 'ghiChu'], '');
     const order = getValue(item, ['maDonHang', 'MaDonHang', 'Ma_DonHang'], '');
     const count = getValue(item, ['soCuon', 'SoCuon', 'soKien', 'SoKien', 'tongSoLuong', 'TongSoLuong'], '');
