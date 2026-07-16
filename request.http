@@ -1,0 +1,52 @@
+@baseUrl = https://nodeapi.z76.vn/khotm
+@qrCode = PL0000668102
+@knownQrCode = PL0000198908
+
+### Quét batch QR đang cần kiểm tra
+POST {{baseUrl}}/phieuxuat/phu-lieu/kien/scan-batch
+Content-Type: application/json
+Accept: application/json
+
+{
+  "qrCodes": ["{{qrCode}}"]
+}
+
+### Quét batch QR đối chứng đã biết có dữ liệu
+POST {{baseUrl}}/phieuxuat/phu-lieu/kien/scan-batch
+Content-Type: application/json
+Accept: application/json
+
+{
+  "qrCodes": ["{{knownQrCode}}"]
+}
+
+### Quét nhiều QR cùng lúc
+POST {{baseUrl}}/phieuxuat/phu-lieu/kien/scan-batch
+Content-Type: application/json
+Accept: application/json
+
+{
+  "qrCodes": [
+    "{{qrCode}}",
+    "{{knownQrCode}}"
+  ]
+}
+
+### Kiểm tra endpoint thông tin kiện riêng
+POST {{baseUrl}}/getthongtinkien
+Content-Type: application/json
+Accept: application/json
+
+{
+  "QRCode": "{{qrCode}}"
+}
+
+### Tìm phiếu xuất phù hợp theo QR
+POST {{baseUrl}}/phieuxuat/phu-lieu/tim-phieu-theo-kien
+Content-Type: application/json
+Accept: application/json
+
+{
+  "qrCodes": ["{{qrCode}}"]
+}
+

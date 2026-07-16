@@ -1,10 +1,10 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// const POSTMAN_HOST = 'apilayoutkho.z76.vn';
-const POSTMAN_HOST = '125.212.207.52:5010';
+const POSTMAN_HOST = 'apilayoutkho.z76.vn';
+// const POSTMAN_HOST = '125.212.207.52:5010';
 export const KHO_PL_BASE_URL = `http://${POSTMAN_HOST}`;
-export const KHO_TM_TEST_BASE_URL = 'https://nodeapi.z76.vn/khotmtest';
+export const KHO_TM_TEST_BASE_URL = 'https://nodeapi.z76.vn/khotm';
 
 const api = axios.create({
     baseURL: KHO_PL_BASE_URL,
