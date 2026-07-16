@@ -14,6 +14,8 @@ import KhoNLInspectionCoilDetailScreen from "./src/screens/kho-nl/KhoNLInspectio
 import KhoNLExportListScreen from "./src/screens/kho-nl/KhoNLExportListScreen";
 import KhoNLExportDetailScreen from "./src/screens/kho-nl/KhoNLExportDetailScreen";
 import KhoNLExportMaterialCoilsScreen from "./src/screens/kho-nl/KhoNLExportMaterialCoilsScreen";
+import KhoNLExportQrFirstScreen from "./src/screens/kho-nl/KhoNLExportQrFirstScreen";
+import KhoNLExportQrFirstCandidatesScreen from "./src/screens/kho-nl/KhoNLExportQrFirstCandidatesScreen";
 import KhoNLTransferLocationScreen from "./src/screens/kho-nl/KhoNLTransferLocationScreen";
 import KhoNLReportScreen from "./src/screens/kho-nl/KhoNLReportScreen";
 import KhoNLReportLocationCoilsScreen from "./src/screens/kho-nl/KhoNLReportLocationCoilsScreen";
@@ -129,6 +131,16 @@ export default function App() {
             name="KhoNLExportMaterialCoils"
             component={KhoNLExportMaterialCoilsScreen}
             options={{ headerShown: false, title: "Cuộn vải xuất NL" }}
+          />
+          <Stack.Screen
+            name="KhoNLExportQrFirst"
+            component={KhoNLExportQrFirstScreen}
+            options={{ headerShown: false, title: "Quét cuộn trước" }}
+          />
+          <Stack.Screen
+            name="KhoNLExportQrFirstCandidates"
+            component={KhoNLExportQrFirstCandidatesScreen}
+            options={{ headerShown: false, title: "Chọn phiếu xuất NL" }}
           />
           <Stack.Screen
             name="KhoNLTransferLocation"

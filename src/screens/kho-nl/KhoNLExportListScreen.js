@@ -90,6 +90,14 @@ export default function KhoNLExportListScreen({ navigation, route }) {
                                 {loading ? <ActivityIndicator size="small" color={COLORS.white} /> : <Ionicons name="arrow-forward" size={18} color={COLORS.white} />}
                             </TouchableOpacity>
                         </View>
+                        <TouchableOpacity
+                            style={styles.qrFirstBtn}
+                            onPress={() => navigation.navigate('KhoNLExportQrFirst', { kho })}
+                        >
+                            <Ionicons name="scan-outline" size={22} color={COLORS.white} />
+                            <Text style={styles.qrFirstText}>Quét nhiều QR trước</Text>
+                            <Ionicons name="chevron-forward" size={20} color={COLORS.white} />
+                        </TouchableOpacity>
                         <Text style={styles.sectionTitle}>Danh sách phiếu xuất</Text>
                     </View>
                 }
@@ -135,6 +143,8 @@ const styles = StyleSheet.create({
     },
     searchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: COLORS.textPrimary },
     searchBtn: { width: 44, height: 44, borderRadius: 14, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center', marginRight: 4 },
+    qrFirstBtn: { height: 52, borderRadius: 16, backgroundColor: COLORS.success, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginBottom: 18 },
+    qrFirstText: { color: COLORS.white, fontSize: 15, fontWeight: '800' },
     sectionTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 12 },
     empty: { alignItems: 'center', marginTop: 70, gap: 12 },
     emptyText: { fontSize: 14, color: COLORS.textSecondary },

@@ -102,6 +102,42 @@ export const khoNguyenLieuApi = {
         });
     },
 
+    async searchAllExports({ soPhieu = '', pageSize = 100 } = {}) {
+        const rows = [];
+        const seenPages = new Set();
+        for (let pageIndex = 0; pageIndex < 500; pageIndex += 1) {
+            const response = await this.searchExports({ soPhieu, pageIndex, pageSize });
+            const containers = [response, response?.data, response?.data?.data].filter(Boolean);
+            let page = [];
+            for (const container of containers) {
+                const candidate = Array.isArray(container)
+                    ? container
+                    : (container?.listPhieu || container?.listPhieuXuat || container?.phieuXuats || container?.items || container?.rows);
+                if (Array.isArray(candidate)) { page = candidate; break; }
+            }
+            if (!Array.isArray(page) || !page.length) break;
+            const signature = page.map((item) => item?.ID_PhieuXuat ?? item?.idPhieuXuat ?? item?.ID_PhieuXuatVT ?? item?.id).join('|');
+            if (seenPages.has(signature)) break;
+            seenPages.add(signature);
+            rows.push(...page);
+        }
+        return rows;
+    },
+
+    async mapWithConcurrency(items, mapper, concurrency = 4) {
+        const results = new Array(items.length);
+        let nextIndex = 0;
+        const worker = async () => {
+            while (nextIndex < items.length) {
+                const index = nextIndex;
+                nextIndex += 1;
+                results[index] = await mapper(items[index], index);
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, worker));
+        return results;
+    },
+
     async getExportDetail(idPhieuXuat) {
         return request({ method: 'GET', url: `/phieuxuat/${idPhieuXuat}` });
     },
