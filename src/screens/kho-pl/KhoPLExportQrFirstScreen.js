@@ -177,6 +177,10 @@ function getOrderMaterialId(item) {
     return getValue(item, ['ID_DonHang_VatTu', 'ID_DonHangVatTu', 'IdDonHangVatTu', 'idDonHangVatTu'], null);
 }
 
+function getStockCardId(item) {
+    return getValue(item, ['ID_TheKhoVT', 'IdTheKhoVT', 'idTheKhoVT'], null);
+}
+
 function getAllocationKey(item) {
     const materialId = item.idVatTu || getMaterialId(item);
     return `vt:${materialId}`;
@@ -196,7 +200,7 @@ function getExportPackageId(item) {
     return getValue(item, ['ID_TheKhoKien', 'IdTheKhoKien', 'idTheKhoKien'], null);
 }
 
-function uniquePackageDetailRows(rows = []) {
+function uniqueInventoryRows(rows = []) {
     const rowByKey = new Map();
 
     rows.forEach((row, index) => {
@@ -209,40 +213,68 @@ function uniquePackageDetailRows(rows = []) {
     return Array.from(rowByKey.values());
 }
 
-function buildSelectedExportMaterials(rows = []) {
-    const materialById = new Map();
+function uniqueStockCardPackageRows(rows = []) {
+    const rowByKey = new Map();
 
-    uniquePackageDetailRows(rows).forEach((row) => {
+    rows.forEach((row, index) => {
+        const detailId = getPackageDetailId(row);
+        const materialId = getMaterialId(row);
+        const orderMaterialId = getOrderMaterialId(row);
+        const stockCardId = getStockCardId(row);
+        const key = detailId && materialId
+            ? `${detailId}-${materialId}-${orderMaterialId || 0}-${stockCardId || 0}`
+            : `fallback-${index}`;
+        if (!rowByKey.has(key)) rowByKey.set(key, row);
+    });
+
+    return Array.from(rowByKey.values());
+}
+
+function buildSelectedExportMaterials(rows = []) {
+    const materialByCard = new Map();
+    const stockByMaterial = new Map();
+
+    uniqueInventoryRows(rows).forEach((row) => {
+        const materialId = getMaterialId(row);
+        if (!materialId) return;
+        const key = `vt:${materialId}`;
+        stockByMaterial.set(key, (stockByMaterial.get(key) || 0) + getStockQty(row));
+    });
+
+    uniqueStockCardPackageRows(rows).forEach((row) => {
         const materialId = getMaterialId(row);
         if (!materialId) return;
 
         const orderMaterialId = getOrderMaterialId(row);
-        const key = `vt:${materialId}`;
-        const existing = materialById.get(key) || {
+        const stockCardId = getStockCardId(row);
+        const key = `card:${stockCardId || 0}:dh:${orderMaterialId || 0}:vt:${materialId}`;
+        const existing = materialByCard.get(key) || {
             materialKey: key,
             idVatTu: materialId,
             idDonHangVatTu: orderMaterialId,
+            idTheKhoVT: stockCardId,
             maVatTu: getMaterialCode(row),
             quyCach: getMaterialName(row),
             maDonHang: getValue(row, ['MaDonHang', 'maDonHang', 'Ma_DonHang'], '-'),
             soLuongLenhXuat: 0,
-            soLuongTonQuet: 0,
+            materialStockTotal: stockByMaterial.get(`vt:${materialId}`) || 0,
+            soLuongTonQuet: stockByMaterial.get(`vt:${materialId}`) || 0,
             soLuongXuatMacDinh: 0,
             packageCount: 0,
         };
 
         const orderQty = getOrderQty(row);
         existing.soLuongLenhXuat = Math.max(existing.soLuongLenhXuat, orderQty);
-        existing.soLuongTonQuet += getStockQty(row);
         existing.packageCount += 1;
-        existing.soLuongXuatMacDinh = Math.min(
-            existing.soLuongLenhXuat || existing.soLuongTonQuet,
-            existing.soLuongTonQuet
-        );
-        materialById.set(key, existing);
+        existing.soLuongXuatMacDinh = existing.soLuongLenhXuat > 0
+            ? Math.min(existing.soLuongLenhXuat, existing.materialStockTotal)
+            : 0;
+        materialByCard.set(key, existing);
     });
 
-    return Array.from(materialById.values());
+    return Array.from(materialByCard.values()).sort((a, b) =>
+        asNumber(a.idTheKhoVT) - asNumber(b.idTheKhoVT)
+    );
 }
 
 function allocateSelectedExports(exports = []) {
@@ -253,23 +285,26 @@ function allocateSelectedExports(exports = []) {
         materials.forEach((material) => {
             const key = getAllocationKey(material);
             const current = totalByMaterial.get(key) || 0;
-            totalByMaterial.set(key, Math.max(current, asNumber(material.soLuongTonQuet)));
+            totalByMaterial.set(key, Math.max(current, asNumber(material.materialStockTotal, asNumber(material.soLuongTonQuet))));
         });
     });
 
     const remainingByMaterial = new Map(totalByMaterial);
 
     return exports.map((exportItem) => {
-        const allocatedMaterials = (exportItem.selectedMaterials || []).map((material) => {
+        const allocatedMaterials = [...(exportItem.selectedMaterials || [])].sort((a, b) =>
+            asNumber(a.idTheKhoVT) - asNumber(b.idTheKhoVT)
+        ).map((material) => {
             const key = getAllocationKey(material);
             const remaining = remainingByMaterial.get(key) || 0;
             const orderQty = asNumber(material.soLuongLenhXuat);
-            const allocatedQty = Math.min(orderQty || remaining, remaining);
+            const allocatedQty = orderQty > 0 ? Math.min(orderQty, remaining) : 0;
             const nextRemaining = Math.max(remaining - allocatedQty, 0);
             remainingByMaterial.set(key, nextRemaining);
 
             return {
                 ...material,
+                soLuongTonQuet: remaining,
                 soLuongXuatMacDinh: allocatedQty,
                 soLuongConLaiSauPhanBo: nextRemaining,
             };
@@ -283,37 +318,63 @@ function allocateSelectedExports(exports = []) {
 }
 
 function buildConfirmPayload(exportItem) {
-    const remainingByMaterial = new Map();
+    const allocationGroups = new Map();
     (exportItem.selectedMaterials || []).forEach((material) => {
-        remainingByMaterial.set(getAllocationKey(material), asNumber(material.soLuongXuatMacDinh));
+        const quantity = asNumber(material.soLuongXuatMacDinh);
+        const orderQty = asNumber(material.soLuongLenhXuat);
+        if (orderQty <= 0 && quantity > 0) {
+            throw new Error('Dòng thẻ kho có lệnh xuất 0 không được phân bổ');
+        }
+        if (quantity > orderQty) {
+            throw new Error('Số lượng phân bổ vượt lệnh xuất của thẻ kho');
+        }
+        if (quantity <= 0 || orderQty <= 0) return;
+        const key = `${material.idDonHangVatTu || 0}:${material.idVatTu}`;
+        const existing = allocationGroups.get(key) || {
+            idDonHangVatTu: material.idDonHangVatTu,
+            idVatTu: material.idVatTu,
+            quantity: 0,
+        };
+        existing.quantity += quantity;
+        allocationGroups.set(key, existing);
     });
 
-    return uniquePackageDetailRows(exportItem.selectedPackageRows || [])
-        .map((row) => {
-            const materialId = getMaterialId(row);
-            const key = getAllocationKey(row);
-            const remaining = remainingByMaterial.get(key) || 0;
-            if (!materialId || remaining <= 0) return null;
+    const inventoryRows = uniqueInventoryRows(exportItem.selectedPackageRows || []);
+    const availableByDetail = new Map(inventoryRows.map((row) => [
+        `${getPackageDetailId(row)}:${getMaterialId(row)}`,
+        getStockQty(row),
+    ]));
+    const payload = [];
 
-            const quantity = Math.min(remaining, getStockQty(row) || remaining);
-            remainingByMaterial.set(key, Math.max(remaining - quantity, 0));
-
-            return {
+    allocationGroups.forEach((group) => {
+        let remaining = group.quantity;
+        for (const row of inventoryRows) {
+            if (remaining <= 0) break;
+            if (String(getMaterialId(row)) !== String(group.idVatTu)) continue;
+            const detailKey = `${getPackageDetailId(row)}:${getMaterialId(row)}`;
+            const available = availableByDetail.get(detailKey) || 0;
+            if (available <= 0) continue;
+            const quantity = Math.min(remaining, available);
+            payload.push({
                 IdTheKhoKien: getExportPackageId(row),
-                IdDonHangVatTu: getOrderMaterialId(row),
-                IdVatTu: materialId,
+                IdDonHangVatTu: group.idDonHangVatTu,
+                IdVatTu: group.idVatTu,
                 IdTheKhoKienChiTiet: getPackageDetailId(row),
                 SoLuongXuatKho: quantity,
-            };
-        })
-        .filter((item) =>
-            item &&
-            item.IdTheKhoKien &&
-            item.IdDonHangVatTu &&
-            item.IdVatTu &&
-            item.IdTheKhoKienChiTiet &&
-            Number(item.SoLuongXuatKho) > 0
-        );
+            });
+            availableByDetail.set(detailKey, available - quantity);
+            remaining -= quantity;
+        }
+        if (remaining > 0) throw new Error('Số lượng phân bổ vượt tồn kiện đã quét');
+    });
+
+    return payload.filter((item) =>
+        item.IdTheKhoKien &&
+        item.IdDonHangVatTu &&
+        item.IdVatTu &&
+        item.IdTheKhoKienChiTiet &&
+        Number(item.SoLuongXuatKho) > 0
+    );
 }
 
 function SelectedExportCard({ item, onRemove }) {
@@ -351,6 +412,7 @@ function SelectedExportCard({ item, onRemove }) {
                         {material.maVatTu} - {material.quyCach}
                     </Text>
                     <View style={styles.tagWrap}>
+                        <Text style={styles.tag}>ID thẻ kho: {material.idTheKhoVT || '-'}</Text>
                         <Text style={styles.tag}>Lệnh xuất: {material.soLuongLenhXuat}</Text>
                         <Text style={styles.tag}>Số lượng kiện: {material.soLuongTonQuet}</Text>
                         <Text style={styles.tag}>SL mặc định: {material.soLuongXuatMacDinh}</Text>
@@ -500,7 +562,7 @@ export default function KhoPLExportQrFirstScreen({ navigation, route }) {
                 idPhieuXuat: exportId,
                 qrCodes,
             });
-            const rows = uniquePackageDetailRows(flattenPackageList(response));
+            const rows = uniqueStockCardPackageRows(flattenPackageList(response));
             const selectedMaterials = buildSelectedExportMaterials(rows);
             setSelectedExports((prev) => allocateSelectedExports([
                 ...prev,
