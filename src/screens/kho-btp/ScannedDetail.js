@@ -16,10 +16,10 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { AntDesign, Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import axios from 'axios';
 import Toast from 'react-native-toast-message';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
+import { khoBtpApi } from '../../services/khoBtpApi';
 
 // Design Tokens
 const COLORS = {
@@ -59,13 +59,9 @@ const ScannedDetail = ({ route }) => {
 
         try {
             setRefreshing(true);
-            const res = await axios.post(
-                'https://nodeapi.z76.vn/khotm/getthongtinkien',
-                { QRCode: qrToUse },
-                { timeout: 10000 }
-            );
+            const res = await khoBtpApi.getPackageInfo(qrToUse);
 
-            const next = res?.data?.data;
+            const next = res?.data;
             if (Array.isArray(next) && next.length) {
                 setData(next);
             }
@@ -79,12 +75,12 @@ const ScannedDetail = ({ route }) => {
     const handleUpdateLocation = async (selectedLocation) => {
         if (!selectedLocation) return;
         try {
-            const response = await axios.post('https://apipccc.z76.vn/api/TAG_QTKD/updatevitribtp', {
-                ID_TheKhoKienBTP: data[0].ID_TheKhoKienBTP,
-                ID_ViTriKho: selectedLocation.value,
+            const response = await khoBtpApi.updatePackageLocation({
+                idPackage: data[0].ID_TheKhoKienBTP,
+                idLocation: selectedLocation.value,
             });
 
-            if (response.data.success) {
+            if (response?.success !== false) {
                 const updatedData = [...data];
                 updatedData[0] = { ...updatedData[0], MaViTriKho: selectedLocation.label.split('(')[0].trim() };
                 setData(updatedData);
@@ -125,8 +121,8 @@ const ScannedDetail = ({ route }) => {
         }
 
         try {
-            const response = await axios.post('https://nodeapi.z76.vn/khotm/getthongtinkien', { QRCode: scannedQR });
-            const scannedData = response.data.data;
+            const response = await khoBtpApi.getPackageInfo(scannedQR);
+            const scannedData = response.data;
 
             if (!Array.isArray(scannedData) || scannedData.length === 0) {
                 Toast.show({ type: 'error', text1: 'Không tìm thấy dữ liệu' });
@@ -174,18 +170,18 @@ const ScannedDetail = ({ route }) => {
         }
 
         try {
-            const response = await axios.post('https://nodeapi.z76.vn/khotm/updateqrcodekien', {
-                ID_TheKhoKienBTP: data?.[0]?.ID_TheKhoKienBTP,
-                QRCode: scannedQR,
+            const response = await khoBtpApi.updatePackageQr({
+                idPackage: data?.[0]?.ID_TheKhoKienBTP,
+                qrCode: scannedQR,
             });
 
-            if (response?.data?.ok) {
+            if (response?.ok) {
                 Toast.show({ type: 'success', text1: 'Cập nhật QR thành công' });
                 setCurrentQR(scannedQR);
                 await loadData(scannedQR);
                 setIsUpdatingQR(false);
             } else {
-                Toast.show({ type: 'error', text1: response?.data?.message || 'Cập nhật thất bại' });
+                Toast.show({ type: 'error', text1: response?.message || 'Cập nhật thất bại' });
             }
         } catch (err) {
             Toast.show({ type: 'error', text1: 'Lỗi cập nhật QR' });

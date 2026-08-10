@@ -25,6 +25,7 @@ import apiConfig from '../../constants/apiConfig.json';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { khoNguyenLieuApi } from '../../services/khoNguyenLieuApi';
 import { getCurrentUserId, khoPhuLieuApi } from '../../services/khoPhuLieuApi';
+import { khoBtpApi } from '../../services/khoBtpApi';
 
 // Design Tokens
 const COLORS = {
@@ -82,6 +83,7 @@ export default function SelectLocationScreen({ route }) {
     } = route.params || {};
     const isNguyenLieu = locationMode === 'nguyen-lieu' || locationMode === 'nl';
     const isPhuLieu = locationMode === 'phu-lieu' || locationMode === 'pl';
+    const isBtp = !isNguyenLieu && !isPhuLieu;
 
     const [modalVisible, setModalVisible] = useState(false);
     const [selectingFor, setSelectingFor] = useState('kho');
@@ -112,7 +114,7 @@ export default function SelectLocationScreen({ route }) {
     }, []);
 
     const fetchLocations = async () => {
-        if (isNguyenLieu || isPhuLieu) return;
+        if (isNguyenLieu || isPhuLieu || isBtp) return;
         try {
             setLoadingLocations(true);
             const res = await axios.get('https://apipccc.z76.vn/api/TAG_QTKD/danhmucvitri');
@@ -142,6 +144,11 @@ export default function SelectLocationScreen({ route }) {
             if (isPhuLieu) {
                 const userId = await getCurrentUserId();
                 const res = await khoPhuLieuApi.getWarehouses(userId);
+                setKhoList(asArray(res));
+                return;
+            }
+            if (isBtp) {
+                const res = await khoBtpApi.getLocationWarehouses(routeIdKho || 5);
                 setKhoList(asArray(res));
                 return;
             }
@@ -192,6 +199,11 @@ export default function SelectLocationScreen({ route }) {
                 setCurrentAisles(asArray(res));
                 return;
             }
+            if (isBtp) {
+                const res = await khoBtpApi.getAisles({ idKho, maNha });
+                setCurrentAisles(asArray(res));
+                return;
+            }
 
             const authToken = await AsyncStorage.getItem('authToken');
             const token = JSON.parse(authToken).token;
@@ -225,6 +237,11 @@ export default function SelectLocationScreen({ route }) {
                 setViTriList(asArray(res));
                 return;
             }
+            if (isBtp) {
+                const res = await khoBtpApi.getLocations({ idKho, maNha, maDay, maVatTu: 'none' });
+                setViTriList(asArray(res));
+                return;
+            }
 
             const res = await axios.get(`${apiConfig.API_BASE_URL}/vitri/btp/${idKho}/${maNha}/day/${maDay}/mavt/none/taikhoan/1`);
             setViTriList(res.data);
@@ -234,6 +251,17 @@ export default function SelectLocationScreen({ route }) {
     };
 
     const handleQRCodeScanned = async (qrCode) => {
+        if (isBtp) {
+            try {
+                const response = await khoBtpApi.getLocationByQr(qrCode);
+                const location = normalizeLocation(response?.data || response, qrCode);
+                if (!location.value) throw new Error('Không tìm thấy vị trí tương ứng');
+                finishSelection(location);
+            } catch {
+                Toast.show({ type: 'error', text1: 'Không tìm thấy vị trí tương ứng' });
+            }
+            return;
+        }
         if (isNguyenLieu || isPhuLieu) {
             try {
                 const response = isNguyenLieu

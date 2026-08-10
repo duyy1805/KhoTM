@@ -16,7 +16,7 @@ import Toast from 'react-native-toast-message';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from "expo-camera";
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
-import axios from 'axios';
+import { khoBtpApi } from '../../services/khoBtpApi';
 
 // Design Tokens
 const COLORS = {
@@ -119,14 +119,14 @@ export default function SplitPackageScreen() {
                 })),
             };
 
-            const res = await axios.post('https://nodeapi.z76.vn/khotm/split-kien', payload);
-            if (res.data?.ok) {
+            const res = await khoBtpApi.splitPackage(payload);
+            if (res?.ok) {
                 Toast.show({
                     type: 'success',
                     text1: 'Tách kiện thành công',
-                    text2: `ID mới: ${res.data.newKienId}`,
+                    text2: `ID mới: ${res.newKienId}`,
                 });
-                if (onSplit) onSplit(res.data.newKienId);
+                if (onSplit) onSplit(res.newKienId);
                 navigation.goBack();
             } else {
                 Toast.show({ type: 'error', text1: 'Tách kiện thất bại' });

@@ -12,7 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AntDesign, Ionicons } from '@expo/vector-icons';
 import Toast from 'react-native-toast-message';
 import { useNavigation } from '@react-navigation/native';
-import axios from 'axios';
+import { khoBtpApi } from '../../services/khoBtpApi';
 
 // Design Tokens
 const COLORS = {
@@ -65,16 +65,14 @@ export default function MergePackageScreen({ route }) {
             detailIds: selectedItems.map(x => x.ID_TheKhoKienBTP_ChiTiet),
         };
 
-        const url = 'https://nodeapi.z76.vn/khotm/merge-kien';
-
         try {
-            const res = await axios.post(url, payload, { timeout: 8000 });
-            if (res.data?.ok) {
+            const res = await khoBtpApi.mergePackage(payload);
+            if (res?.ok) {
                 Toast.show({ type: 'success', text1: 'Ghép kiện thành công' });
                 await onMerged?.();
                 navigation.goBack();
             } else {
-                Toast.show({ type: 'error', text1: 'Lỗi từ máy chủ', text2: res.data?.message });
+                Toast.show({ type: 'error', text1: 'Lỗi từ máy chủ', text2: res?.message });
             }
         } catch (err) {
             Toast.show({ type: 'error', text1: 'Lỗi kết nối API' });

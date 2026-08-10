@@ -1,73 +1,13 @@
-import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+    apiRequest,
+    CORE_API_BASE_URL,
+    KHO_TM_API_BASE_URL,
+} from './coreApiClient';
 
-const POSTMAN_HOST = 'apilayoutkho.z76.vn';
-// const POSTMAN_HOST = '125.212.207.52:5010';
-export const KHO_PL_BASE_URL = `https://${POSTMAN_HOST}`;
-export const KHO_TM_TEST_BASE_URL = 'https://nodeapi.z76.vn/khotm';
-
-const api = axios.create({
-    baseURL: KHO_PL_BASE_URL,
-    timeout: 20000,
-});
-
-async function getAuthHeaders() {
-    const authToken = await AsyncStorage.getItem('authToken');
-    if (!authToken) return {};
-
-    try {
-        const parsed = JSON.parse(authToken);
-        const token = parsed?.token || parsed?.access_token || parsed?.accessToken;
-        return token ? { Authorization: `Bearer ${token}` } : {};
-    } catch {
-        return {};
-    }
-}
-
-async function refreshAccessToken() {
-    const authToken = await AsyncStorage.getItem('authToken');
-    if (!authToken) return null;
-
-    const parsed = JSON.parse(authToken);
-    const refreshToken = parsed?.refreshToken || parsed?.refresh_token;
-    if (!refreshToken) return null;
-
-    const response = await api.post('/login/refresh-token', JSON.stringify(refreshToken), {
-        headers: { 'Content-Type': 'application/json' },
-    });
-    const nextToken = response?.data?.token || response?.data?.accessToken || response?.data?.access_token;
-    if (!nextToken) return null;
-
-    await AsyncStorage.setItem('authToken', JSON.stringify({
-        ...parsed,
-        ...response.data,
-        token: nextToken,
-        accessToken: nextToken,
-        refreshToken,
-    }));
-
-    return nextToken;
-}
-
-async function request(config, didRetry = false) {
-    const headers = await getAuthHeaders();
-    try {
-        const response = await api.request({
-            ...config,
-            headers: {
-                ...headers,
-                ...(config.headers || {}),
-            },
-        });
-        return response.data;
-    } catch (error) {
-        if (!didRetry && error?.response?.status === 401) {
-            const nextToken = await refreshAccessToken();
-            if (nextToken) return request(config, true);
-        }
-        throw error;
-    }
-}
+export const KHO_PL_BASE_URL = CORE_API_BASE_URL;
+export const KHO_TM_TEST_BASE_URL = KHO_TM_API_BASE_URL;
+const request = apiRequest;
 
 function getList(data, keys = []) {
     if (Array.isArray(data)) return data;

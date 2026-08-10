@@ -1,67 +1,149 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-    View,
-    Text,
-    StyleSheet,
     ActivityIndicator,
+    Alert,
     FlatList,
-    TouchableOpacity,
-    StatusBar,
+    Modal,
     Platform,
-    Alert
+    Pressable,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useNavigation, useRoute } from '@react-navigation/native';
-import axios from 'axios';
-import Toast from 'react-native-toast-message';
-import { CameraView, useCameraPermissions } from 'expo-camera';
 import { Ionicons } from '@expo/vector-icons';
+import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
-import { Swipeable, RectButton } from 'react-native-gesture-handler';
+import { khoBtpApi } from '../../services/khoBtpApi';
+import { getApiErrorMessage } from '../../services/coreApiClient';
+import {
+    asList,
+    asNumber,
+    BTP_COLORS as COLORS,
+    getPackageId,
+    getPackageQr,
+    readValue,
+} from './btpScreenUtils';
 
-// Design Tokens
-const COLORS = {
-    primary: '#4F46E5',
-    primaryLight: '#EEF2FF',
-    success: '#10B981',
-    warning: '#F59E0B',
-    danger: '#EF4444',
-    background: '#F8FAFC',
-    surface: '#FFFFFF',
-    textPrimary: '#1E293B',
-    textSecondary: '#64748B',
-    white: '#FFFFFF',
-    border: '#E2E8F0',
-};
+function lineKey(line, index = 0) {
+    return [
+        readValue(line, ['idDonHang', 'ID_DonHang'], 0),
+        readValue(line, ['idDonHangSanPham', 'ID_DonHang_SanPham'], 0),
+        readValue(line, ['idDonHangLoSanXuat', 'ID_DonHang_LoSanXuat'], 0),
+        index,
+    ].join(':');
+}
 
-export default function PhieuXuatBTP_Detail() {
-    const navigation = useNavigation();
-    const route = useRoute();
+function packageDetailId(item) {
+    return readValue(item, ['idTheKhoKienBTPChiTiet', 'ID_TheKhoKienBTP_ChiTiet', 'IdTheKhoKienBTPChiTiet'], null);
+}
+
+function stockQuantity(item) {
+    return asNumber(readValue(item, ['soLuongTon', 'SoLuongTon', 'soLuongTonTong', 'SoLuongTonTong', 'conLai', 'ConLai', 'soLuong', 'SoLuong'], 0));
+}
+
+function QuantityModal({ visible, item, max, onClose, onConfirm }) {
+    const [value, setValue] = useState('');
+    useEffect(() => {
+        if (visible) setValue(String(Math.max(0, max || 0)));
+    }, [visible, max]);
+    return (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+            <Pressable style={styles.overlay} onPress={onClose}>
+                <View style={styles.dialog} onStartShouldSetResponder={() => true}>
+                    <Text style={styles.dialogTitle}>Nhập số lượng xuất</Text>
+                    <Text style={styles.dialogSub}>QR: {getPackageQr(item) || '-'}</Text>
+                    <TextInput style={styles.qtyInput} value={value} onChangeText={setValue} keyboardType="numeric" autoFocus />
+                    <Text style={styles.dialogSub}>Tối đa có thể xuất: {max}</Text>
+                    <View style={styles.dialogActions}>
+                        <TouchableOpacity style={styles.secondaryBtn} onPress={onClose}><Text style={styles.secondaryText}>Hủy</Text></TouchableOpacity>
+                        <TouchableOpacity style={styles.primaryBtn} onPress={() => {
+                            const quantity = asNumber(value);
+                            if (quantity <= 0 || quantity > max) {
+                                Toast.show({ type: 'error', text1: `Số lượng phải từ 1 đến ${max}` });
+                                return;
+                            }
+                            onConfirm(quantity);
+                        }}><Text style={styles.primaryText}>Thêm kiện</Text></TouchableOpacity>
+                    </View>
+                </View>
+            </Pressable>
+        </Modal>
+    );
+}
+
+function LineCard({ item, selected, pendingQuantity, onPress }) {
+    const requested = asNumber(readValue(item, ['soLuongLenhXuat', 'SoLuong_XuatKho', 'soLuong'], 0));
+    return (
+        <TouchableOpacity style={[styles.lineCard, selected && styles.lineSelected]} onPress={onPress}>
+            <View style={[styles.lineIcon, selected && { backgroundColor: COLORS.primary }]}>
+                <Ionicons name={selected ? 'checkmark' : 'cube-outline'} size={20} color={selected ? COLORS.white : COLORS.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+                <Text style={styles.lineCode}>{readValue(item, ['itemCode', 'ItemCode'], '-')}</Text>
+                <Text style={styles.lineName} numberOfLines={2}>{readValue(item, ['tenSanPham', 'Ten_SanPham'], '-')}</Text>
+                <Text style={styles.lineMeta}>Đơn hàng: {readValue(item, ['maDonHang', 'Ma_DonHang'], '-')} • Lô: {readValue(item, ['soLoSanXuat'], '-')}</Text>
+            </View>
+            <View style={styles.lineQty}>
+                <Text style={styles.qtyLabel}>Yêu cầu</Text>
+                <Text style={styles.qtyValue}>{requested}</Text>
+                {!!pendingQuantity && <Text style={styles.pendingQty}>Chờ: {pendingQuantity}</Text>}
+            </View>
+        </TouchableOpacity>
+    );
+}
+
+function PickCard({ item, onEdit, onRemove }) {
+    return (
+        <View style={styles.pickCard}>
+            <View style={{ flex: 1 }}>
+                <Text style={styles.pickQr}>{item.qrCode}</Text>
+                <Text style={styles.lineName}>{item.itemCode || '-'}</Text>
+                <Text style={styles.lineMeta}>Tồn kiện: {item.stock}</Text>
+            </View>
+            <TouchableOpacity style={styles.pickQty} onPress={onEdit}>
+                <Text style={styles.qtyLabel}>SL xuất</Text>
+                <Text style={styles.qtyValue}>{item.quantity}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.removeBtn} onPress={onRemove}><Ionicons name="trash-outline" size={20} color={COLORS.danger} /></TouchableOpacity>
+        </View>
+    );
+}
+
+export default function PhieuXuatBTP_Detail({ navigation, route }) {
     const insets = useSafeAreaInsets();
-    
-    const { id, soPhieu, SoLuongTong_DongPhieu, TongPick } = route.params || {};
-
-    const [loading, setLoading] = useState(false);
-    const [details, setDetails] = useState([]);
+    const { id, exportDoc, initialQr } = route.params || {};
+    const [detail, setDetail] = useState(exportDoc || {});
+    const [lines, setLines] = useState([]);
+    const [savedPackages, setSavedPackages] = useState([]);
+    const [activeLineIndex, setActiveLineIndex] = useState(0);
     const [pendingPicks, setPendingPicks] = useState([]);
+    const [loading, setLoading] = useState(false);
     const [scanMode, setScanMode] = useState(false);
     const [scanned, setScanned] = useState(false);
+    const [quantityItem, setQuantityItem] = useState(null);
+    const [quantityMax, setQuantityMax] = useState(0);
     const [permission, requestPermission] = useCameraPermissions();
 
-    const baseURL = 'https://nodeapi.z76.vn';
-    const detailEndpoint = `${baseURL}/khotm/phieu-detail`;
+    const activeLine = lines[activeLineIndex] || null;
+    const activeKey = activeLine ? lineKey(activeLine, activeLineIndex) : '';
+    const isConfirmed = readValue(detail, ['trangThai', 'TrangThai'], false) === true
+        || Number(readValue(detail, ['trangThai', 'TrangThai'], 0)) === 1;
 
     const fetchDetail = useCallback(async () => {
         if (!id) return;
         try {
             setLoading(true);
-            const res = await axios.post(detailEndpoint, { idPhieuXuat: id });
-            if (res?.data?.ok) {
-                setDetails(res?.data?.data || []);
-            }
-        } catch (e) {
-            Toast.show({ type: 'error', text1: 'Lỗi tải chi tiết' });
+            const response = await khoBtpApi.getExportDetail(id);
+            setDetail(response || {});
+            setLines(Array.isArray(response?.chiTiets) ? response.chiTiets : []);
+            setSavedPackages(Array.isArray(response?.kiens) ? response.kiens : []);
+        } catch (error) {
+            Toast.show({ type: 'error', text1: 'Lỗi tải chi tiết phiếu xuất', text2: getApiErrorMessage(error) });
         } finally {
             setLoading(false);
         }
@@ -71,522 +153,318 @@ export default function PhieuXuatBTP_Detail() {
         fetchDetail();
     }, [fetchDetail]);
 
-    const getLineRemaining = async ({ idPhieuXuat, idDonHang, idLoSX, idSanPham }) => {
-        const res = await axios.post(`${baseURL}/khotm/phieu-line-remaining`, {
-            idPhieuXuat, idDonHang, idLoSX, idSanPham,
-        });
-        if (!res?.data?.ok) throw new Error(res?.data?.message || 'Lỗi kiểm tra phiếu');
-        return res.data;
+    const pendingForActiveLine = useMemo(() => pendingPicks.filter((item) => item.lineKey === activeKey), [activeKey, pendingPicks]);
+    const requestedForActive = asNumber(readValue(activeLine, ['soLuongLenhXuat', 'SoLuong_XuatKho', 'soLuong'], 0));
+    const pendingActiveTotal = pendingForActiveLine.reduce((sum, item) => sum + item.quantity, 0);
+    const savedForLine = savedPackages.filter((item) => {
+        const productId = readValue(item, ['idDonHangSanPham', 'ID_DonHang_SanPham'], null);
+        return !productId || String(productId) === String(readValue(activeLine, ['idDonHangSanPham'], null));
+    }).reduce((sum, item) => sum + asNumber(readValue(item, ['soLuongXuatKho', 'SoLuongXuatKho', 'SoLuong_XuatKho'], 0)), 0);
+    const remainingForActive = Math.max(0, requestedForActive - savedForLine - pendingActiveTotal);
+
+    const addPackageCandidate = (raw) => {
+        if (!activeLine) return;
+        const rows = asList(raw, ['bTPs', 'kiens', 'items', 'rows']);
+        const item = rows[0] || raw?.data || raw;
+        if (!item || typeof item !== 'object') {
+            Toast.show({ type: 'error', text1: 'Không tìm thấy chi tiết kiện' });
+            return;
+        }
+        const qr = getPackageQr(item);
+        if (!qr) {
+            Toast.show({ type: 'error', text1: 'Kiện không có mã QR' });
+            return;
+        }
+        if (pendingPicks.some((pick) => pick.qrCode === qr)) {
+            Toast.show({ type: 'info', text1: 'QR đã có trong danh sách chờ' });
+            return;
+        }
+        const packageProductId = readValue(item, ['idDonHangSanPham', 'ID_DonHang_SanPham'], null);
+        const lineProductId = readValue(activeLine, ['idDonHangSanPham', 'ID_DonHang_SanPham'], null);
+        if (packageProductId && lineProductId && String(packageProductId) !== String(lineProductId)) {
+            Toast.show({ type: 'error', text1: 'Kiện không khớp sản phẩm của dòng phiếu' });
+            return;
+        }
+        const stock = stockQuantity(item);
+        const max = Math.min(stock, remainingForActive);
+        if (max <= 0) {
+            Toast.show({ type: 'error', text1: remainingForActive <= 0 ? 'Dòng phiếu đã đủ số lượng' : 'Kiện đã hết tồn' });
+            return;
+        }
+        setQuantityItem({ raw: item, qrCode: qr, stock, lineKey: activeKey, itemCode: readValue(item, ['itemCode', 'ItemCode'], readValue(activeLine, ['itemCode'], '')) });
+        setQuantityMax(max);
     };
 
-    const handleBarCodeScanned = async ({ data }) => {
+    const scanQr = async () => {
+        if (isConfirmed) return;
+        if (!activeLine) {
+            Toast.show({ type: 'info', text1: 'Chọn dòng BTP trước' });
+            return;
+        }
+        if (!permission?.granted) {
+            const result = await requestPermission();
+            if (!result.granted) return;
+        }
+        setScanned(false);
+        setScanMode(true);
+    };
+
+    const handleScanned = async ({ data }) => {
         if (scanned) return;
         setScanned(true);
-
         try {
-            if (pendingPicks.some((p) => p.qrCode === data)) {
-                Toast.show({ type: 'info', text1: 'QR đã có trong danh sách chờ' });
-                return;
-            }
-
-            const metaRes = await axios.post(`${baseURL}/khotm/find-by-qr`, { qrcode: data });
-            if (!metaRes?.data?.ok) throw new Error('QR không hợp lệ');
-
-            const ct = metaRes.data.data?.chiTietKien?.[0];
-            if (!ct) {
-                Toast.show({ type: 'error', text1: 'Không tìm thấy kiện con' });
-                return;
-            }
-
-            const conLaiKien = Number((ct.ConLai ?? (Number(ct.SoLuong || 0) - Number(ct.DaXuat || 0))) || 0);
-            if (conLaiKien <= 0) {
-                Toast.show({ type: 'info', text1: 'Kiện đã xuất hết' });
-                return;
-            }
-
-            const { conLaiPhieu } = await getLineRemaining({
+            const response = await khoBtpApi.getExportPackageByQr({
+                qrCode: data,
                 idPhieuXuat: id,
-                idDonHang: ct.ID_DonHang,
-                idLoSX: ct.ID_DonHang_LoSanXuat,
-                idSanPham: ct.ID_DonHang_SanPham,
+                idDonHangSanPham: readValue(activeLine, ['idDonHangSanPham'], 0),
             });
-
-            if (Number(conLaiPhieu) <= 0) {
-                Toast.show({ type: 'info', text1: 'Dòng phiếu đã đủ' });
-                return;
-            }
-
-            const pendingAlready = pendingPicks
-                .filter(p => p.idDonHang === ct.ID_DonHang && p.idLoSX === ct.ID_DonHang_LoSanXuat && p.idSanPham === ct.ID_DonHang_SanPham)
-                .reduce((s, p) => s + Number(p.soLuongTam || 0), 0);
-
-            const conLaiPhieuSauPending = Math.max(0, Number(conLaiPhieu) - pendingAlready);
-            if (conLaiPhieuSauPending <= 0) {
-                Toast.show({ type: 'info', text1: 'Đã đủ số lượng chờ' });
-                return;
-            }
-
-            const soLuongTam = Math.min(conLaiKien, conLaiPhieuSauPending);
-            
-            setPendingPicks((prev) => [
-                ...prev,
-                {
-                    qrCode: data,
-                    itemCode: ct.ItemCode || '-',
-                    soLuongTam,
-                    idDonHang: ct.ID_DonHang,
-                    idLoSX: ct.ID_DonHang_LoSanXuat,
-                    idSanPham: ct.ID_DonHang_SanPham,
-                    idTheKhoChiTiet: ct.ID_TheKhoKienBTP_ChiTiet,
-                    isPending: true,
-                },
-            ]);
-
-            Toast.show({ type: 'success', text1: 'Đã thêm vào hàng chờ' });
-        } catch (e) {
-            Toast.show({ type: 'error', text1: 'Lỗi quét', text2: e.message });
-        } finally {
-            setTimeout(() => setScanned(false), 600);
+            setScanMode(false);
+            addPackageCandidate(response);
+        } catch (error) {
+            Toast.show({ type: 'error', text1: 'QR không phù hợp', text2: getApiErrorMessage(error) });
+            setTimeout(() => setScanned(false), 800);
         }
     };
 
-    const handleSavePending = async () => {
-        if (pendingPicks.length === 0) return;
+    useEffect(() => {
+        if (!initialQr || !activeLine || pendingPicks.length || isConfirmed) return;
+        let mounted = true;
+        (async () => {
+            try {
+                setLoading(true);
+                const response = await khoBtpApi.getExportPackageByQr({
+                    qrCode: initialQr,
+                    idPhieuXuat: id,
+                    idDonHangSanPham: readValue(activeLine, ['idDonHangSanPham'], 0),
+                });
+                if (mounted) addPackageCandidate(response);
+            } catch (error) {
+                if (mounted) Toast.show({ type: 'error', text1: 'Kiện quét trước không khớp phiếu', text2: getApiErrorMessage(error) });
+            } finally {
+                if (mounted) setLoading(false);
+            }
+        })();
+        return () => { mounted = false; };
+    }, [activeLine, id, initialQr, isConfirmed]);
 
+    const loadSuggestions = async () => {
+        if (isConfirmed) return;
+        if (!activeLine) return;
         try {
             setLoading(true);
-            for (const p of pendingPicks) {
-                await axios.post(`${baseURL}/khotm/insert-pick`, {
-                    idPhieuXuat: id,
-                    qrcode: p.qrCode,
-                });
+            const response = await khoBtpApi.getSuggestedPackages({
+                idPhieuXuat: id,
+                idDonHangLoSanXuat: readValue(activeLine, ['idDonHangLoSanXuat'], 0),
+                idDonHangSanPham: readValue(activeLine, ['idDonHangSanPham'], 0),
+                idDonHang: readValue(activeLine, ['idDonHang'], 0),
+                idQuyTrinhSanXuat: readValue(activeLine, ['idQuyTrinhSanXuat'], 0),
+            });
+            const suggestions = asList(response, ['kiens', 'items', 'rows']);
+            if (!suggestions.length) {
+                Toast.show({ type: 'info', text1: 'Không có kiện gợi ý phù hợp' });
+                return;
             }
-            Toast.show({ type: 'success', text1: 'Lưu thành công' });
-            setPendingPicks([]);
-            await fetchDetail();
-        } catch (e) {
-            Toast.show({ type: 'error', text1: 'Lỗi lưu dữ liệu' });
+            addPackageCandidate(suggestions[0]);
+            if (suggestions.length > 1) Toast.show({ type: 'info', text1: `Đã chọn kiện đầu tiên trong ${suggestions.length} gợi ý` });
+        } catch (error) {
+            Toast.show({ type: 'error', text1: 'Không tải được kiện gợi ý', text2: getApiErrorMessage(error) });
         } finally {
             setLoading(false);
         }
     };
 
-    const renderRightActions = (index) => (
-        <RectButton
-            style={styles.deleteAction}
-            onPress={() => {
-                const copy = [...pendingPicks];
-                copy.splice(index, 1);
-                setPendingPicks(copy);
-            }}
-        >
-            <Ionicons name="trash-outline" size={24} color={COLORS.white} />
-        </RectButton>
-    );
+    const savePicks = () => {
+        if (!pendingPicks.length) {
+            Toast.show({ type: 'info', text1: 'Chưa có kiện chờ xuất' });
+            return;
+        }
+        Alert.alert('Xác nhận phiếu xuất', 'Lưu toàn bộ kiện và chuyển phiếu sang trạng thái phê duyệt?', [
+            { text: 'Hủy', style: 'cancel' },
+            {
+                text: 'Xác nhận',
+                onPress: async () => {
+                    try {
+                        setLoading(true);
+                        const picks = pendingPicks.map((pick) => ({
+                            IdTheKhoKienBTPChiTiet: packageDetailId(pick.raw),
+                            IdDonHangLoSanXuat: asNumber(readValue(pick.raw, ['idDonHangLoSanXuat', 'ID_DonHang_LoSanXuat'], readValue(pick.line, ['idDonHangLoSanXuat'], 0))),
+                            IdDonHangSanPham: asNumber(readValue(pick.raw, ['idDonHangSanPham', 'ID_DonHang_SanPham'], readValue(pick.line, ['idDonHangSanPham'], 0))),
+                            IdDonHang: asNumber(readValue(pick.raw, ['idDonHang', 'ID_DonHang'], readValue(pick.line, ['idDonHang'], 0))),
+                            SoLuongXuatKho: pick.quantity,
+                        }));
+                        if (picks.some((pick) => !pick.IdTheKhoKienBTPChiTiet)) throw new Error('Thiếu ID chi tiết kiện xuất');
+                        await khoBtpApi.confirmExport({ idPhieuXuat: id, picks });
+                        setPendingPicks([]);
+                        Toast.show({ type: 'success', text1: 'Xác nhận phiếu xuất thành công' });
+                        await fetchDetail();
+                    } catch (error) {
+                        Toast.show({ type: 'error', text1: 'Xác nhận phiếu xuất thất bại', text2: getApiErrorMessage(error) });
+                    } finally {
+                        setLoading(false);
+                    }
+                },
+            },
+        ]);
+    };
 
-    const renderItemDB = ({ item }) => (
-        <View style={styles.itemCard}>
-            <View style={styles.itemMain}>
-                <View style={styles.itemHeader}>
-                    <View style={styles.idBadge}>
-                        <Text style={styles.idBadgeText}>#{item.ID_TheKhoKienBTP_ChiTiet}</Text>
-                    </View>
-                    <View style={styles.savedBadge}>
-                        <Ionicons name="checkmark-circle" size={14} color={COLORS.success} />
-                        <Text style={styles.savedText}>Đã lưu</Text>
-                    </View>
-                </View>
-                <Text style={styles.itemCode}>{item.ItemCode}</Text>
+    if (scanMode) {
+        return (
+            <View style={styles.scanner}>
+                <CameraView style={StyleSheet.absoluteFill} onBarcodeScanned={scanned ? undefined : handleScanned} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} />
+                <ScanOverlay />
+                <TouchableOpacity style={[styles.scanClose, { top: insets.top + 18 }]} onPress={() => setScanMode(false)}><Ionicons name="close" size={28} color={COLORS.white} /></TouchableOpacity>
+                <Text style={styles.scanHint}>Quét kiện cho {readValue(activeLine, ['itemCode'], 'dòng phiếu')}</Text>
             </View>
-            <View style={styles.qtyBox}>
-                <Text style={styles.qtyLabel}>Đã xuất</Text>
-                <Text style={styles.qtyValue}>{item.SoLuong_XuatKho}</Text>
-            </View>
-        </View>
-    );
-
-    const renderItemPending = ({ item, index }) => (
-        <Swipeable renderRightActions={() => renderRightActions(index)}>
-            <View style={[styles.itemCard, styles.itemCardPending]}>
-                <View style={styles.itemMain}>
-                    <View style={styles.itemHeader}>
-                        <View style={[styles.idBadge, { backgroundColor: COLORS.warning + '20' }]}>
-                            <Text style={[styles.idBadgeText, { color: COLORS.warning }]}>Chờ lưu</Text>
-                        </View>
-                    </View>
-                    <Text style={styles.itemCode} numberOfLines={1}>{item.qrCode}</Text>
-                    <Text style={styles.itemSubCode}>{item.itemCode}</Text>
-                </View>
-                <View style={[styles.qtyBox, { backgroundColor: COLORS.warning + '10' }]}>
-                    <Text style={[styles.qtyLabel, { color: COLORS.warning }]}>Tạm tính</Text>
-                    <Text style={[styles.qtyValue, { color: COLORS.warning }]}>{item.soLuongTam}</Text>
-                </View>
-            </View>
-        </Swipeable>
-    );
+        );
+    }
 
     return (
         <View style={[styles.container, { paddingBottom: insets.bottom }]}>
             <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-            
-            {scanMode ? (
-                <View style={styles.scannerWrapper}>
-                    <TouchableOpacity onPress={() => setScanMode(false)} style={[styles.backScanButton, { top: insets.top + 20 }]}>
-                        <Ionicons name="close" size={28} color="#fff" />
-                    </TouchableOpacity>
-                    <CameraView
-                        style={styles.camera}
-                        cameraType="back"
-                        onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-                        barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+            <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}>
+                <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={24} color={COLORS.white} /></TouchableOpacity>
+                <Text style={styles.headerTitle} numberOfLines={1}>{readValue(detail, ['soPhieu'], 'Chi tiết phiếu xuất')}</Text>
+                <View style={{ width: 40 }} />
+            </View>
+            <FlatList
+                data={lines}
+                keyExtractor={(item, index) => lineKey(item, index)}
+                renderItem={({ item, index }) => (
+                    <LineCard
+                        item={item}
+                        selected={index === activeLineIndex}
+                        pendingQuantity={pendingPicks.filter((pick) => pick.lineKey === lineKey(item, index)).reduce((sum, pick) => sum + pick.quantity, 0)}
+                        onPress={() => setActiveLineIndex(index)}
                     />
-                    <ScanOverlay />
-                    <View style={styles.scanHint}>
-                        <Text style={styles.scanHintText}>Quét kiện hàng để thêm vào phiếu</Text>
-                    </View>
-                </View>
-            ) : (
-                <>
-                    <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}>
-                        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-                            <Ionicons name="arrow-back" size={24} color={COLORS.white} />
-                        </TouchableOpacity>
-                        <Text style={styles.headerTitle}>Chi tiết phiếu {soPhieu}</Text>
-                        <View style={{ width: 24 }} />
-                    </View>
-
-                    <View style={styles.summaryCard}>
-                        <View style={styles.summaryGrid}>
-                            <View style={styles.summaryItem}>
-                                <Text style={styles.summaryLabel}>Tổng yêu cầu</Text>
-                                <Text style={styles.summaryValue}>{SoLuongTong_DongPhieu || 0}</Text>
-                            </View>
-                            <View style={styles.summaryDivider} />
-                            <View style={styles.summaryItem}>
-                                <Text style={styles.summaryLabel}>Đã xuất DB</Text>
-                                <Text style={[styles.summaryValue, { color: COLORS.success }]}>{TongPick || 0}</Text>
-                            </View>
-                            <View style={styles.summaryDivider} />
-                            <View style={styles.summaryItem}>
-                                <Text style={styles.summaryLabel}>Đang chờ</Text>
-                                <Text style={[styles.summaryValue, { color: COLORS.warning }]}>{pendingPicks.length}</Text>
+                )}
+                contentContainerStyle={styles.content}
+                ListHeaderComponent={
+                    <View>
+                        {isConfirmed && <Text style={styles.confirmedBanner}>Phiếu đã xác nhận — chỉ xem dữ liệu</Text>}
+                        <View style={styles.summary}>
+                            <Text style={styles.summaryTitle}>{readValue(detail, ['loaiPhieu'], '-')}</Text>
+                            <Text style={styles.summarySub}>Ngày xuất: {String(readValue(detail, ['ngayXuat'], '-')).slice(0, 10)}</Text>
+                            <Text style={styles.summarySub}>Đơn hàng: {readValue(detail, ['maDonHang'], readValue(lines[0], ['maDonHang'], '-'))}</Text>
+                            <View style={styles.summaryStats}>
+                                <Text style={styles.stat}>Dòng BTP: {lines.length}</Text>
+                                <Text style={styles.stat}>Đã lưu: {savedPackages.length}</Text>
+                                <Text style={styles.stat}>Chờ lưu: {pendingPicks.length}</Text>
                             </View>
                         </View>
+                        <Text style={styles.sectionTitle}>Chọn BTP cần quét xuất</Text>
                     </View>
-
-                    <FlatList
-                        data={[...pendingPicks.map((p, i) => ({ ...p, type: 'pending', originalIndex: i })), ...details.map(d => ({ ...d, type: 'db' }))]}
-                        keyExtractor={(item, index) => index.toString()}
-                        renderItem={({ item }) => item.type === 'pending' ? renderItemPending({ item, index: item.originalIndex }) : renderItemDB({ item })}
-                        contentContainerStyle={styles.listContent}
-                        showsVerticalScrollIndicator={false}
-                        ListHeaderComponent={
-                            <View style={styles.listHeader}>
-                                <Text style={styles.sectionTitle}>Danh sách kiện xuất</Text>
-                                {pendingPicks.length > 0 && (
-                                    <View style={styles.pendingHint}>
-                                        <Icon name="information-outline" size={14} color={COLORS.warning} />
-                                        <Text style={styles.pendingHintText}>Vuốt sang trái để xóa kiện chờ</Text>
-                                    </View>
-                                )}
+                }
+                ListFooterComponent={
+                    <View>
+                        {!!activeLine && !isConfirmed && (
+                            <View style={styles.actions}>
+                                <TouchableOpacity style={styles.actionBtn} onPress={scanQr}><Ionicons name="scan-outline" size={20} color={COLORS.white} /><Text style={styles.actionText}>Quét kiện</Text></TouchableOpacity>
+                                <TouchableOpacity style={[styles.actionBtn, { backgroundColor: COLORS.success }]} onPress={loadSuggestions}><Ionicons name="list-outline" size={20} color={COLORS.white} /><Text style={styles.actionText}>Kiện gợi ý</Text></TouchableOpacity>
                             </View>
-                        }
-                        ListEmptyComponent={
-                            !loading && (
-                                <View style={styles.emptyContainer}>
-                                    <Icon name="package-variant" size={48} color={COLORS.textSecondary} />
-                                    <Text style={styles.emptyText}>Chưa có kiện hàng nào được quét</Text>
-                                </View>
-                            )
-                        }
-                    />
-
-                    {/* FAB Actions */}
-                    <View style={styles.fabContainer}>
-                        <TouchableOpacity 
-                            style={styles.scanFab} 
-                            onPress={async () => {
-                                if (!permission?.granted) await requestPermission();
-                                setScanMode(true);
-                            }}
-                        >
-                            <Ionicons name="qr-code-outline" size={24} color={COLORS.white} />
-                            <Text style={styles.fabText}>Quét kiện</Text>
-                        </TouchableOpacity>
-
-                        {pendingPicks.length > 0 && (
-                            <TouchableOpacity 
-                                style={styles.saveFab}
-                                onPress={handleSavePending}
-                            >
-                                <Ionicons name="cloud-upload-outline" size={24} color={COLORS.white} />
-                                <Text style={styles.fabText}>Lưu ({pendingPicks.length})</Text>
-                            </TouchableOpacity>
                         )}
-                    </View>
-
-                    {loading && (
-                        <View style={styles.loadingOverlay}>
-                            <ActivityIndicator size="large" color={COLORS.primary} />
+                        <View style={styles.remainingBox}>
+                            <Text style={styles.remainingLabel}>Dòng đang chọn còn lại</Text>
+                            <Text style={styles.remainingValue}>{remainingForActive}</Text>
                         </View>
-                    )}
-                </>
-            )}
+                        <Text style={styles.sectionTitle}>Kiện chờ lưu</Text>
+                        {pendingPicks.length ? pendingPicks.map((pick, index) => (
+                            <PickCard
+                                key={`${pick.qrCode}-${index}`}
+                                item={pick}
+                                onEdit={() => {
+                                    setQuantityItem({ ...pick, editIndex: index });
+                                    const otherTotal = pendingPicks.filter((_, itemIndex) => itemIndex !== index && pendingPicks[itemIndex].lineKey === pick.lineKey).reduce((sum, item) => sum + item.quantity, 0);
+                                    const requested = asNumber(readValue(pick.line, ['soLuongLenhXuat', 'soLuong'], 0));
+                                    const productId = readValue(pick.line, ['idDonHangSanPham', 'ID_DonHang_SanPham'], null);
+                                    const saved = savedPackages
+                                        .filter((item) => {
+                                            const savedProductId = readValue(item, ['idDonHangSanPham', 'ID_DonHang_SanPham'], null);
+                                            return !savedProductId || String(savedProductId) === String(productId);
+                                        })
+                                        .reduce((sum, item) => sum + asNumber(readValue(item, ['soLuongXuatKho', 'SoLuongXuatKho', 'SoLuong_XuatKho'], 0)), 0);
+                                    setQuantityMax(Math.min(pick.stock, Math.max(pick.quantity, requested - saved - otherTotal)));
+                                }}
+                                onRemove={() => setPendingPicks((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                            />
+                        )) : <Text style={styles.emptyText}>Chưa có kiện nào được quét</Text>}
+                    </View>
+                }
+            />
+            <View style={styles.footer}>
+                <TouchableOpacity style={[styles.saveBtn, (!pendingPicks.length || isConfirmed) && styles.disabled]} disabled={!pendingPicks.length || isConfirmed || loading} onPress={savePicks}>
+                    {loading ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="save-outline" size={20} color={COLORS.white} /><Text style={styles.saveText}>Lưu phiếu ({pendingPicks.length})</Text></>}
+                </TouchableOpacity>
+            </View>
+            <QuantityModal
+                visible={Boolean(quantityItem)}
+                item={quantityItem}
+                max={quantityMax}
+                onClose={() => setQuantityItem(null)}
+                onConfirm={(quantity) => {
+                    if (Number.isInteger(quantityItem?.editIndex)) {
+                        setPendingPicks((current) => current.map((pick, index) => index === quantityItem.editIndex ? { ...pick, quantity } : pick));
+                    } else {
+                        setPendingPicks((current) => [...current, { ...quantityItem, quantity, line: activeLine }]);
+                    }
+                    setQuantityItem(null);
+                }}
+            />
+            {loading && <View style={styles.loadingOverlay}><ActivityIndicator size="large" color={COLORS.primary} /></View>}
             <Toast />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: COLORS.background,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingBottom: 16,
-        backgroundColor: COLORS.primary,
-        borderBottomLeftRadius: 24,
-        borderBottomRightRadius: 24,
-    },
-    backButton: {
-        padding: 8,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: COLORS.white,
-    },
-    summaryCard: {
-        margin: 16,
-        backgroundColor: COLORS.surface,
-        borderRadius: 24,
-        padding: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.05,
-        shadowRadius: 12,
-        elevation: 3,
-    },
-    summaryGrid: {
-        flexDirection: 'row',
-        alignItems: 'center',
-    },
-    summaryItem: {
-        flex: 1,
-        alignItems: 'center',
-    },
-    summaryDivider: {
-        width: 1,
-        height: '60%',
-        backgroundColor: COLORS.border,
-    },
-    summaryLabel: {
-        fontSize: 10,
-        color: COLORS.textSecondary,
-        marginBottom: 4,
-        textTransform: 'uppercase',
-    },
-    summaryValue: {
-        fontSize: 18,
-        fontWeight: '800',
-        color: COLORS.textPrimary,
-    },
-    listContent: {
-        padding: 16,
-        paddingBottom: 100,
-    },
-    listHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    sectionTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: COLORS.textPrimary,
-    },
-    pendingHint: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    pendingHintText: {
-        fontSize: 10,
-        color: COLORS.warning,
-    },
-    itemCard: {
-        backgroundColor: COLORS.surface,
-        borderRadius: 20,
-        padding: 16,
-        marginBottom: 12,
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: COLORS.border,
-    },
-    itemCardPending: {
-        borderColor: COLORS.warning,
-        backgroundColor: COLORS.warning + '05',
-    },
-    itemMain: {
-        flex: 1,
-    },
-    itemHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginBottom: 6,
-    },
-    idBadge: {
-        backgroundColor: COLORS.primaryLight,
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 6,
-    },
-    idBadgeText: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: COLORS.primary,
-    },
-    savedBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    savedText: {
-        fontSize: 10,
-        color: COLORS.success,
-        fontWeight: '600',
-    },
-    itemCode: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: COLORS.textPrimary,
-    },
-    itemSubCode: {
-        fontSize: 12,
-        color: COLORS.textSecondary,
-        marginTop: 2,
-    },
-    qtyBox: {
-        backgroundColor: COLORS.primaryLight,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 12,
-        alignItems: 'center',
-        minWidth: 70,
-    },
-    qtyLabel: {
-        fontSize: 9,
-        color: COLORS.primary,
-        textTransform: 'uppercase',
-        marginBottom: 2,
-    },
-    qtyValue: {
-        fontSize: 16,
-        fontWeight: '800',
-        color: COLORS.primary,
-    },
-    deleteAction: {
-        backgroundColor: COLORS.danger,
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: 70,
-        height: '84%',
-        borderRadius: 20,
-        marginLeft: 10,
-    },
-    fabContainer: {
-        position: 'absolute',
-        bottom: 24,
-        right: 16,
-        left: 16,
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        gap: 12,
-    },
-    scanFab: {
-        backgroundColor: COLORS.primary,
-        paddingHorizontal: 20,
-        paddingVertical: 14,
-        borderRadius: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        shadowColor: COLORS.primary,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    saveFab: {
-        backgroundColor: COLORS.success,
-        paddingHorizontal: 20,
-        paddingVertical: 14,
-        borderRadius: 20,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        shadowColor: COLORS.success,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 5,
-    },
-    fabText: {
-        color: COLORS.white,
-        fontSize: 15,
-        fontWeight: '700',
-    },
-    emptyContainer: {
-        alignItems: 'center',
-        marginTop: 60,
-        gap: 12,
-    },
-    emptyText: {
-        fontSize: 14,
-        color: COLORS.textSecondary,
-    },
-    scannerWrapper: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: '#000',
-    },
-    camera: {
-        flex: 1,
-    },
-    backScanButton: {
-        position: 'absolute',
-        left: 20,
-        zIndex: 10,
-        backgroundColor: "rgba(0,0,0,0.5)",
-        padding: 8,
-        borderRadius: 20,
-    },
-    scanHint: {
-        position: 'absolute',
-        bottom: 80,
-        left: 0,
-        right: 0,
-        alignItems: 'center',
-    },
-    scanHintText: {
-        color: '#fff',
-        fontSize: 14,
-        backgroundColor: 'rgba(0,0,0,0.7)',
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 20,
-    },
-    loadingOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(255,255,255,0.7)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 100,
-    },
+    container: { flex: 1, backgroundColor: COLORS.background },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 16, backgroundColor: COLORS.primary, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
+    backBtn: { width: 40, padding: 8 },
+    headerTitle: { maxWidth: '72%', color: COLORS.white, fontSize: 17, fontWeight: '800' },
+    content: { padding: 16, paddingBottom: 110 },
+    summary: { padding: 16, borderRadius: 18, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
+    summaryTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary },
+    summarySub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 5 },
+    summaryStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+    stat: { fontSize: 11, fontWeight: '800', color: COLORS.primary, backgroundColor: COLORS.primaryLight, borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5 },
+    confirmedBanner: { padding: 12, borderRadius: 13, backgroundColor: '#D1FAE5', color: '#047857', fontSize: 12, fontWeight: '800', marginBottom: 12, textAlign: 'center' },
+    sectionTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary, marginVertical: 11 },
+    lineCard: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 13, borderRadius: 17, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, marginBottom: 10 },
+    lineSelected: { borderColor: COLORS.primary, backgroundColor: '#F8F8FF' },
+    lineIcon: { width: 42, height: 42, borderRadius: 12, backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center' },
+    lineCode: { fontSize: 14, fontWeight: '800', color: COLORS.textPrimary },
+    lineName: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
+    lineMeta: { fontSize: 10, color: COLORS.textSecondary, marginTop: 5 },
+    lineQty: { alignItems: 'center', minWidth: 64, backgroundColor: COLORS.background, borderRadius: 11, padding: 7 },
+    qtyLabel: { fontSize: 9, color: COLORS.textSecondary, textTransform: 'uppercase' },
+    qtyValue: { fontSize: 17, fontWeight: '800', color: COLORS.primary, marginTop: 2 },
+    pendingQty: { fontSize: 9, color: COLORS.warning, fontWeight: '800', marginTop: 2 },
+    actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+    actionBtn: { flex: 1, height: 49, borderRadius: 15, backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
+    actionText: { color: COLORS.white, fontWeight: '800', fontSize: 13 },
+    remainingBox: { marginTop: 12, padding: 13, borderRadius: 14, backgroundColor: COLORS.primaryLight, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    remainingLabel: { color: COLORS.primary, fontSize: 12, fontWeight: '700' },
+    remainingValue: { color: COLORS.primary, fontSize: 20, fontWeight: '900' },
+    pickCard: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 13, backgroundColor: COLORS.surface, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, marginBottom: 10 },
+    pickQr: { fontSize: 13, fontWeight: '800', color: COLORS.textPrimary },
+    pickQty: { minWidth: 66, alignItems: 'center', backgroundColor: COLORS.primaryLight, borderRadius: 11, padding: 8 },
+    removeBtn: { padding: 9 },
+    footer: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 14, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border },
+    saveBtn: { height: 54, borderRadius: 16, backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    saveText: { color: COLORS.white, fontSize: 15, fontWeight: '800' },
+    disabled: { opacity: 0.45 },
+    overlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'center', padding: 20 },
+    dialog: { backgroundColor: COLORS.surface, borderRadius: 20, padding: 20 },
+    dialogTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary },
+    dialogSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 6 },
+    qtyInput: { height: 52, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: 14, marginTop: 14, fontSize: 18, color: COLORS.textPrimary },
+    dialogActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
+    secondaryBtn: { flex: 1, height: 48, borderRadius: 14, backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center' },
+    primaryBtn: { flex: 1, height: 48, borderRadius: 14, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },
+    secondaryText: { color: COLORS.textSecondary, fontWeight: '800' },
+    primaryText: { color: COLORS.white, fontWeight: '800' },
+    emptyText: { textAlign: 'center', color: COLORS.textSecondary, paddingVertical: 26 },
+    scanner: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
+    scanClose: { position: 'absolute', left: 18, zIndex: 3, padding: 10, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.45)' },
+    scanHint: { position: 'absolute', bottom: 70, color: COLORS.white, fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 },
+    loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.42)', alignItems: 'center', justifyContent: 'center' },
 });

@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from "expo-camera";
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
 import axios from 'axios';
+import { khoBtpApi } from '../../services/khoBtpApi';
 
 // Design Tokens
 const COLORS = {
@@ -123,7 +124,9 @@ const WarehouseDetailScreen = ({ route }) => {
             navigation.navigate('KhoPLExportList', { kho });
             return;
         }
-        console.log('Phiếu xuất');
+        if (kho.id === 5) {
+            navigation.navigate('PhieuXuatBTP', { kho });
+        }
     };
 
     const handleTransferPress = () => {
@@ -135,7 +138,9 @@ const WarehouseDetailScreen = ({ route }) => {
             navigation.navigate('KhoPLTransferLocation', { kho });
             return;
         }
-        console.log('Điều chuyển');
+        if (kho.id === 5) {
+            navigation.navigate('KhoBTPTransferLocation', { kho });
+        }
     };
 
     const handleReportPress = () => {
@@ -155,13 +160,10 @@ const WarehouseDetailScreen = ({ route }) => {
     const handleQRCodeScanned = async (qrCode) => {
         try {
             if (kho.id === 5) {
-                const response = await axios.post(
-                    'https://nodeapi.z76.vn/khotm/getthongtinkien',
-                    { QRCode: qrCode }
-                );
+                const response = await khoBtpApi.getPackageInfo(qrCode);
 
-                if (response.data && response.data.ok && response.data.data) {
-                    const data = response.data.data;
+                if (response && response.ok && response.data) {
+                    const data = response.data;
                     navigation.navigate("ScannedDetail", { data, qrCode, kho });
                 } else {
                     Toast.show({
@@ -266,6 +268,7 @@ const WarehouseDetailScreen = ({ route }) => {
     };
 
     const showInspectionReport = kho.id === 1 || kho.id === 3;
+    const showReport = kho.id === 1;
 
     return (
         <View style={[styles.container, { paddingBottom: insets.bottom }]}>
@@ -304,7 +307,10 @@ const WarehouseDetailScreen = ({ route }) => {
                                 title="Phiếu nhập"
                                 description="Quản lý và tạo mới phiếu nhập kho"
                                 iconName="download"
-                                onPress={() => console.log('Phiếu nhập')}
+                                onPress={() => {
+                                    if (kho.id === 5) navigation.navigate('KhoBTPImportList', { kho });
+                                    else Toast.show({ type: 'info', text1: 'Phiếu nhập đang được hoàn thiện cho kho này' });
+                                }}
                             />
                             <OptionItem
                                 title="Phiếu xuất"
@@ -320,12 +326,14 @@ const WarehouseDetailScreen = ({ route }) => {
                                     onPress={handleInspectionReportPress}
                                 />
                             )}
-                            <OptionItem
-                                title="Báo cáo thống kê"
-                                description="Xem biểu đồ và dữ liệu tồn kho"
-                                iconName="file-chart"
-                                onPress={handleReportPress}
-                            />
+                            {showReport && (
+                                <OptionItem
+                                    title="Báo cáo thống kê"
+                                    description="Xem biểu đồ và dữ liệu tồn kho"
+                                    iconName="file-chart"
+                                    onPress={handleReportPress}
+                                />
+                            )}
                             <OptionItem
                                 title="Điều chuyển vị trí"
                                 description="Thay đổi vị trí lưu trữ của kiện hàng"

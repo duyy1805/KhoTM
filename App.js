@@ -32,7 +32,9 @@ import PhieuXuatBTP from "./src/screens/kho-btp/PhieuXuatBTP";
 import PhieuXuatBTP_Detail from "./src/screens/kho-btp/PhieuXuatBTP_Detail";
 import MergePackageScreen from "./src/screens/kho-btp/GhepKien";
 import SplitPackageScreen from "./src/screens/kho-btp/TachKien";
-import LocationPickerModal from "./src/screens/kho-btp/LocationPickerModal";
+import KhoBTPImportListScreen from "./src/screens/kho-btp/KhoBTPImportListScreen";
+import KhoBTPImportDetailScreen from "./src/screens/kho-btp/KhoBTPImportDetailScreen";
+import KhoBTPTransferLocationScreen from "./src/screens/kho-btp/KhoBTPTransferLocationScreen";
 
 const Stack = createStackNavigator();
 
@@ -82,6 +84,21 @@ export default function App() {
             options={{ headerShown: false, title: "Chi tiết phiếu xuất BTP" }}
           />
           <Stack.Screen
+            name="KhoBTPImportList"
+            component={KhoBTPImportListScreen}
+            options={{ headerShown: false, title: "Phiếu nhập BTP" }}
+          />
+          <Stack.Screen
+            name="KhoBTPImportDetail"
+            component={KhoBTPImportDetailScreen}
+            options={{ headerShown: false, title: "Chi tiết phiếu nhập BTP" }}
+          />
+          <Stack.Screen
+            name="KhoBTPTransferLocation"
+            component={KhoBTPTransferLocationScreen}
+            options={{ headerShown: false, title: "Điều chuyển vị trí BTP" }}
+          />
+          <Stack.Screen
             name="MergePackageScreen"
             component={MergePackageScreen}
             options={{ headerShown: false, title: "Ghép kiện" }}
@@ -91,12 +108,6 @@ export default function App() {
             component={SplitPackageScreen}
             options={{ headerShown: false, title: "Tách kiện" }}
           />
-          <Stack.Screen
-            name="LocationPickerModal"
-            component={LocationPickerModal}
-            options={{ headerShown: false }}
-          />
-
           <Stack.Screen
             name="ScannedDetailNL"
             component={ScannedDetailNL}
