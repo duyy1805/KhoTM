@@ -209,6 +209,10 @@ const ScannedDetail = ({ route }) => {
                     <Icon name="barcode" size={14} color={COLORS.textSecondary} />
                     <Text style={styles.detailText}>Lô SX: {item.LoSanXuat}</Text>
                 </View>
+                <View style={styles.detailRow}>
+                    <Icon name="calendar-outline" size={14} color={COLORS.textSecondary} />
+                    <Text style={styles.detailText}>Dấu tuần: {item.DauTuan || '-'}</Text>
+                </View>
             </View>
         </View>
     );
@@ -503,6 +507,7 @@ const styles = StyleSheet.create({
     },
     productDetails: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
         gap: 16,
     },
     detailRow: {

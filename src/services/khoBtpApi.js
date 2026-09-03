@@ -1,9 +1,7 @@
 import {
     apiRequest,
-    CORE_API_BASE_URL,
     getCurrentUserId,
     KHO_TM_API_BASE_URL,
-    LEGACY_BTP_API_BASE_URL,
 } from './coreApiClient';
 
 function positiveInt(value, label) {
@@ -26,7 +24,7 @@ function encode(value) {
 
 export const khoBtpApi = {
     async getImportTypes() {
-        return apiRequest({ method: 'GET', url: '/phieunhap/btp/types' });
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/phieunhap/types' });
     },
 
     async searchImports({
@@ -40,12 +38,13 @@ export const khoBtpApi = {
         const userId = await getCurrentUserId({ required: true });
         return apiRequest({
             method: 'POST',
-            url: '/phieunhap/tim-kiem/BTP',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/phieunhap/tim-kiem',
             data: {
                 idKho: cleanIdList(idKho),
                 trangThai,
                 soPhieu: soPhieu.trim(),
-                loaiPhieu,
+                ...(loaiPhieu == null ? {} : { loaiPhieu }),
                 PageSize: pageSize,
                 PageIndex: pageIndex,
                 IdTaiKhoanDangNhap: userId,
@@ -55,20 +54,22 @@ export const khoBtpApi = {
     },
 
     async getImportDetail(idPhieuNhap) {
-        return apiRequest({ method: 'GET', url: `/phieunhap/btp/${positiveInt(idPhieuNhap, 'Phiếu nhập')}` });
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/phieunhap/${positiveInt(idPhieuNhap, 'Phiếu nhập')}` });
     },
 
     async getImportPackage(qrCode, idPhieuNhap) {
         return apiRequest({
             method: 'GET',
-            url: `/phieunhap/btp/kien/${encode(qrCode)}/${positiveInt(idPhieuNhap, 'Phiếu nhập')}`,
+            baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/phieunhap/kien/${encode(qrCode)}/${positiveInt(idPhieuNhap, 'Phiếu nhập')}`,
         });
     },
 
     async addPackages({ soLuongKien, idPhieuNhap }) {
         return apiRequest({
             method: 'POST',
-            url: '/phieunhap/btp/addKien',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/phieunhap/add-kien',
             data: {
                 soLuongKien: positiveInt(soLuongKien, 'Số lượng kiện'),
                 id_PhieuNhapBTP: positiveInt(idPhieuNhap, 'Phiếu nhập'),
@@ -81,7 +82,8 @@ export const khoBtpApi = {
         if (!ids.length) throw new Error('Chưa chọn kiện cần xóa');
         return apiRequest({
             method: 'POST',
-            url: '/phieunhap/btp/xoaKien',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/phieunhap/xoa-kien',
             data: {
                 idPhieuNhapBTP: positiveInt(idPhieuNhap, 'Phiếu nhập'),
                 idTheKhoKienBTP: ids,
@@ -93,13 +95,19 @@ export const khoBtpApi = {
         if (!Array.isArray(btps) || btps.length !== 1) {
             throw new Error('Mỗi kiện phải có đúng một loại BTP');
         }
+        const normalizedBtps = btps.map((item) => {
+            const dauTuan = String(item?.DauTuan ?? item?.dauTuan ?? '').trim();
+            if (dauTuan.length > 50) throw new Error('Dấu tuần tối đa 50 ký tự');
+            return { ...item, DauTuan: dauTuan || null };
+        });
         return apiRequest({
             method: 'POST',
-            url: '/phieunhap/btp/addKienBTPChiTiet',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/phieunhap/add-chi-tiet',
             data: {
                 ID_TheKhoKienBTP: positiveInt(idPackage, 'Kiện'),
                 ID_PhieuNhapBTP: positiveInt(idPhieuNhap, 'Phiếu nhập'),
-                bTPs: btps,
+                bTPs: normalizedBtps,
             },
         });
     },
@@ -108,7 +116,12 @@ export const khoBtpApi = {
         if (!String(qrCode || '').trim()) throw new Error('QR không hợp lệ');
         return apiRequest({
             method: 'POST',
-            url: `/phieunhap/btp/addQrCodeKien/${encode(qrCode)}/${positiveInt(idPackage, 'Kiện')}`,
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/phieunhap/gan-qr',
+            data: {
+                qrCode: String(qrCode).trim(),
+                idKien: positiveInt(idPackage, 'Kiện'),
+            },
         });
     },
 
@@ -116,7 +129,8 @@ export const khoBtpApi = {
         if (!Array.isArray(items) || !items.length) throw new Error('Chưa chọn kiện cần gán vị trí');
         return apiRequest({
             method: 'POST',
-            url: '/phieunhap/btp/addViTriKien',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/phieunhap/gan-vi-tri',
             data: {
                 viTriKienBTPs: items.map((item) => ({
                     QrCode: String(item.QrCode || item.qrCode || ''),
@@ -131,7 +145,8 @@ export const khoBtpApi = {
         if (!Array.isArray(packages) || !packages.length) throw new Error('Phiếu nhập chưa có kiện');
         return apiRequest({
             method: 'PUT',
-            url: '/phieunhap/btp/xacnhan',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/phieunhap/xac-nhan',
             data: {
                 IdPhieuNhap: positiveInt(idPhieuNhap, 'Phiếu nhập'),
                 kiens: packages,
@@ -140,7 +155,7 @@ export const khoBtpApi = {
     },
 
     async getExportTypes() {
-        return apiRequest({ method: 'GET', url: '/phieuxuat/btp/types' });
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/phieuxuat/types' });
     },
 
     async searchExports({
@@ -154,12 +169,13 @@ export const khoBtpApi = {
         const userId = await getCurrentUserId({ required: true });
         return apiRequest({
             method: 'POST',
-            url: '/phieuxuat/tim-kiem/btp',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/phieuxuat/tim-kiem',
             data: {
                 idKho: cleanIdList(idKho),
                 trangThai,
                 soPhieu: soPhieu.trim(),
-                loaiPhieu,
+                ...(loaiPhieu == null ? {} : { loaiPhieu }),
                 PageSize: pageSize,
                 PageIndex: pageIndex,
                 IdTaiKhoanDangNhap: userId,
@@ -168,13 +184,14 @@ export const khoBtpApi = {
     },
 
     async getExportDetail(idPhieuXuat) {
-        return apiRequest({ method: 'GET', url: `/phieuxuat/btp/${positiveInt(idPhieuXuat, 'Phiếu xuất')}` });
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/phieuxuat/${positiveInt(idPhieuXuat, 'Phiếu xuất')}` });
     },
 
-    async getExportPackageByQr({ qrCode, idPhieuXuat, idDonHangSanPham }) {
+    async getExportPackageByQr({ qrCode, idPhieuXuat, idDonHangLoSanXuat }) {
         return apiRequest({
             method: 'GET',
-            url: `/phieuxuat/btp/kien/chitiet/${encode(qrCode)}/${positiveInt(idPhieuXuat, 'Phiếu xuất')}/${positiveInt(idDonHangSanPham, 'Sản phẩm')}`,
+            baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/phieuxuat/kien/${encode(qrCode)}/${positiveInt(idPhieuXuat, 'Phiếu xuất')}/${positiveInt(idDonHangLoSanXuat, 'Lô sản xuất')}`,
         });
     },
 
@@ -191,14 +208,15 @@ export const khoBtpApi = {
         params.append('idDonHangSanPham', positiveInt(idDonHangSanPham, 'Sản phẩm'));
         params.append('idDonHang', positiveInt(idDonHang, 'Đơn hàng'));
         params.append('IdQuyTrinhSanXuat', Number(idQuyTrinhSanXuat) || 0);
-        return apiRequest({ method: 'GET', url: `/phieuxuat/btp/list-kien?${params.toString()}` });
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/phieuxuat/list-kien?${params.toString()}` });
     },
 
     async confirmExport({ idPhieuXuat, picks }) {
         if (!Array.isArray(picks) || !picks.length) throw new Error('Chưa có kiện xuất');
         return apiRequest({
             method: 'PUT',
-            url: '/phieuxuat/btp/xacnhan',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/phieuxuat/xac-nhan',
             data: {
                 IdPhieuXuat: positiveInt(idPhieuXuat, 'Phiếu xuất'),
                 Kiens: picks,
@@ -207,22 +225,24 @@ export const khoBtpApi = {
     },
 
     async getWarehouses() {
-        return apiRequest({ method: 'GET', url: '/phieunhap/btp/khos' });
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/phieunhap/khos' });
     },
 
     async getLocationWarehouses(idKho = 5) {
         const userId = await getCurrentUserId({ required: true });
         return apiRequest({
             method: 'POST',
-            url: `/vitri/${positiveInt(idKho, 'Kho')}/nha/${userId}`,
-            data: {},
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/vitri/nha',
+            data: { idKho: positiveInt(idKho, 'Kho'), idTaiKhoan: userId },
         });
     },
 
     async getAisles({ idKho, maNha = '' }) {
         return apiRequest({
             method: 'POST',
-            url: '/vitri/day/tim-kiem',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/vitri/day',
             data: { idKho: positiveInt(idKho, 'Kho'), maNha },
         });
     },
@@ -231,23 +251,24 @@ export const khoBtpApi = {
         const userId = await getCurrentUserId({ required: true });
         return apiRequest({
             method: 'GET',
-            url: `/vitri/btp/${positiveInt(idKho, 'Kho')}/${encode(maNha)}/day/${encode(maDay)}/mavt/${encode(maVatTu)}/taikhoan/${userId}`,
+            baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/vitri/danh-sach?idKho=${positiveInt(idKho, 'Kho')}&maNha=${encode(maNha)}&maDay=${encode(maDay)}&maVatTu=${encode(maVatTu)}&idTaiKhoan=${userId}`,
         });
     },
 
     async getLocationByQr(qrCode) {
-        return apiRequest({ method: 'GET', url: `/vitri/btp/${encode(qrCode)}` });
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/vitri/qr/${encode(qrCode)}` });
     },
 
     async getLocationPackages(idViTriKho) {
-        return apiRequest({ method: 'GET', url: `/vitri/btp/${positiveInt(idViTriKho, 'Vị trí')}/chitiet` });
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/vitri/${positiveInt(idViTriKho, 'Vị trí')}/chitiet` });
     },
 
     async updatePackageLocation({ idPackage, idLocation }) {
         return apiRequest({
             method: 'POST',
-            baseURL: LEGACY_BTP_API_BASE_URL,
-            url: '/updatevitribtp',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/vitri/cap-nhat-kien',
             data: {
                 ID_TheKhoKienBTP: positiveInt(idPackage, 'Kiện'),
                 ID_ViTriKho: positiveInt(idLocation, 'Vị trí'),
@@ -290,5 +311,3 @@ export const khoBtpApi = {
         });
     },
 };
-
-export { CORE_API_BASE_URL };

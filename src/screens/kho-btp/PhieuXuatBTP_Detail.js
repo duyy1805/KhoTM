@@ -216,7 +216,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
             const response = await khoBtpApi.getExportPackageByQr({
                 qrCode: data,
                 idPhieuXuat: id,
-                idDonHangSanPham: readValue(activeLine, ['idDonHangSanPham'], 0),
+                idDonHangLoSanXuat: readValue(activeLine, ['idDonHangLoSanXuat'], 0),
             });
             setScanMode(false);
             addPackageCandidate(response);
@@ -235,7 +235,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                 const response = await khoBtpApi.getExportPackageByQr({
                     qrCode: initialQr,
                     idPhieuXuat: id,
-                    idDonHangSanPham: readValue(activeLine, ['idDonHangSanPham'], 0),
+                    idDonHangLoSanXuat: readValue(activeLine, ['idDonHangLoSanXuat'], 0),
                 });
                 if (mounted) addPackageCandidate(response);
             } catch (error) {

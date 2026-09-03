@@ -70,7 +70,7 @@ export function formatDate(value) {
     return raw.slice(0, 10);
 }
 
-export function getBtpMaterialPayload(material, quantity) {
+export function getBtpMaterialPayload(material, quantity, dauTuan = '') {
     return {
         IdDonHangLoSanXuat: asNumber(readValue(material, ['idDonHangLoSanXuat', 'ID_DonHang_LoSanXuat'], 0)),
         IdDonHangSanPham: asNumber(readValue(material, ['idDonHangSanPham', 'ID_DonHang_SanPham'], 0)),
@@ -80,6 +80,7 @@ export function getBtpMaterialPayload(material, quantity) {
         Ten_QuyTrinhSanXuat: readValue(material, ['ten_QuyTrinhSanXuat', 'Ten_QuyTrinhSanXuat'], ''),
         IdDonHang: asNumber(readValue(material, ['idDonHang', 'ID_DonHang'], 0)),
         SoLuong: asNumber(quantity),
+        DauTuan: String(dauTuan || '').trim() || null,
     };
 }
 
@@ -109,6 +110,7 @@ export function buildImportConfirmPackage(item) {
             idDonHang: asNumber(readValue(detail, ['idDonHang', 'ID_DonHang'], 0)),
             maDonHang: readValue(detail, ['maDonHang', 'Ma_DonHang'], ''),
             tuoiTon: asNumber(readValue(detail, ['tuoiTon', 'TuoiTon'], 0)),
+            dauTuan: readValue(detail, ['dauTuan', 'DauTuan'], null),
         })),
     };
 }

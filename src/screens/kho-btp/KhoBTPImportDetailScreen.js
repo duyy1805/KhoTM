@@ -66,6 +66,57 @@ function NumberModal({ visible, title, label, max, initialValue = '', onClose, o
     );
 }
 
+function BtpDetailModal({ visible, material, max, onClose, onConfirm }) {
+    const [quantity, setQuantity] = useState('');
+    const [dauTuan, setDauTuan] = useState('');
+
+    useEffect(() => {
+        if (!visible) return;
+        setQuantity(String(readValue(material, ['soLuongTon', 'SoLuong', 'soLuong'], '') || ''));
+        setDauTuan(String(readValue(material, ['dauTuan', 'DauTuan'], '') || ''));
+    }, [material, visible]);
+
+    const submit = () => {
+        const number = Number(quantity);
+        if (!Number.isFinite(number) || number <= 0 || (max && number > max)) {
+            Toast.show({ type: 'error', text1: max ? `Số lượng phải từ 1 đến ${max}` : 'Số lượng phải lớn hơn 0' });
+            return;
+        }
+        const normalizedDauTuan = dauTuan.trim();
+        if (normalizedDauTuan.length > 50) {
+            Toast.show({ type: 'error', text1: 'Dấu tuần tối đa 50 ký tự' });
+            return;
+        }
+        onConfirm({ quantity: number, dauTuan: normalizedDauTuan });
+    };
+
+    return (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+            <Pressable style={styles.overlay} onPress={onClose}>
+                <View style={styles.dialog} onStartShouldSetResponder={() => true}>
+                    <Text style={styles.dialogTitle}>Thông tin BTP trong kiện</Text>
+                    <Text style={styles.dialogLabel}>{readValue(material, ['itemCode', 'ItemCode'], 'Số lượng')}</Text>
+                    <TextInput style={styles.dialogInput} value={quantity} onChangeText={setQuantity} keyboardType="numeric" autoFocus />
+                    {!!max && <Text style={styles.hint}>Tối đa: {max}</Text>}
+                    <Text style={[styles.dialogLabel, { marginTop: 14 }]}>Dấu tuần</Text>
+                    <TextInput
+                        style={styles.dialogInput}
+                        value={dauTuan}
+                        onChangeText={(value) => setDauTuan(value.slice(0, 50))}
+                        maxLength={50}
+                        placeholder="Có thể để trống"
+                    />
+                    <Text style={styles.hint}>{dauTuan.length}/50 ký tự</Text>
+                    <View style={styles.dialogActions}>
+                        <TouchableOpacity style={styles.secondaryBtn} onPress={onClose}><Text style={styles.secondaryText}>Hủy</Text></TouchableOpacity>
+                        <TouchableOpacity style={styles.primaryBtn} onPress={submit}><Text style={styles.primaryText}>Xác nhận</Text></TouchableOpacity>
+                    </View>
+                </View>
+            </Pressable>
+        </Modal>
+    );
+}
+
 function MaterialModal({ visible, materials, onClose, onSelect }) {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -110,6 +161,7 @@ function PackageCard({ item, selected, locked, onSelect, onMaterial, onQr, onLoc
                         <Text style={styles.packageSub} numberOfLines={1}>
                             {detail ? `${readValue(detail, ['itemCode', 'ItemCode'], '-')} • SL ${readValue(detail, ['soLuongTon', 'SoLuong', 'soLuong'], 0)}` : 'Kiện trống'}
                         </Text>
+                        {!!detail && <Text style={styles.packageSub}>Dấu tuần: {readValue(detail, ['dauTuan', 'DauTuan'], '-')}</Text>}
                     </View>
                 </TouchableOpacity>
                 <View style={[styles.readyBadge, ready && styles.readyBadgeDone]}>
@@ -321,13 +373,13 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
         ]);
     };
 
-    const addMaterial = async (quantity) => {
+    const addMaterial = async ({ quantity, dauTuan }) => {
         try {
             setLoading(true);
             await khoBtpApi.addPackageDetails({
                 idPackage: getPackageId(workingPackage),
                 idPhieuNhap: id,
-                btps: [getBtpMaterialPayload(workingMaterial, quantity)],
+                btps: [getBtpMaterialPayload(workingMaterial, quantity, dauTuan)],
             });
             setQuantityVisible(false);
             const editedPackageId = getPackageId(workingPackage);
@@ -339,6 +391,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
             const refreshedDetails = getPackageDetails(refreshedPackage);
             const detailCount = refreshedDetails.length;
             const refreshedQuantity = asNumber(readValue(refreshedDetails[0], ['soLuongTon', 'SoLuong', 'soLuong'], 0));
+            const refreshedDauTuan = String(readValue(refreshedDetails[0], ['dauTuan', 'DauTuan'], '') || '').trim();
             if (detailCount > 1) {
                 Toast.show({
                     type: 'error',
@@ -350,6 +403,12 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                     type: 'error',
                     text1: 'API chưa cập nhật số lượng',
                     text2: `Giá trị trên server vẫn là ${refreshedQuantity}`,
+                });
+            } else if (refreshedDauTuan !== String(dauTuan || '').trim()) {
+                Toast.show({
+                    type: 'error',
+                    text1: 'API chưa lưu dấu tuần',
+                    text2: `Giá trị trên server: ${refreshedDauTuan || '-'}`,
                 });
             } else {
                 Toast.show({
@@ -476,12 +535,10 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                     setQuantityVisible(true);
                 }}
             />
-            <NumberModal
+            <BtpDetailModal
                 visible={quantityVisible}
-                title="Số lượng BTP trong kiện"
-                label={readValue(workingMaterial, ['itemCode'], 'Số lượng')}
+                material={workingMaterial}
                 max={workingMaterialRemaining}
-                initialValue={readValue(workingMaterial, ['soLuongTon', 'SoLuong', 'soLuong'], '')}
                 onClose={() => setQuantityVisible(false)}
                 onConfirm={addMaterial}
             />

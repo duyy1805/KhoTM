@@ -3,7 +3,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export const CORE_API_BASE_URL = 'http://125.212.207.52:5010';
 // export const CORE_API_BASE_URL = 'https://apilayoutkho.z76.vn';
-export const KHO_TM_API_BASE_URL = 'https://nodeapi.z76.vn/khotm';
+export const KHO_TM_API_BASE_URL = 'https://nodeapi.z76.vn/khotmtest';
+// export const KHO_TM_API_BASE_URL = 'http://192.168.88.194:5000/khotmtest';
 export const LEGACY_BTP_API_BASE_URL = 'https://apipccc.z76.vn/api/TAG_QTKD';
 
 const AUTH_KEY = 'authToken';

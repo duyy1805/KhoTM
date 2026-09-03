@@ -42,4 +42,3 @@ yarn-error.*
 # *.docx
 
 *.sql
-!database/scripts/fix-phieu-xuat-pl-multiple-stock-cards.sql
