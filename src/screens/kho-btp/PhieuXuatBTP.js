@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
     FlatList,
     Platform,
     RefreshControl,
@@ -49,7 +50,7 @@ function FilterChip({ label, selected, onPress }) {
     );
 }
 
-function ExportCard({ item, onPress }) {
+function ExportCard({ item, onPress, qrMode = false }) {
     const status = readValue(item, ['trangThai', 'TrangThai'], false);
     const documentType = readValue(item, ['loaiPhieu', 'LoaiPhieu'], '');
     const warehouse = readValue(item, ['khoXuat', 'KhoXuat'], '');
@@ -57,6 +58,7 @@ function ExportCard({ item, onPress }) {
     const unit = readValue(item, ['tenDonVi', 'Ten_DonVi'], '');
     const requestedQuantity = readValue(item, ['soLuongTongDongPhieu', 'SoLuongTong_DongPhieu'], null);
     const remainingQuantity = readValue(item, ['conLai', 'ConLai'], null);
+    const pickedQuantity = readValue(item, ['tongPick', 'TongPick'], null);
     const primaryInfo = documentType || unit || 'Phiếu xuất BTP';
     const secondaryInfo = warehouse || orderCode
         ? [warehouse, orderCode].filter(Boolean).join(' • ')
@@ -69,9 +71,16 @@ function ExportCard({ item, onPress }) {
             <View style={styles.cardBody}>
                 <View style={styles.rowBetween}>
                     <Text style={styles.cardTitle} numberOfLines={1}>{readValue(item, ['soPhieu', 'So_PhieuXuatBTP'], 'Phiếu xuất')}</Text>
-                    <View style={[styles.status, status && styles.statusDone]}>
-                        <Text style={[styles.statusText, status && styles.statusDoneText]}>{status ? 'Đã xác nhận' : 'Chờ xử lý'}</Text>
-                    </View>
+                    {qrMode ? (
+                        <View style={styles.pickSummary}>
+                            <Text style={styles.pickSummaryLabel}>Đã xuất</Text>
+                            <Text style={styles.pickSummaryValue}>{pickedQuantity ?? 0}/{requestedQuantity ?? '-'}</Text>
+                        </View>
+                    ) : (
+                        <View style={[styles.status, status && styles.statusDone]}>
+                            <Text style={[styles.statusText, status && styles.statusDoneText]}>{status ? 'Đã xác nhận' : 'Chờ xử lý'}</Text>
+                        </View>
+                    )}
                 </View>
                 <Text style={styles.cardSub}>{primaryInfo}</Text>
                 <Text style={styles.cardSub} numberOfLines={1}>{secondaryInfo}</Text>
@@ -90,6 +99,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
     const { kho, qrCode } = route.params || {};
     const [searchText, setSearchText] = useState('');
     const [documents, setDocuments] = useState([]);
+    const [packageDetails, setPackageDetails] = useState([]);
     const [types, setTypes] = useState([]);
     const [selectedType, setSelectedType] = useState(null);
     const [pageIndex, setPageIndex] = useState(0);
@@ -129,6 +139,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
                     endDate: ymd(endDate),
                 });
                 setDocuments(asList(response?.data?.phieuSuggest || response?.data?.groupedSuggest || []));
+                setPackageDetails(asList(response?.data?.chiTietKien || []));
                 return;
             }
             const response = await khoBtpApi.searchExports({
@@ -138,6 +149,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
                 pageSize: 20,
             });
             setDocuments(asList(response, ['items', 'rows']));
+            setPackageDetails([]);
         } catch (error) {
             Toast.show({ type: 'error', text1: 'Lỗi tải phiếu xuất BTP', text2: getApiErrorMessage(error) });
         } finally {
@@ -162,6 +174,32 @@ export default function PhieuXuatBTP({ navigation, route }) {
         return Array.from(byId.values());
     }, [documents]);
 
+    const visibleDocuments = useMemo(() => {
+        let result = uniqueDocuments;
+        if (qrMode && searchText.trim()) {
+            const query = searchText.trim().toLowerCase();
+            result = result.filter((item) => String(readValue(item, ['soPhieu', 'So_PhieuXuatBTP'], '')).toLowerCase().includes(query));
+        }
+        if (!qrMode) return result;
+        return [...result].sort((left, right) => {
+            const group = (item) => {
+                const picked = Number(readValue(item, ['tongPick', 'TongPick'], 0) || 0);
+                const requested = Number(readValue(item, ['soLuongTongDongPhieu', 'SoLuongTong_DongPhieu'], 0) || 0);
+                if (picked === 0) return 1;
+                if (picked < requested) return 2;
+                return 3;
+            };
+            const groupDifference = group(left) - group(right);
+            if (groupDifference) return groupDifference;
+            return new Date(readValue(left, ['ngayXuat', 'Ngay_XuatBTP'], 0)) - new Date(readValue(right, ['ngayXuat', 'Ngay_XuatBTP'], 0));
+        });
+    }, [qrMode, searchText, uniqueDocuments]);
+
+    const packageSummary = useMemo(() => packageDetails.reduce((summary, item) => ({
+        imported: summary.imported + Number(readValue(item, ['soLuongNhap', 'SoLuongNhap'], 0) || 0),
+        remaining: summary.remaining + Number(readValue(item, ['conLai', 'ConLai'], 0) || 0),
+    }), { imported: 0, remaining: 0 }), [packageDetails]);
+
     const openDetail = (item) => {
         const id = getDocumentId(item) || readValue(item, ['ID_PhieuXuatBTP'], null);
         navigation.navigate('PhieuXuatBTP_Detail', {
@@ -170,6 +208,37 @@ export default function PhieuXuatBTP({ navigation, route }) {
             initialQr: qrMode ? qrCode : null,
             kho,
         });
+    };
+
+    const handleDocumentPress = (item) => {
+        if (!qrMode) {
+            openDetail(item);
+            return;
+        }
+        const id = getDocumentId(item) || readValue(item, ['ID_PhieuXuatBTP'], null);
+        const documentNumber = readValue(item, ['soPhieu', 'So_PhieuXuatBTP'], `#${id}`);
+        Alert.alert(
+            'Xác nhận xuất',
+            `Bạn muốn xuất kiện QR "${qrCode}" cho phiếu ${documentNumber}?`,
+            [
+                { text: 'Hủy', style: 'cancel' },
+                {
+                    text: 'Đồng ý',
+                    onPress: async () => {
+                        try {+                            setLoading(true);
+                            const response = await khoBtpApi.insertExportPick({ idPhieuXuat: id, qrCode });
+                            if (response?.ok === false) throw new Error(response.message || 'Không xuất được kiện');
+                            Toast.show({ type: 'success', text1: 'Xuất thành công', text2: `${documentNumber} • ${qrCode}` });
+                            await fetchDocuments();
+                        } catch (error) {
+                            Toast.show({ type: 'error', text1: 'Lỗi khi xuất', text2: getApiErrorMessage(error) });
+                        } finally {
+                            setLoading(false);
+                        }
+                    },
+                },
+            ],
+        );
     };
 
     const onRefresh = async () => {
@@ -189,9 +258,9 @@ export default function PhieuXuatBTP({ navigation, route }) {
 
             <FlatList
                 style={styles.list}
-                data={uniqueDocuments}
+                data={visibleDocuments}
                 keyExtractor={(item, index) => String(getDocumentId(item) || readValue(item, ['ID_PhieuXuatBTP'], index))}
-                renderItem={({ item }) => <ExportCard item={item} onPress={() => openDetail(item)} />}
+                renderItem={({ item }) => <ExportCard item={item} qrMode={qrMode} onPress={() => handleDocumentPress(item)} />}
                 contentContainerStyle={styles.content}
                 showsVerticalScrollIndicator
                 refreshControl={Platform.OS === 'web' ? undefined : (
@@ -210,6 +279,17 @@ export default function PhieuXuatBTP({ navigation, route }) {
                                     <TouchableOpacity onPress={() => { setQrMode(false); setPageIndex(0); }}>
                                         <Ionicons name="close-circle" size={23} color={COLORS.white} />
                                     </TouchableOpacity>
+                                </View>
+                                <View style={styles.packageSummary}>
+                                    <View>
+                                        <Text style={styles.packageSummaryLabel}>Số lượng kiện</Text>
+                                        <Text style={styles.packageSummaryValue}>{packageSummary.imported}</Text>
+                                    </View>
+                                    <View style={styles.packageSummaryDivider} />
+                                    <View>
+                                        <Text style={styles.packageSummaryLabel}>Số lượng hiện tại</Text>
+                                        <Text style={styles.packageSummaryValue}>{packageSummary.remaining}</Text>
+                                    </View>
                                 </View>
                                 <View style={styles.dateFilter}>
                                     <TouchableOpacity style={styles.dateField} onPress={() => setShowStartPicker(true)}>
@@ -244,6 +324,11 @@ export default function PhieuXuatBTP({ navigation, route }) {
                                         }}
                                     />
                                 )}
+                                <View style={styles.searchBar}>
+                                    <Ionicons name="search" size={18} color={COLORS.textSecondary} />
+                                    <TextInput style={styles.searchInput} value={searchText} onChangeText={setSearchText} placeholder="Tìm theo số phiếu..." placeholderTextColor={COLORS.textSecondary} />
+                                    {!!searchText && <TouchableOpacity style={styles.clearSearchBtn} onPress={() => setSearchText('')}><Ionicons name="close-circle" size={20} color={COLORS.textSecondary} /></TouchableOpacity>}
+                                </View>
                             </View>
                         ) : (
                             <>
@@ -326,6 +411,9 @@ const styles = StyleSheet.create({
     statusDone: { backgroundColor: '#D1FAE5' },
     statusText: { color: '#B45309', fontSize: 9, fontWeight: '800' },
     statusDoneText: { color: '#047857' },
+    pickSummary: { minWidth: 64, alignItems: 'center', borderRadius: 10, paddingHorizontal: 8, paddingVertical: 5, backgroundColor: COLORS.primaryLight },
+    pickSummaryLabel: { fontSize: 9, fontWeight: '700', color: COLORS.textSecondary },
+    pickSummaryValue: { marginTop: 2, fontSize: 12, fontWeight: '900', color: COLORS.primary },
     qrBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 17, padding: 15, backgroundColor: COLORS.success, marginBottom: 16 },
     qrBannerTitle: { fontSize: 12, fontWeight: '800', color: COLORS.white },
     qrBannerCode: { fontSize: 11, color: 'rgba(255,255,255,0.82)', marginTop: 3 },
@@ -333,6 +421,11 @@ const styles = StyleSheet.create({
     dateField: { flex: 1, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
     dateLabel: { fontSize: 10, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 3 },
     dateValue: { fontSize: 14, fontWeight: '800', color: COLORS.textPrimary },
+    packageSummary: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-around', padding: 13, marginBottom: 12, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
+    packageSummaryDivider: { width: 1, height: 34, backgroundColor: COLORS.border },
+    packageSummaryLabel: { fontSize: 10, fontWeight: '700', color: COLORS.textSecondary },
+    packageSummaryValue: { marginTop: 3, fontSize: 17, fontWeight: '900', color: COLORS.primary },
+    clearSearchBtn: { padding: 10 },
     pagination: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
     pageBtn: { flexDirection: 'row', alignItems: 'center', padding: 10, gap: 3 },
     pageText: { color: COLORS.primary, fontSize: 12, fontWeight: '800' },

@@ -310,4 +310,16 @@ export const khoBtpApi = {
             data: { qrcode: String(qrCode || '').trim(), startDate, endDate },
         });
     },
+
+    async insertExportPick({ idPhieuXuat, qrCode }) {
+        return apiRequest({
+            method: 'POST',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/insert-pick',
+            data: {
+                idPhieuXuat: positiveInt(idPhieuXuat, 'Phiếu xuất'),
+                qrcode: String(qrCode || '').trim(),
+            },
+        });
+    },
 };
