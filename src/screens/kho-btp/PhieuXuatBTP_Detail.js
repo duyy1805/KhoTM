@@ -363,7 +363,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                             </View>
                         )}
                         <View style={styles.remainingBox}>
-                            <Text style={styles.remainingLabel}>Dòng đang chọn còn lại</Text>
+                            <Text style={styles.remainingLabel}>Số lượng còn phải xuất</Text>
                             <Text style={styles.remainingValue}>{remainingForActive}</Text>
                         </View>
                         <Text style={styles.sectionTitle}>Kiện chờ lưu</Text>

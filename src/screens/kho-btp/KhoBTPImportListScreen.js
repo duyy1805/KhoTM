@@ -65,21 +65,15 @@ export default function KhoBTPImportListScreen({ navigation, route }) {
     const [searchText, setSearchText] = useState('');
     const [documents, setDocuments] = useState([]);
     const [types, setTypes] = useState([]);
-    const [warehouses, setWarehouses] = useState([]);
     const [selectedType, setSelectedType] = useState(null);
-    const [selectedWarehouse, setSelectedWarehouse] = useState(null);
     const [pageIndex, setPageIndex] = useState(0);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
 
     const fetchFilters = useCallback(async () => {
         try {
-            const [typeRes, warehouseRes] = await Promise.all([
-                khoBtpApi.getImportTypes(),
-                khoBtpApi.getWarehouses(),
-            ]);
+            const typeRes = await khoBtpApi.getImportTypes();
             setTypes(asList(typeRes));
-            setWarehouses(asList(warehouseRes));
         } catch (error) {
             Toast.show({ type: 'error', text1: 'Không tải được bộ lọc', text2: getApiErrorMessage(error) });
         }
@@ -89,7 +83,6 @@ export default function KhoBTPImportListScreen({ navigation, route }) {
         try {
             setLoading(true);
             const response = await khoBtpApi.searchImports({
-                idKho: selectedWarehouse ? [readValue(selectedWarehouse, ['idKhoBTP', 'idKho', 'id'], null)] : [],
                 loaiPhieu: selectedType ? readValue(selectedType, ['idHinhThucNhapBTP', 'id'], null) : null,
                 soPhieu: searchText,
                 pageIndex,
@@ -101,7 +94,7 @@ export default function KhoBTPImportListScreen({ navigation, route }) {
         } finally {
             setLoading(false);
         }
-    }, [pageIndex, searchText, selectedType, selectedWarehouse]);
+    }, [pageIndex, searchText, selectedType]);
 
     useEffect(() => {
         fetchFilters();
@@ -109,7 +102,7 @@ export default function KhoBTPImportListScreen({ navigation, route }) {
 
     useEffect(() => {
         fetchDocuments();
-    }, [pageIndex, selectedType, selectedWarehouse]);
+    }, [pageIndex, selectedType]);
 
     const onRefresh = async () => {
         setRefreshing(true);
@@ -129,6 +122,7 @@ export default function KhoBTPImportListScreen({ navigation, route }) {
             </View>
 
             <FlatList
+                style={styles.list}
                 data={documents}
                 keyExtractor={(item, index) => String(getDocumentId(item) || index)}
                 renderItem={({ item }) => (
@@ -142,7 +136,9 @@ export default function KhoBTPImportListScreen({ navigation, route }) {
                     />
                 )}
                 contentContainerStyle={styles.content}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
+                refreshControl={Platform.OS === 'web' ? undefined : (
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
+                )}
                 ListHeaderComponent={
                     <View>
                         <View style={styles.searchBar}>
@@ -166,19 +162,6 @@ export default function KhoBTPImportListScreen({ navigation, route }) {
                                 {loading ? <ActivityIndicator size="small" color={COLORS.white} /> : <Ionicons name="arrow-forward" size={18} color={COLORS.white} />}
                             </TouchableOpacity>
                         </View>
-
-                        <Text style={styles.filterLabel}>Kho nhập</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-                            <FilterChip label="Tất cả" selected={!selectedWarehouse} onPress={() => { setSelectedWarehouse(null); setPageIndex(0); }} />
-                            {warehouses.map((item, index) => (
-                                <FilterChip
-                                    key={String(readValue(item, ['idKhoBTP', 'id'], index))}
-                                    label={readValue(item, ['khoNhap', 'tenKho'], `Kho ${index + 1}`)}
-                                    selected={selectedWarehouse === item}
-                                    onPress={() => { setSelectedWarehouse(item); setPageIndex(0); }}
-                                />
-                            ))}
-                        </ScrollView>
 
                         <Text style={styles.filterLabel}>Loại phiếu</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
@@ -216,7 +199,25 @@ export default function KhoBTPImportListScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.background },
+    container: {
+        flex: 1,
+        minHeight: 0,
+        backgroundColor: COLORS.background,
+        ...Platform.select({
+            web: { height: '100vh', maxHeight: '100vh', overflow: 'hidden' },
+        }),
+    },
+    list: {
+        flex: 1,
+        minHeight: 0,
+        ...Platform.select({
+            web: {
+                overflowY: 'scroll',
+                touchAction: 'pan-y',
+                WebkitOverflowScrolling: 'touch',
+            },
+        }),
+    },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 16, backgroundColor: COLORS.primary, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
     backBtn: { width: 40, padding: 8 },
     headerTitle: { color: COLORS.white, fontSize: 18, fontWeight: '800' },

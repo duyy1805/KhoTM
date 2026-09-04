@@ -50,3 +50,5 @@ Accept: application/json
   "qrCodes": ["{{qrCode}}"]
 }
 
+###
+GET https://nodeapi.z76.vn/khotm/btp/phieuxuat/list-kien

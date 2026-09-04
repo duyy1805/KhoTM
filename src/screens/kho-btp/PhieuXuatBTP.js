@@ -13,6 +13,7 @@ import {
     View,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { khoBtpApi } from '../../services/khoBtpApi';
@@ -34,6 +35,12 @@ function ymd(date) {
     return `${year}-${month}-${day}`;
 }
 
+function displayDate(date) {
+    const value = date instanceof Date ? date : new Date(date);
+    if (Number.isNaN(value.getTime())) return '-';
+    return `${String(value.getDate()).padStart(2, '0')}/${String(value.getMonth() + 1).padStart(2, '0')}/${value.getFullYear()}`;
+}
+
 function FilterChip({ label, selected, onPress }) {
     return (
         <TouchableOpacity style={[styles.chip, selected && styles.chipSelected]} onPress={onPress}>
@@ -44,6 +51,18 @@ function FilterChip({ label, selected, onPress }) {
 
 function ExportCard({ item, onPress }) {
     const status = readValue(item, ['trangThai', 'TrangThai'], false);
+    const documentType = readValue(item, ['loaiPhieu', 'LoaiPhieu'], '');
+    const warehouse = readValue(item, ['khoXuat', 'KhoXuat'], '');
+    const orderCode = readValue(item, ['maDonHang', 'MaDonHang'], '');
+    const unit = readValue(item, ['tenDonVi', 'Ten_DonVi'], '');
+    const requestedQuantity = readValue(item, ['soLuongTongDongPhieu', 'SoLuongTong_DongPhieu'], null);
+    const remainingQuantity = readValue(item, ['conLai', 'ConLai'], null);
+    const primaryInfo = documentType || unit || 'Phiếu xuất BTP';
+    const secondaryInfo = warehouse || orderCode
+        ? [warehouse, orderCode].filter(Boolean).join(' • ')
+        : requestedQuantity != null
+            ? `SL phiếu: ${requestedQuantity} • Còn lại: ${remainingQuantity ?? '-'}`
+            : '-';
     return (
         <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.82}>
             <View style={styles.cardIcon}><Ionicons name="cloud-upload-outline" size={23} color={COLORS.primary} /></View>
@@ -54,10 +73,10 @@ function ExportCard({ item, onPress }) {
                         <Text style={[styles.statusText, status && styles.statusDoneText]}>{status ? 'Đã xác nhận' : 'Chờ xử lý'}</Text>
                     </View>
                 </View>
-                <Text style={styles.cardSub}>{readValue(item, ['loaiPhieu'], '-')}</Text>
-                <Text style={styles.cardSub} numberOfLines={1}>{readValue(item, ['khoXuat'], '-')} • {readValue(item, ['maDonHang'], '-')}</Text>
+                <Text style={styles.cardSub}>{primaryInfo}</Text>
+                <Text style={styles.cardSub} numberOfLines={1}>{secondaryInfo}</Text>
                 <View style={styles.cardFooter}>
-                    <Text style={styles.meta}>{formatDate(readValue(item, ['ngayXuat'], ''))}</Text>
+                    <Text style={styles.meta}>{formatDate(readValue(item, ['ngayXuat', 'Ngay_XuatBTP'], ''))}</Text>
                     <Text style={styles.meta}>#{getDocumentId(item)}</Text>
                 </View>
             </View>
@@ -72,22 +91,29 @@ export default function PhieuXuatBTP({ navigation, route }) {
     const [searchText, setSearchText] = useState('');
     const [documents, setDocuments] = useState([]);
     const [types, setTypes] = useState([]);
-    const [warehouses, setWarehouses] = useState([]);
     const [selectedType, setSelectedType] = useState(null);
-    const [selectedWarehouse, setSelectedWarehouse] = useState(null);
     const [pageIndex, setPageIndex] = useState(0);
     const [loading, setLoading] = useState(false);
     const [refreshing, setRefreshing] = useState(false);
     const [qrMode, setQrMode] = useState(Boolean(qrCode));
+    const [startDate, setStartDate] = useState(() => {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        return today;
+    });
+    const [endDate, setEndDate] = useState(() => {
+        const date = new Date();
+        date.setHours(0, 0, 0, 0);
+        date.setDate(date.getDate() + 3);
+        return date;
+    });
+    const [showStartPicker, setShowStartPicker] = useState(false);
+    const [showEndPicker, setShowEndPicker] = useState(false);
 
     const fetchFilters = useCallback(async () => {
         try {
-            const [typeRes, warehouseRes] = await Promise.all([
-                khoBtpApi.getExportTypes(),
-                khoBtpApi.getWarehouses(),
-            ]);
+            const typeRes = await khoBtpApi.getExportTypes();
             setTypes(asList(typeRes));
-            setWarehouses(asList(warehouseRes));
         } catch (error) {
             Toast.show({ type: 'error', text1: 'Không tải được bộ lọc', text2: getApiErrorMessage(error) });
         }
@@ -97,19 +123,15 @@ export default function PhieuXuatBTP({ navigation, route }) {
         try {
             setLoading(true);
             if (qrMode && qrCode) {
-                const today = new Date();
-                const end = new Date(today);
-                end.setDate(today.getDate() + 30);
                 const response = await khoBtpApi.findExportsByQr({
                     qrCode,
-                    startDate: ymd(today),
-                    endDate: ymd(end),
+                    startDate: ymd(startDate),
+                    endDate: ymd(endDate),
                 });
                 setDocuments(asList(response?.data?.phieuSuggest || response?.data?.groupedSuggest || []));
                 return;
             }
             const response = await khoBtpApi.searchExports({
-                idKho: selectedWarehouse ? [readValue(selectedWarehouse, ['idKhoBTP', 'idKho', 'id'], null)] : [],
                 loaiPhieu: selectedType ? readValue(selectedType, ['idHinhThucXuatBTP', 'id'], null) : null,
                 soPhieu: searchText,
                 pageIndex,
@@ -121,7 +143,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
         } finally {
             setLoading(false);
         }
-    }, [pageIndex, qrCode, qrMode, searchText, selectedType, selectedWarehouse]);
+    }, [endDate, pageIndex, qrCode, qrMode, searchText, selectedType, startDate]);
 
     useEffect(() => {
         fetchFilters();
@@ -129,7 +151,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
 
     useEffect(() => {
         fetchDocuments();
-    }, [pageIndex, qrMode, selectedType, selectedWarehouse]);
+    }, [endDate, pageIndex, qrMode, selectedType, startDate]);
 
     const uniqueDocuments = useMemo(() => {
         const byId = new Map();
@@ -166,23 +188,62 @@ export default function PhieuXuatBTP({ navigation, route }) {
             </View>
 
             <FlatList
+                style={styles.list}
                 data={uniqueDocuments}
                 keyExtractor={(item, index) => String(getDocumentId(item) || readValue(item, ['ID_PhieuXuatBTP'], index))}
                 renderItem={({ item }) => <ExportCard item={item} onPress={() => openDetail(item)} />}
                 contentContainerStyle={styles.content}
-                refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />}
+                showsVerticalScrollIndicator
+                refreshControl={Platform.OS === 'web' ? undefined : (
+                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[COLORS.primary]} />
+                )}
                 ListHeaderComponent={
                     <View>
                         {qrMode ? (
-                            <View style={styles.qrBanner}>
-                                <Ionicons name="qr-code-outline" size={24} color={COLORS.white} />
-                                <View style={{ flex: 1 }}>
-                                    <Text style={styles.qrBannerTitle}>Đang tìm theo QR</Text>
-                                    <Text style={styles.qrBannerCode} numberOfLines={1}>{qrCode}</Text>
+                            <View>
+                                <View style={styles.qrBanner}>
+                                    <Ionicons name="qr-code-outline" size={24} color={COLORS.white} />
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={styles.qrBannerTitle}>Đang tìm theo QR</Text>
+                                        <Text style={styles.qrBannerCode} numberOfLines={1}>{qrCode}</Text>
+                                    </View>
+                                    <TouchableOpacity onPress={() => { setQrMode(false); setPageIndex(0); }}>
+                                        <Ionicons name="close-circle" size={23} color={COLORS.white} />
+                                    </TouchableOpacity>
                                 </View>
-                                <TouchableOpacity onPress={() => { setQrMode(false); setPageIndex(0); }}>
-                                    <Ionicons name="close-circle" size={23} color={COLORS.white} />
-                                </TouchableOpacity>
+                                <View style={styles.dateFilter}>
+                                    <TouchableOpacity style={styles.dateField} onPress={() => setShowStartPicker(true)}>
+                                        <Text style={styles.dateLabel}>Từ ngày</Text>
+                                        <Text style={styles.dateValue}>{displayDate(startDate)}</Text>
+                                    </TouchableOpacity>
+                                    <Ionicons name="arrow-forward" size={18} color={COLORS.textSecondary} />
+                                    <TouchableOpacity style={styles.dateField} onPress={() => setShowEndPicker(true)}>
+                                        <Text style={styles.dateLabel}>Đến ngày</Text>
+                                        <Text style={styles.dateValue}>{displayDate(endDate)}</Text>
+                                    </TouchableOpacity>
+                                </View>
+                                {showStartPicker && (
+                                    <DateTimePicker
+                                        value={startDate}
+                                        mode="date"
+                                        maximumDate={endDate}
+                                        onChange={(event, selectedDate) => {
+                                            setShowStartPicker(false);
+                                            if (event.type !== 'dismissed' && selectedDate) setStartDate(selectedDate);
+                                        }}
+                                    />
+                                )}
+                                {showEndPicker && (
+                                    <DateTimePicker
+                                        value={endDate}
+                                        mode="date"
+                                        minimumDate={startDate}
+                                        onChange={(event, selectedDate) => {
+                                            setShowEndPicker(false);
+                                            if (event.type !== 'dismissed' && selectedDate) setEndDate(selectedDate);
+                                        }}
+                                    />
+                                )}
                             </View>
                         ) : (
                             <>
@@ -193,13 +254,6 @@ export default function PhieuXuatBTP({ navigation, route }) {
                                         {loading ? <ActivityIndicator size="small" color={COLORS.white} /> : <Ionicons name="arrow-forward" size={18} color={COLORS.white} />}
                                     </TouchableOpacity>
                                 </View>
-                                <Text style={styles.filterLabel}>Kho xuất</Text>
-                                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-                                    <FilterChip label="Tất cả" selected={!selectedWarehouse} onPress={() => { setSelectedWarehouse(null); setPageIndex(0); }} />
-                                    {warehouses.map((item, index) => (
-                                        <FilterChip key={String(readValue(item, ['idKhoBTP', 'id'], index))} label={readValue(item, ['khoNhap', 'tenKho'], `Kho ${index + 1}`)} selected={selectedWarehouse === item} onPress={() => { setSelectedWarehouse(item); setPageIndex(0); }} />
-                                    ))}
-                                </ScrollView>
                                 <Text style={styles.filterLabel}>Loại phiếu</Text>
                                 <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
                                     <FilterChip label="Tất cả" selected={!selectedType} onPress={() => { setSelectedType(null); setPageIndex(0); }} />
@@ -227,7 +281,25 @@ export default function PhieuXuatBTP({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.background },
+    container: {
+        flex: 1,
+        minHeight: 0,
+        backgroundColor: COLORS.background,
+        ...Platform.select({
+            web: { height: '100vh', maxHeight: '100vh', overflow: 'hidden' },
+        }),
+    },
+    list: {
+        flex: 1,
+        minHeight: 0,
+        ...Platform.select({
+            web: {
+                overflowY: 'scroll',
+                touchAction: 'pan-y',
+                WebkitOverflowScrolling: 'touch',
+            },
+        }),
+    },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 16, backgroundColor: COLORS.primary, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
     backBtn: { width: 40, padding: 8 },
     headerTitle: { color: COLORS.white, fontSize: 18, fontWeight: '800' },
@@ -257,6 +329,10 @@ const styles = StyleSheet.create({
     qrBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 17, padding: 15, backgroundColor: COLORS.success, marginBottom: 16 },
     qrBannerTitle: { fontSize: 12, fontWeight: '800', color: COLORS.white },
     qrBannerCode: { fontSize: 11, color: 'rgba(255,255,255,0.82)', marginTop: 3 },
+    dateFilter: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 },
+    dateField: { flex: 1, paddingHorizontal: 14, paddingVertical: 11, borderRadius: 14, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
+    dateLabel: { fontSize: 10, fontWeight: '700', color: COLORS.textSecondary, marginBottom: 3 },
+    dateValue: { fontSize: 14, fontWeight: '800', color: COLORS.textPrimary },
     pagination: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
     pageBtn: { flexDirection: 'row', alignItems: 'center', padding: 10, gap: 3 },
     pageText: { color: COLORS.primary, fontSize: 12, fontWeight: '800' },

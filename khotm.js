@@ -1129,10 +1129,28 @@ router.post('/btp/phieuxuat/tim-kiem', async (req, res) => {
     }
 });
 
-router.get('/btp/phieuxuat/:id', async (req, res) => {
+router.get('/btp/phieuxuat/list-kien', async (req, res) => {
+    try {
+        const pool = await tagpoolPromise;
+        const result = await pool.request()
+            .input('ID_PhieuXuatBTP', sql.Int, toIntOrNull(req.query.idPhieuXuat))
+            .input('MaNha', sql.NVarChar(100), String(req.query.maNha || ''))
+            .input('ID_DonHang_LoSanXuat', sql.Int, toIntOrNull(req.query.idDonHangLoSanxuat) || 0)
+            .input('ID_DonHang_SanPham', sql.Int, toIntOrNull(req.query.idDonHangSanPham) || 0)
+            .input('ID_DonHang', sql.Int, toIntOrNull(req.query.idDonHang) || 0)
+            .input('ID_QuyTrinhSanXuat', sql.Int, toIntOrNull(req.query.IdQuyTrinhSanXuat) || 0)
+            .execute('App_ThongTinListKien_By_PhieuXuatBTP');
+        res.json(result.recordset || []);
+    } catch (error) {
+        res.status(500).json({ message: 'Không tải được danh sách kiện BTP', detail: error.message });
+    }
+});
+
+router.get('/btp/phieuxuat/:id', async (req, res, next) => {
     try {
         const id = toIntOrNull(req.params.id);
-        if (!id) return res.status(400).json({ message: 'Phiếu xuất BTP không hợp lệ' });
+        // Không giữ các route tên cố định như /list-kien trong route động :id.
+        if (!id) return next();
         const pool = await tagpoolPromise;
         const result = await pool.request().input('ID_PhieuXuatBTP', sql.Int, id).execute('App_BTP_PhieuXuat_ThongTinChiTiet');
         const header = result.recordsets?.[0]?.[0];
@@ -1182,23 +1200,6 @@ router.get('/btp/phieuxuat/kien/:qrcode/:idPhieuXuat/:idDonHangLoSanXuat', async
         res.json({ ...header, idTheKhoKienBTP: header.ID_TheKhoKienBTP, idPhieuNhapBTP: header.ID_PhieuNhapBTP, qrCode, idViTriKho: header.ID_ViTriKho, maViTriKho: header.MaViTriKho, bTPs: details });
     } catch (error) {
         res.status(500).json({ message: 'Không tải được kiện xuất BTP', detail: error.message });
-    }
-});
-
-router.get('/btp/phieuxuat/list-kien', async (req, res) => {
-    try {
-        const pool = await tagpoolPromise;
-        const result = await pool.request()
-            .input('ID_PhieuXuatBTP', sql.Int, toIntOrNull(req.query.idPhieuXuat))
-            .input('MaNha', sql.NVarChar(100), String(req.query.maNha || ''))
-            .input('ID_DonHang_LoSanXuat', sql.Int, toIntOrNull(req.query.idDonHangLoSanxuat) || 0)
-            .input('ID_DonHang_SanPham', sql.Int, toIntOrNull(req.query.idDonHangSanPham) || 0)
-            .input('ID_DonHang', sql.Int, toIntOrNull(req.query.idDonHang) || 0)
-            .input('ID_QuyTrinhSanXuat', sql.Int, toIntOrNull(req.query.IdQuyTrinhSanXuat) || 0)
-            .execute('App_ThongTinListKien_By_PhieuXuatBTP');
-        res.json(result.recordset || []);
-    } catch (error) {
-        res.status(500).json({ message: 'Không tải được danh sách kiện BTP', detail: error.message });
     }
 });
 
