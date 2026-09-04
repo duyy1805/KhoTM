@@ -38,7 +38,7 @@ const COLORS = {
 const ScannedDetail = ({ route }) => {
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
-    const { data: initialData, qrCode, kho } = route.params;
+    const { data: initialData, qrCode, kho, readOnly = false } = route.params;
     
     const [currentQR, setCurrentQR] = useState(qrCode);
     const [data, setData] = useState(initialData);
@@ -249,7 +249,7 @@ const ScannedDetail = ({ route }) => {
                             <View style={styles.divider} />
 
                             <View style={styles.infoGrid}>
-                                <TouchableOpacity style={styles.infoItem} onPress={openUpdateQRScan}>
+                                <TouchableOpacity style={styles.infoItem} disabled={readOnly} onPress={openUpdateQRScan}>
                                     <View style={styles.infoIconBg}>
                                         <Icon name="qrcode" size={20} color={COLORS.primary} />
                                     </View>
@@ -257,13 +257,14 @@ const ScannedDetail = ({ route }) => {
                                         <Text style={styles.infoLabel}>Mã QR</Text>
                                         <View style={styles.editableValue}>
                                             <Text style={styles.infoValue} numberOfLines={1}>{currentQR}</Text>
-                                            <AntDesign name="edit" size={14} color={COLORS.primary} style={{ marginLeft: 4 }} />
+                                            {!readOnly && <AntDesign name="edit" size={14} color={COLORS.primary} style={{ marginLeft: 4 }} />}
                                         </View>
                                     </View>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity 
                                     style={styles.infoItem} 
+                                    disabled={readOnly}
                                     onPress={() => navigation.navigate('SelectLocationScreen', {
                                         locationMode: 'btp',
                                         idKho: kho?.id || 1,
@@ -281,7 +282,7 @@ const ScannedDetail = ({ route }) => {
                                         <Text style={styles.infoLabel}>Vị trí</Text>
                                         <View style={styles.editableValue}>
                                             <Text style={styles.infoValue}>{data[0]?.MaViTriKho || 'Chưa có'}</Text>
-                                            <AntDesign name="edit" size={14} color="#0EA5E9" style={{ marginLeft: 4 }} />
+                                            {!readOnly && <AntDesign name="edit" size={14} color="#0EA5E9" style={{ marginLeft: 4 }} />}
                                         </View>
                                     </View>
                                 </TouchableOpacity>
@@ -300,7 +301,7 @@ const ScannedDetail = ({ route }) => {
             />
 
             {/* Footer Actions */}
-            <View style={styles.footerActions}>
+            {!readOnly && <View style={styles.footerActions}>
                 <TouchableOpacity
                     style={[styles.actionButton, styles.splitButton]}
                     onPress={() => navigation.navigate('SplitPackageScreen', {
@@ -323,7 +324,7 @@ const ScannedDetail = ({ route }) => {
                     <Icon name="merge" size={20} color={COLORS.white} />
                     <Text style={styles.actionButtonText}>Ghép kiện</Text>
                 </TouchableOpacity>
-            </View>
+            </View>}
 
             {/* Camera Overlays */}
             {(isMergingScan || isUpdatingQR) && (

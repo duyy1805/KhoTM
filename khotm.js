@@ -1146,6 +1146,29 @@ router.get('/btp/phieuxuat/list-kien', async (req, res) => {
     }
 });
 
+router.get('/btp/baocao/khos', async (req, res) => {
+    try {
+        const userId = toIntOrNull(req.query.idTaiKhoan);
+        if (!userId) return res.status(400).json({ message: 'Tài khoản không hợp lệ' });
+        const pool = await tagpoolPromise;
+        const warehousesResult = await pool.request().query(`
+            SELECT ID_Kho AS idKhoBTP, Ten_Kho AS khoNhap
+            FROM DM_Kho WHERE LoaiKho = N'BTP' ORDER BY Ten_Kho;
+        `);
+        const allowed = [];
+        for (const warehouse of warehousesResult.recordset || []) {
+            const houses = await pool.request()
+                .input('ID_TaiKhoanDangNhap', sql.Int, userId)
+                .input('ID_Kho', sql.Int, warehouse.idKhoBTP)
+                .execute('App_SearchNhaKho');
+            if (houses.recordset?.length) allowed.push(warehouse);
+        }
+        res.json(allowed);
+    } catch (error) {
+        res.status(500).json({ message: 'Không tải được danh sách kho BTP được cấp quyền', detail: error.message });
+    }
+});
+
 router.get('/btp/phieuxuat/:id', async (req, res, next) => {
     try {
         const id = toIntOrNull(req.params.id);
@@ -1296,11 +1319,52 @@ router.get('/btp/vitri/qr/:qrcode', async (req, res) => {
     }
 });
 
+router.get('/btp/baocao/vi-tri-qr/:qrcode', async (req, res) => {
+    try {
+        const userId = toIntOrNull(req.query.idTaiKhoan);
+        if (!userId) return res.status(400).json({ message: 'Tài khoản không hợp lệ' });
+        const pool = await tagpoolPromise;
+        const locationResult = await pool.request()
+            .input('QrCode', sql.NVarChar(255), req.params.qrcode)
+            .execute('App_GetThongTinViTriBTP_ByQrCode');
+        const location = locationResult.recordset?.[0];
+        if (!location) return res.status(404).json({ message: 'Không tìm thấy vị trí BTP' });
+        const housesResult = await pool.request()
+            .input('ID_TaiKhoanDangNhap', sql.Int, userId)
+            .input('ID_Kho', sql.Int, toIntOrNull(location.ID_Kho))
+            .execute('App_SearchNhaKho');
+        const normalizeHouse = (value) => String(value || '').trim().toUpperCase().split('.').pop();
+        const allowed = (housesResult.recordset || []).some((house) => normalizeHouse(house.MaNha) === normalizeHouse(location.MaNha));
+        if (!allowed) return res.status(403).json({ message: 'Bạn không có quyền xem vị trí này' });
+        res.json(location);
+    } catch (error) {
+        res.status(500).json({ message: 'Không tải được vị trí BTP', detail: error.message });
+    }
+});
+
 router.get('/btp/vitri/:id/chitiet', async (req, res) => {
     try {
+        const idViTri = toIntOrNull(req.params.id);
+        if (!idViTri) return res.status(400).json({ message: 'Vị trí BTP không hợp lệ' });
         const pool = await tagpoolPromise;
-        const result = await pool.request().input('ID_ViTri', sql.Int, toIntOrNull(req.params.id)).execute('App_GetTheKhoKienBTPChiTiet_ByID_ViTri');
-        res.json(result.recordsets?.[0] || []);
+        const result = await pool.request().input('ID_ViTri', sql.Int, idViTri).execute('App_GetTheKhoKienBTPChiTiet_ByID_ViTri');
+        const stockRows = result.recordsets?.[0] || [];
+        if (!stockRows.length) return res.json([]);
+        const metadata = await pool.request()
+            .input('ID_ViTri_Metadata', sql.Int, idViTri)
+            .query(`
+                SELECT k.ID_TheKhoKienBTP, k.QRCode, ct.ItemCode, ct.Ten_SanPham,
+                       ct.ID_DonHang, ct.ID_DonHang_LoSanXuat, ct.ID_DonHang_SanPham,
+                       ct.ID_QuyTrinhSanXuat, ct.Ten_QuyTrinhSanXuat, ct.DauTuan
+                FROM TheKhoKienBTP k
+                INNER JOIN TheKhoKienBTP_ChiTiet ct ON ct.ID_TheKhoKienBTP = k.ID_TheKhoKienBTP
+                WHERE k.ID_ViTriKho = @ID_ViTri_Metadata
+                  AND ISNULL(k.TonTai, 1) = 1 AND ISNULL(ct.TonTai, 1) = 1;
+            `);
+        const metadataByKey = new Map((metadata.recordset || []).map((row) => [`${row.ID_TheKhoKienBTP}:${row.ItemCode || ''}`, row]));
+        res.json(stockRows
+            .map((row) => ({ ...row, ...(metadataByKey.get(`${row.ID_TheKhoKienBTP}:${row.ItemCode || ''}`) || {}) }))
+            .filter((row) => Number(row.SoLuongTonKien || 0) > 0));
     } catch (error) {
         res.status(500).json({ message: 'Không tải được kiện theo vị trí', detail: error.message });
     }

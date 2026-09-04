@@ -148,6 +148,10 @@ const WarehouseDetailScreen = ({ route }) => {
             navigation.navigate('KhoNLReport', { kho });
             return;
         }
+        if (kho.id === 5) {
+            navigation.navigate('KhoBTPReport', { kho });
+            return;
+        }
         console.log('Báo cáo');
     };
 
@@ -268,7 +272,7 @@ const WarehouseDetailScreen = ({ route }) => {
     };
 
     const showInspectionReport = kho.id === 1 || kho.id === 3;
-    const showReport = kho.id === 1;
+    const showReport = kho.id === 1 || kho.id === 5;
 
     return (
         <View style={[styles.container, { paddingBottom: insets.bottom }]}>

@@ -228,6 +228,32 @@ export const khoBtpApi = {
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/phieunhap/khos' });
     },
 
+    async getReportWarehouses() {
+        const userId = await getCurrentUserId({ required: true });
+        try {
+            return await apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/baocao/khos?idTaiKhoan=${userId}` });
+        } catch (error) {
+            if (error?.response?.status !== 404) throw error;
+            const warehouses = await apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/phieunhap/khos' });
+            const checked = await Promise.all((Array.isArray(warehouses) ? warehouses : []).map(async (warehouse) => {
+                const idKho = warehouse?.idKhoBTP ?? warehouse?.ID_Kho ?? warehouse?.id;
+                if (!idKho) return null;
+                try {
+                    const houses = await apiRequest({
+                        method: 'POST',
+                        baseURL: KHO_TM_API_BASE_URL,
+                        url: '/btp/vitri/nha',
+                        data: { idKho, idTaiKhoan: userId },
+                    });
+                    return Array.isArray(houses) && houses.length ? warehouse : null;
+                } catch {
+                    return null;
+                }
+            }));
+            return checked.filter(Boolean);
+        }
+    },
+
     async getLocationWarehouses(idKho = 5) {
         const userId = await getCurrentUserId({ required: true });
         return apiRequest({
@@ -260,8 +286,25 @@ export const khoBtpApi = {
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/vitri/qr/${encode(qrCode)}` });
     },
 
+    async getReportLocationByQr(qrCode) {
+        const userId = await getCurrentUserId({ required: true });
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/baocao/vi-tri-qr/${encode(qrCode)}?idTaiKhoan=${userId}` });
+    },
+
     async getLocationPackages(idViTriKho) {
-        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/vitri/${positiveInt(idViTriKho, 'Vị trí')}/chitiet` });
+        const rows = await apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/vitri/${positiveInt(idViTriKho, 'Vị trí')}/chitiet` });
+        return (Array.isArray(rows) ? rows : []).map((item) => ({
+            ...item,
+            idPackage: item.idPackage ?? item.ID_TheKhoKienBTP,
+            qrCode: item.qrCode ?? item.QRCode,
+            itemCode: item.itemCode ?? item.ItemCode,
+            productName: item.productName ?? item.Ten_SanPham,
+            stockQuantity: Number(item.stockQuantity ?? item.SoLuongTonKien ?? 0),
+            orderId: item.orderId ?? item.ID_DonHang,
+            productionLotId: item.productionLotId ?? item.ID_DonHang_LoSanXuat,
+            orderProductId: item.orderProductId ?? item.ID_DonHang_SanPham,
+            weekMark: item.weekMark ?? item.DauTuan,
+        })).filter((item) => item.stockQuantity > 0);
     },
 
     async updatePackageLocation({ idPackage, idLocation }) {

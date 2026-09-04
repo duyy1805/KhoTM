@@ -35,6 +35,9 @@ import SplitPackageScreen from "./src/screens/kho-btp/TachKien";
 import KhoBTPImportListScreen from "./src/screens/kho-btp/KhoBTPImportListScreen";
 import KhoBTPImportDetailScreen from "./src/screens/kho-btp/KhoBTPImportDetailScreen";
 import KhoBTPTransferLocationScreen from "./src/screens/kho-btp/KhoBTPTransferLocationScreen";
+import KhoBTPReportScreen from "./src/screens/kho-btp/KhoBTPReportScreen";
+import KhoBTPReportLocationScreen from "./src/screens/kho-btp/KhoBTPReportLocationScreen";
+import KhoBTPReportPackagesScreen from "./src/screens/kho-btp/KhoBTPReportPackagesScreen";
 
 const Stack = createStackNavigator();
 
@@ -97,6 +100,21 @@ export default function App() {
             name="KhoBTPTransferLocation"
             component={KhoBTPTransferLocationScreen}
             options={{ headerShown: false, title: "Điều chuyển vị trí BTP" }}
+          />
+          <Stack.Screen
+            name="KhoBTPReport"
+            component={KhoBTPReportScreen}
+            options={{ headerShown: false, title: "Báo cáo tồn kho BTP" }}
+          />
+          <Stack.Screen
+            name="KhoBTPReportLocation"
+            component={KhoBTPReportLocationScreen}
+            options={{ headerShown: false, title: "Sản phẩm theo vị trí BTP" }}
+          />
+          <Stack.Screen
+            name="KhoBTPReportPackages"
+            component={KhoBTPReportPackagesScreen}
+            options={{ headerShown: false, title: "Kiện BTP theo sản phẩm" }}
           />
           <Stack.Screen
             name="MergePackageScreen"
