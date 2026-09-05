@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     StyleSheet,
     Text,
@@ -11,7 +11,8 @@ import {
     StatusBar,
     KeyboardAvoidingView,
     Platform,
-    ScrollView
+    ScrollView,
+    Keyboard,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -55,6 +56,7 @@ const LoginScreen = () => {
     const [rememberMe, setRememberMe] = useState(true);
     const [loading, setLoading] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
+    const passwordInputRef = useRef(null);
 
     useEffect(() => {
         (async () => {
@@ -175,7 +177,12 @@ const LoginScreen = () => {
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1 }}
             >
-                <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                <ScrollView
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                >
                     <View style={styles.headerSection}>
                         <View style={styles.logoCircle}>
                             <Ionicons name="cube" size={40} color={COLORS.primary} />
@@ -198,6 +205,8 @@ const LoginScreen = () => {
                                     value={username}
                                     onChangeText={setUsername}
                                     autoCapitalize="none"
+                                    returnKeyType="next"
+                                    onSubmitEditing={() => passwordInputRef.current?.focus()}
                                 />
                             </View>
                             {usernameError ? <Text style={styles.errorText}>{usernameError}</Text> : null}
@@ -208,18 +217,21 @@ const LoginScreen = () => {
                             <View style={[styles.inputContainer, passwordError ? styles.inputError : null]}>
                                 <Ionicons name="lock-closed-outline" size={20} color={COLORS.textSecondary} style={styles.inputIcon} />
                                 <TextInput
+                                    ref={passwordInputRef}
                                     style={styles.input}
                                     placeholder="Nhập mật khẩu"
                                     placeholderTextColor={COLORS.textSecondary}
                                     secureTextEntry={!showPassword}
                                     value={password}
                                     onChangeText={setPassword}
+                                    returnKeyType="go"
+                                    onSubmitEditing={() => { Keyboard.dismiss(); handleLogin(); }}
                                 />
                                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
-                                    <Ionicons 
-                                        name={showPassword ? "eye-off-outline" : "eye-outline"} 
-                                        size={20} 
-                                        color={COLORS.textSecondary} 
+                                    <Ionicons
+                                        name={showPassword ? "eye-off-outline" : "eye-outline"}
+                                        size={20}
+                                        color={COLORS.textSecondary}
                                     />
                                 </TouchableOpacity>
                             </View>

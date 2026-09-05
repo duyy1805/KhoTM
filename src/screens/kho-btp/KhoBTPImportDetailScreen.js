@@ -35,6 +35,18 @@ import {
     readValue,
 } from './btpScreenUtils';
 
+function confirmAction(title, message, onConfirm) {
+    if (Platform.OS === 'web') {
+        if (globalThis.confirm(`${title}\n\n${message}`)) onConfirm();
+        return;
+    }
+
+    Alert.alert(title, message, [
+        { text: 'Hủy', style: 'cancel' },
+        { text: 'Xác nhận', style: 'destructive', onPress: onConfirm },
+    ]);
+}
+
 function NumberModal({ visible, title, label, max, initialValue = '', onClose, onConfirm }) {
     const [value, setValue] = useState(String(initialValue || ''));
     useEffect(() => {
@@ -50,8 +62,9 @@ function NumberModal({ visible, title, label, max, initialValue = '', onClose, o
     };
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <Pressable style={styles.overlay} onPress={onClose}>
-                <View style={styles.dialog} onStartShouldSetResponder={() => true}>
+            <View style={styles.overlay}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+                <View style={styles.dialog}>
                     <Text style={styles.dialogTitle}>{title}</Text>
                     <Text style={styles.dialogLabel}>{label}</Text>
                     <TextInput style={styles.dialogInput} value={value} onChangeText={setValue} keyboardType="numeric" autoFocus />
@@ -61,7 +74,7 @@ function NumberModal({ visible, title, label, max, initialValue = '', onClose, o
                         <TouchableOpacity style={styles.primaryBtn} onPress={submit}><Text style={styles.primaryText}>Xác nhận</Text></TouchableOpacity>
                     </View>
                 </View>
-            </Pressable>
+            </View>
         </Modal>
     );
 }
@@ -92,8 +105,9 @@ function BtpDetailModal({ visible, material, max, onClose, onConfirm }) {
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <Pressable style={styles.overlay} onPress={onClose}>
-                <View style={styles.dialog} onStartShouldSetResponder={() => true}>
+            <View style={styles.overlay}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+                <View style={styles.dialog}>
                     <Text style={styles.dialogTitle}>Thông tin BTP trong kiện</Text>
                     <Text style={styles.dialogLabel}>{readValue(material, ['itemCode', 'ItemCode'], 'Số lượng')}</Text>
                     <TextInput style={styles.dialogInput} value={quantity} onChangeText={setQuantity} keyboardType="numeric" autoFocus />
@@ -112,7 +126,7 @@ function BtpDetailModal({ visible, material, max, onClose, onConfirm }) {
                         <TouchableOpacity style={styles.primaryBtn} onPress={submit}><Text style={styles.primaryText}>Xác nhận</Text></TouchableOpacity>
                     </View>
                 </View>
-            </Pressable>
+            </View>
         </Modal>
     );
 }
@@ -120,8 +134,9 @@ function BtpDetailModal({ visible, material, max, onClose, onConfirm }) {
 function MaterialModal({ visible, materials, onClose, onSelect }) {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <Pressable style={styles.overlay} onPress={onClose}>
-                <View style={styles.sheet} onStartShouldSetResponder={() => true}>
+            <View style={styles.overlay}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+                <View style={styles.sheet}>
                     <View style={styles.sheetHandle} />
                     <Text style={styles.dialogTitle}>Chọn BTP cho kiện</Text>
                     <Text style={styles.hint}>Mỗi kiện chỉ được chọn một ItemCode</Text>
@@ -142,7 +157,7 @@ function MaterialModal({ visible, materials, onClose, onSelect }) {
                         ListEmptyComponent={<Text style={styles.emptyText}>Phiếu chưa có BTP</Text>}
                     />
                 </View>
-            </Pressable>
+            </View>
         </Modal>
     );
 }
@@ -351,26 +366,46 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
             Toast.show({ type: 'error', text1: 'Chỉ được xóa kiện trống' });
             return;
         }
-        Alert.alert('Xóa kiện', `Xóa ${selectedIds.length} kiện trống?`, [
-            { text: 'Hủy', style: 'cancel' },
-            {
-                text: 'Xóa',
-                style: 'destructive',
-                onPress: async () => {
-                    try {
-                        setLoading(true);
-                        await khoBtpApi.deletePackages({ idPhieuNhap: id, packageIds: selectedIds });
-                        setSelectedIds([]);
-                        await fetchDetail();
-                        Toast.show({ type: 'success', text1: 'Đã xóa kiện' });
-                    } catch (error) {
-                        Toast.show({ type: 'error', text1: 'Xóa kiện thất bại', text2: getApiErrorMessage(error) });
-                    } finally {
-                        setLoading(false);
-                    }
-                },
-            },
-        ]);
+        confirmAction('Xóa kiện', `Xóa ${selectedIds.length} kiện trống?`, async () => {
+            try {
+                setLoading(true);
+                const result = await khoBtpApi.deletePackages({ idPhieuNhap: id, packageIds: selectedIds });
+                const deletedIds = Array.isArray(result?.deletedIds) ? result.deletedIds.map(Number) : [];
+                const notDeletedIds = Array.isArray(result?.notDeletedIds) ? result.notDeletedIds.map(Number) : [];
+
+                await fetchDetail();
+
+                if (!deletedIds.length) {
+                    Toast.show({
+                        type: 'error',
+                        text1: 'Không xóa được kiện',
+                        text2: notDeletedIds.length
+                            ? `Máy chủ từ chối kiện: ${notDeletedIds.join(', ')}`
+                            : 'Máy chủ không xác nhận kiện nào đã được xóa',
+                    });
+                    return;
+                }
+
+                setSelectedIds(notDeletedIds);
+                if (notDeletedIds.length) {
+                    Toast.show({
+                        type: 'info',
+                        text1: `Đã xóa ${deletedIds.length} kiện`,
+                        text2: `Không xóa được kiện: ${notDeletedIds.join(', ')}`,
+                    });
+                    return;
+                }
+
+                Toast.show({
+                    type: 'success',
+                    text1: `Đã xóa ${deletedIds.length} kiện`,
+                });
+            } catch (error) {
+                Toast.show({ type: 'error', text1: 'Xóa kiện thất bại', text2: getApiErrorMessage(error) });
+            } finally {
+                setLoading(false);
+            }
+        });
     };
 
     const addMaterial = async ({ quantity, dauTuan }) => {
@@ -428,24 +463,18 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
             Toast.show({ type: 'error', text1: 'Tất cả kiện phải có BTP, QR và vị trí' });
             return;
         }
-        Alert.alert('Xác nhận phiếu nhập', 'Phiếu sẽ được chuyển sang trạng thái phê duyệt trên ERP.', [
-            { text: 'Hủy', style: 'cancel' },
-            {
-                text: 'Xác nhận',
-                onPress: async () => {
-                    try {
-                        setLoading(true);
-                        await khoBtpApi.confirmImport({ idPhieuNhap: id, packages: packages.map(buildImportConfirmPackage) });
-                        Toast.show({ type: 'success', text1: 'Xác nhận phiếu nhập thành công' });
-                        await fetchDetail();
-                    } catch (error) {
-                        Toast.show({ type: 'error', text1: 'Xác nhận thất bại', text2: getApiErrorMessage(error) });
-                    } finally {
-                        setLoading(false);
-                    }
-                },
-            },
-        ]);
+        confirmAction('Xác nhận phiếu nhập', 'Phiếu sẽ được chuyển sang trạng thái phê duyệt trên ERP.', async () => {
+            try {
+                setLoading(true);
+                await khoBtpApi.confirmImport({ idPhieuNhap: id, packages: packages.map(buildImportConfirmPackage) });
+                Toast.show({ type: 'success', text1: 'Xác nhận phiếu nhập thành công' });
+                await fetchDetail();
+            } catch (error) {
+                Toast.show({ type: 'error', text1: 'Xác nhận thất bại', text2: getApiErrorMessage(error) });
+            } finally {
+                setLoading(false);
+            }
+        });
     };
 
     if (scanPackage) {
