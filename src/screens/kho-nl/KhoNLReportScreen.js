@@ -20,6 +20,7 @@ import Toast from 'react-native-toast-message';
 import { COLORS, getValue } from '../../components/kho-pl';
 import { khoNguyenLieuApi } from '../../services/khoNguyenLieuApi';
 import { extractList, getLocationId } from './nlScreenUtils';
+import { keyboardAwareScrollProps, webInputFocusProps } from '../../components/KeyboardDoneAccessory';
 
 function toNumber(value) {
     const number = Number(String(value ?? 0).replace(',', '.'));
@@ -219,6 +220,7 @@ export default function KhoNLReportScreen({ navigation }) {
 
             <FlatList
                 data={filteredLocations}
+                {...keyboardAwareScrollProps()}
                 keyExtractor={(item, index) => String(getLocationId(item) || readLocationCode(item) || index)}
                 numColumns={2}
                 columnWrapperStyle={styles.locationRow}
@@ -239,6 +241,7 @@ export default function KhoNLReportScreen({ navigation }) {
                                 onChangeText={setSearchText}
                                 placeholder="Tìm kiếm"
                                 placeholderTextColor={COLORS.textSecondary}
+                                {...webInputFocusProps()}
                             />
                         </View>
                         <View style={styles.filterRow}>

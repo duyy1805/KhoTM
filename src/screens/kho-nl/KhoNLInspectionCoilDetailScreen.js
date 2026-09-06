@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    KeyboardAvoidingView,
     Platform,
     ScrollView,
     StatusBar,
@@ -16,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Toast from 'react-native-toast-message';
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
+import KeyboardDoneAccessory, { keyboardAwareScrollProps, numericKeyboardProps } from '../../components/KeyboardDoneAccessory';
 import { COLORS, getValue } from '../../components/kho-pl';
 import { khoNguyenLieuApi } from '../../services/khoNguyenLieuApi';
 import { extractObject, getCoilId, getLocationId, getQuantity } from './nlScreenUtils';
@@ -59,6 +61,7 @@ export default function KhoNLInspectionCoilDetailScreen({ navigation, route }) {
     const [scanMode, setScanMode] = useState(null);
     const [scanned, setScanned] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
+    const scrollRef = useRef(null);
 
     const rollNo = useMemo(() => getRollNo(detail), [detail]);
     const qrCode = useMemo(() => getQrCode(detail), [detail]);
@@ -202,7 +205,16 @@ export default function KhoNLInspectionCoilDetailScreen({ navigation, route }) {
                 <View style={styles.headerAction} />
             </View>
 
-            <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]}>
+            <KeyboardAvoidingView
+                style={styles.keyboardView}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                enabled={Platform.OS !== 'web'}
+            >
+            <ScrollView
+                ref={scrollRef}
+                contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 28 }]}
+                {...keyboardAwareScrollProps()}
+            >
                 <View style={styles.infoCard}>
                     <Text style={styles.locationText}>Vị trí: {getLocationText(detail)}</Text>
                     <DetailRow label="Nhà cung cấp" value={getValue(detail, ['TenNhaCungCap', 'tenNhaCungCap', 'NhaCungCap', 'nhaCungCap', 'Ten_NhaCungCap'], getValue(inspection, ['TenNhaCungCap', 'tenNhaCungCap', 'NhaCungCap', 'nhaCungCap', 'Ten_NhaCungCap'], ''))} multiline />
@@ -223,7 +235,8 @@ export default function KhoNLInspectionCoilDetailScreen({ navigation, route }) {
                             value={qty}
                             onChangeText={setQty}
                             onBlur={saveQty}
-                            keyboardType="numeric"
+                            {...numericKeyboardProps({ decimal: true })}
+                            onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 120)}
                             placeholder="0"
                             placeholderTextColor={COLORS.textSecondary}
                         />
@@ -240,6 +253,7 @@ export default function KhoNLInspectionCoilDetailScreen({ navigation, route }) {
                     <Text style={styles.primaryText}>Chọn vị trí</Text>
                 </TouchableOpacity>
             </ScrollView>
+            </KeyboardAvoidingView>
 
             {loading && (
                 <View style={styles.loadingOverlay}>
@@ -247,12 +261,14 @@ export default function KhoNLInspectionCoilDetailScreen({ navigation, route }) {
                 </View>
             )}
             <Toast />
+            <KeyboardDoneAccessory />
         </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: COLORS.background },
+    keyboardView: { flex: 1 },
     scannerWrapper: { flex: 1, backgroundColor: '#000' },
     header: {
         flexDirection: 'row',

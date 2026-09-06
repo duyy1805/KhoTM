@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react';
-import { FlatList, Modal, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import PLMaterialCard from './PLMaterialCard';
 import { COLORS, getValue } from './styles';
+import { keyboardAwareScrollProps, webInputFocusProps } from '../KeyboardDoneAccessory';
 
 export default function PLMaterialPickerModal({ visible, materials = [], onClose, onConfirm }) {
     const [query, setQuery] = useState('');
@@ -27,8 +28,15 @@ export default function PLMaterialPickerModal({ visible, materials = [], onClose
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <Pressable style={styles.overlay} onPress={onClose}>
-                <View style={styles.content} onStartShouldSetResponder={() => true}>
+            <View style={styles.overlay}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+                <KeyboardAvoidingView
+                    style={styles.keyboardView}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    enabled={Platform.OS !== 'web'}
+                    pointerEvents="box-none"
+                >
+                <View style={styles.content}>
                     <View style={styles.indicator} />
                     <Text style={styles.title}>Chọn vật tư</Text>
                     <View style={styles.searchBar}>
@@ -39,10 +47,12 @@ export default function PLMaterialPickerModal({ visible, materials = [], onClose
                             placeholderTextColor={COLORS.textSecondary}
                             value={query}
                             onChangeText={setQuery}
+                            {...webInputFocusProps()}
                         />
                     </View>
                     <FlatList
                         data={filtered}
+                        {...keyboardAwareScrollProps()}
                         keyExtractor={(item, index) => String(getValue(item, ['ID_DonHang_VatTu', 'ID_VatTu', 'id'], index))}
                         renderItem={({ item }) => (
                             <PLMaterialCard
@@ -59,7 +69,8 @@ export default function PLMaterialPickerModal({ visible, materials = [], onClose
                         <Text style={styles.confirmText}>Xác nhận vật tư</Text>
                     </TouchableOpacity>
                 </View>
-            </Pressable>
+                </KeyboardAvoidingView>
+            </View>
         </Modal>
     );
 }
@@ -68,10 +79,11 @@ const styles = StyleSheet.create({
     overlay: {
         flex: 1,
         backgroundColor: 'rgba(15,23,42,0.35)',
-        justifyContent: 'flex-end',
     },
+    keyboardView: { flex: 1, justifyContent: 'flex-end' },
     content: {
-        height: '82%',
+        maxHeight: '82%',
+        minHeight: '55%',
         backgroundColor: COLORS.background,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,

@@ -17,6 +17,7 @@ import Toast from 'react-native-toast-message';
 import { COLORS, PLDocumentCard } from '../../components/kho-pl';
 import { khoPhuLieuApi } from '../../services/khoPhuLieuApi';
 import { extractList, getDocId } from './plScreenUtils';
+import { keyboardAwareScrollProps, webInputFocusProps } from '../../components/KeyboardDoneAccessory';
 
 export default function KhoPLExportListScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
@@ -61,6 +62,7 @@ export default function KhoPLExportListScreen({ navigation, route }) {
 
             <FlatList
                 data={exports}
+                {...keyboardAwareScrollProps()}
                 keyExtractor={(item, index) => String(getDocId(item) || index)}
                 renderItem={({ item }) => (
                     <PLDocumentCard
@@ -83,6 +85,7 @@ export default function KhoPLExportListScreen({ navigation, route }) {
                                 placeholderTextColor={COLORS.textSecondary}
                                 returnKeyType="search"
                                 onSubmitEditing={fetchExports}
+                                {...webInputFocusProps()}
                             />
                             <TouchableOpacity style={styles.searchBtn} onPress={fetchExports}>
                                 {loading ? <ActivityIndicator size="small" color={COLORS.white} /> : <Ionicons name="arrow-forward" size={18} color={COLORS.white} />}

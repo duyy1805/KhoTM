@@ -16,6 +16,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Toast from 'react-native-toast-message';
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
+import { keyboardAwareScrollProps, webInputFocusProps } from '../../components/KeyboardDoneAccessory';
 import { COLORS, getValue } from '../../components/kho-pl';
 import { khoPhuLieuApi } from '../../services/khoPhuLieuApi';
 import { confirm, extractList, extractObject, getDocId } from './plScreenUtils';
@@ -720,6 +721,7 @@ export default function KhoPLExportQrFirstScreen({ navigation, route }) {
 
             <FlatList
                 data={packages}
+                {...keyboardAwareScrollProps()}
                 keyExtractor={(item, index) => `${getQrCode(item)}-${index}`}
                 renderItem={({ item }) => (
                     <ScannedPackageCard item={item} onRemove={() => removePackage(getQrCode(item))} />
@@ -739,6 +741,7 @@ export default function KhoPLExportQrFirstScreen({ navigation, route }) {
                                     autoCapitalize="characters"
                                     returnKeyType="done"
                                     onSubmitEditing={() => addPackageFromQr(manualQr)}
+                                    {...webInputFocusProps()}
                                 />
                             </View>
                             <TouchableOpacity style={styles.addBtn} onPress={() => addPackageFromQr(manualQr)}>

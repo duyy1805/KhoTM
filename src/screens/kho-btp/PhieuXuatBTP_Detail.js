@@ -3,6 +3,7 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
+    KeyboardAvoidingView,
     Modal,
     Platform,
     Pressable,
@@ -18,6 +19,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
+import KeyboardDoneAccessory, { keyboardAwareScrollProps, numericKeyboardProps } from '../../components/KeyboardDoneAccessory';
 import { khoBtpApi } from '../../services/khoBtpApi';
 import { getApiErrorMessage } from '../../services/coreApiClient';
 import {
@@ -43,7 +45,7 @@ function packageDetailId(item) {
 }
 
 function stockQuantity(item) {
-    return asNumber(readValue(item, ['soLuongTon', 'SoLuongTon', 'soLuongTonTong', 'SoLuongTonTong', 'conLai', 'ConLai', 'soLuong', 'SoLuong'], 0));
+    return asNumber(readValue(item, ['stockQuantity', 'StockQuantity', 'soLuongTon', 'SoLuongTon', 'soLuongTonTong', 'SoLuongTonTong', 'conLai', 'ConLai', 'soLuong', 'SoLuong'], 0));
 }
 
 function QuantityModal({ visible, item, max, onClose, onConfirm }) {
@@ -53,11 +55,19 @@ function QuantityModal({ visible, item, max, onClose, onConfirm }) {
     }, [visible, max]);
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-            <Pressable style={styles.overlay} onPress={onClose}>
-                <View style={styles.dialog} onStartShouldSetResponder={() => true}>
+            <View style={styles.overlay}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+                <KeyboardAvoidingView
+                    style={styles.modalKeyboardView}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    enabled={Platform.OS !== 'web'}
+                    pointerEvents="box-none"
+                >
+                <View style={styles.dialog}>
                     <Text style={styles.dialogTitle}>Nhập số lượng xuất</Text>
                     <Text style={styles.dialogSub}>QR: {getPackageQr(item) || '-'}</Text>
-                    <TextInput style={styles.qtyInput} value={value} onChangeText={setValue} keyboardType="numeric" autoFocus />
+                    <Text style={styles.dialogSub}>Dấu tuần: {readValue(item, ['weekMark', 'dauTuan', 'DauTuan'], null) || 'Chưa có dấu tuần'}</Text>
+                    <TextInput style={styles.qtyInput} value={value} onChangeText={setValue} {...numericKeyboardProps()} autoFocus />
                     <Text style={styles.dialogSub}>Tối đa có thể xuất: {max}</Text>
                     <View style={styles.dialogActions}>
                         <TouchableOpacity style={styles.secondaryBtn} onPress={onClose}><Text style={styles.secondaryText}>Hủy</Text></TouchableOpacity>
@@ -71,7 +81,76 @@ function QuantityModal({ visible, item, max, onClose, onConfirm }) {
                         }}><Text style={styles.primaryText}>Thêm kiện</Text></TouchableOpacity>
                     </View>
                 </View>
-            </Pressable>
+                </KeyboardAvoidingView>
+                <KeyboardDoneAccessory />
+            </View>
+        </Modal>
+    );
+}
+
+function SuggestionModal({ visible, packages, selectedDetailIds, onClose, onSelect }) {
+    return (
+        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+            <View style={styles.suggestionOverlay}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+                <View style={styles.suggestionSheet}>
+                    <View style={styles.suggestionIndicator} />
+                    <View style={styles.suggestionHeader}>
+                        <View style={{ flex: 1 }}>
+                            <Text style={styles.suggestionTitle}>Kiện gợi ý theo dấu tuần</Text>
+                            <Text style={styles.suggestionSubtitle}>Ưu tiên dấu tuần thấp trước</Text>
+                        </View>
+                        <TouchableOpacity style={styles.suggestionClose} onPress={onClose}>
+                            <Ionicons name="close" size={22} color={COLORS.textSecondary} />
+                        </TouchableOpacity>
+                    </View>
+                    <FlatList
+                        data={packages}
+                        {...keyboardAwareScrollProps()}
+                        style={styles.suggestionList}
+                        contentContainerStyle={styles.suggestionListContent}
+                        keyExtractor={(item, index) => String(item.idTheKhoKienBTP || index)}
+                        renderItem={({ item }) => (
+                            <View style={styles.suggestionPackage}>
+                                <View style={styles.suggestionPackageHeader}>
+                                    <View style={styles.suggestionQrIcon}>
+                                        <Ionicons name="qr-code-outline" size={21} color={COLORS.primary} />
+                                    </View>
+                                    <View style={{ flex: 1, minWidth: 0 }}>
+                                        <Text style={styles.suggestionQr} numberOfLines={1}>{item.qrCode || '-'}</Text>
+                                        <Text style={styles.suggestionMeta}>Vị trí: {item.maViTriKho || '-'} • Tổng tồn: {asNumber(item.totalStockQuantity)}</Text>
+                                    </View>
+                                </View>
+                                {(item.details || []).map((detail) => {
+                                    const detailId = packageDetailId(detail);
+                                    const selected = selectedDetailIds.has(String(detailId));
+                                    const weekMark = readValue(detail, ['weekMark', 'dauTuan', 'DauTuan'], null);
+                                    const legacy = readValue(detail, ['weekMarkSource'], null) === 'package';
+                                    return (
+                                        <TouchableOpacity
+                                            key={String(detailId)}
+                                            style={[styles.suggestionDetail, selected && styles.suggestionDetailDisabled]}
+                                            disabled={selected}
+                                            onPress={() => onSelect(detail)}
+                                        >
+                                            <View style={{ flex: 1, minWidth: 0 }}>
+                                                <Text style={styles.suggestionWeek}>{weekMark || 'Chưa có dấu tuần'}{legacy ? ' • dữ liệu cũ' : ''}</Text>
+                                                <Text style={styles.suggestionProduct} numberOfLines={1}>{detail.itemCode || '-'} • {detail.tenSanPham || '-'}</Text>
+                                            </View>
+                                            <View style={styles.suggestionStock}>
+                                                <Text style={styles.qtyLabel}>{selected ? 'Đã chọn' : 'Tồn'}</Text>
+                                                <Text style={styles.suggestionStockValue}>{asNumber(detail.stockQuantity)}</Text>
+                                            </View>
+                                            <Ionicons name={selected ? 'checkmark-circle' : 'chevron-forward'} size={20} color={selected ? COLORS.success : COLORS.primary} />
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        )}
+                        ListEmptyComponent={<Text style={styles.emptyText}>Không có kiện gợi ý phù hợp</Text>}
+                    />
+                </View>
+            </View>
         </Modal>
     );
 }
@@ -103,7 +182,8 @@ function PickCard({ item, onEdit, onRemove }) {
             <View style={{ flex: 1 }}>
                 <Text style={styles.pickQr}>{item.qrCode}</Text>
                 <Text style={styles.lineName}>{item.itemCode || '-'}</Text>
-                <Text style={styles.lineMeta}>Tồn kiện: {item.stock}</Text>
+                <Text style={styles.lineMeta}>Dấu tuần: {item.weekMark || 'Chưa có dấu tuần'}{item.weekMarkSource === 'package' ? ' • dữ liệu cũ' : ''}</Text>
+                <Text style={styles.lineMeta}>Tồn chi tiết: {item.stock}</Text>
             </View>
             <TouchableOpacity style={styles.pickQty} onPress={onEdit}>
                 <Text style={styles.qtyLabel}>SL xuất</Text>
@@ -127,6 +207,9 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
     const [scanned, setScanned] = useState(false);
     const [quantityItem, setQuantityItem] = useState(null);
     const [quantityMax, setQuantityMax] = useState(0);
+    const [suggestionPackages, setSuggestionPackages] = useState([]);
+    const [suggestionVisible, setSuggestionVisible] = useState(false);
+    const [returnToSuggestions, setReturnToSuggestions] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
 
     const activeLine = lines[activeLineIndex] || null;
@@ -161,38 +244,55 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
         return !productId || String(productId) === String(readValue(activeLine, ['idDonHangSanPham'], null));
     }).reduce((sum, item) => sum + asNumber(readValue(item, ['soLuongXuatKho', 'SoLuongXuatKho', 'SoLuong_XuatKho'], 0)), 0);
     const remainingForActive = Math.max(0, requestedForActive - savedForLine - pendingActiveTotal);
+    const selectedSuggestionDetailIds = useMemo(
+        () => new Set(pendingPicks.map((item) => String(packageDetailId(item.raw))).filter((value) => value && value !== 'null')),
+        [pendingPicks],
+    );
 
     const addPackageCandidate = (raw) => {
-        if (!activeLine) return;
+        if (!activeLine) return false;
         const rows = asList(raw, ['bTPs', 'kiens', 'items', 'rows']);
         const item = rows[0] || raw?.data || raw;
         if (!item || typeof item !== 'object') {
             Toast.show({ type: 'error', text1: 'Không tìm thấy chi tiết kiện' });
-            return;
+            return false;
         }
         const qr = getPackageQr(item);
         if (!qr) {
             Toast.show({ type: 'error', text1: 'Kiện không có mã QR' });
-            return;
+            return false;
         }
-        if (pendingPicks.some((pick) => pick.qrCode === qr)) {
-            Toast.show({ type: 'info', text1: 'QR đã có trong danh sách chờ' });
-            return;
+        const detailId = packageDetailId(item);
+        const duplicated = detailId
+            ? pendingPicks.some((pick) => String(packageDetailId(pick.raw)) === String(detailId))
+            : pendingPicks.some((pick) => pick.qrCode === qr && !packageDetailId(pick.raw));
+        if (duplicated) {
+            Toast.show({ type: 'info', text1: 'Dấu tuần của kiện đã có trong danh sách chờ' });
+            return false;
         }
         const packageProductId = readValue(item, ['idDonHangSanPham', 'ID_DonHang_SanPham'], null);
         const lineProductId = readValue(activeLine, ['idDonHangSanPham', 'ID_DonHang_SanPham'], null);
         if (packageProductId && lineProductId && String(packageProductId) !== String(lineProductId)) {
             Toast.show({ type: 'error', text1: 'Kiện không khớp sản phẩm của dòng phiếu' });
-            return;
+            return false;
         }
         const stock = stockQuantity(item);
         const max = Math.min(stock, remainingForActive);
         if (max <= 0) {
             Toast.show({ type: 'error', text1: remainingForActive <= 0 ? 'Dòng phiếu đã đủ số lượng' : 'Kiện đã hết tồn' });
-            return;
+            return false;
         }
-        setQuantityItem({ raw: item, qrCode: qr, stock, lineKey: activeKey, itemCode: readValue(item, ['itemCode', 'ItemCode'], readValue(activeLine, ['itemCode'], '')) });
+        setQuantityItem({
+            raw: item,
+            qrCode: qr,
+            stock,
+            lineKey: activeKey,
+            itemCode: readValue(item, ['itemCode', 'ItemCode'], readValue(activeLine, ['itemCode'], '')),
+            weekMark: readValue(item, ['weekMark', 'dauTuan', 'DauTuan'], null),
+            weekMarkSource: readValue(item, ['weekMarkSource'], null),
+        });
         setQuantityMax(max);
+        return true;
     };
 
     const scanQr = async () => {
@@ -257,20 +357,30 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                 idDonHangLoSanXuat: readValue(activeLine, ['idDonHangLoSanXuat'], 0),
                 idDonHangSanPham: readValue(activeLine, ['idDonHangSanPham'], 0),
                 idDonHang: readValue(activeLine, ['idDonHang'], 0),
-                idQuyTrinhSanXuat: readValue(activeLine, ['idQuyTrinhSanXuat'], 0),
+                idQuyTrinhSanXuat: readValue(
+                    activeLine,
+                    ['idQuyTrinhSanXuat', 'ID_QuyTrinhSanXuat'],
+                    0,
+                ),
             });
-            const suggestions = asList(response, ['kiens', 'items', 'rows']);
+            const suggestions = asList(response, ['items', 'kiens', 'rows']);
             if (!suggestions.length) {
                 Toast.show({ type: 'info', text1: 'Không có kiện gợi ý phù hợp' });
                 return;
             }
-            addPackageCandidate(suggestions[0]);
-            if (suggestions.length > 1) Toast.show({ type: 'info', text1: `Đã chọn kiện đầu tiên trong ${suggestions.length} gợi ý` });
+            setSuggestionPackages(suggestions);
+            setSuggestionVisible(true);
         } catch (error) {
             Toast.show({ type: 'error', text1: 'Không tải được kiện gợi ý', text2: getApiErrorMessage(error) });
         } finally {
             setLoading(false);
         }
+    };
+
+    const closeQuantityModal = () => {
+        setQuantityItem(null);
+        if (returnToSuggestions) setSuggestionVisible(true);
+        setReturnToSuggestions(false);
     };
 
     const savePicks = () => {
@@ -328,6 +438,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
             </View>
             <FlatList
                 data={lines}
+                {...keyboardAwareScrollProps()}
                 keyExtractor={(item, index) => lineKey(item, index)}
                 renderItem={({ item, index }) => (
                     <LineCard
@@ -372,6 +483,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                                 key={`${pick.qrCode}-${index}`}
                                 item={pick}
                                 onEdit={() => {
+                                    setReturnToSuggestions(false);
                                     setQuantityItem({ ...pick, editIndex: index });
                                     const otherTotal = pendingPicks.filter((_, itemIndex) => itemIndex !== index && pendingPicks[itemIndex].lineKey === pick.lineKey).reduce((sum, item) => sum + item.quantity, 0);
                                     const requested = asNumber(readValue(pick.line, ['soLuongLenhXuat', 'soLuong'], 0));
@@ -395,18 +507,36 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                     {loading ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="save-outline" size={20} color={COLORS.white} /><Text style={styles.saveText}>Lưu phiếu ({pendingPicks.length})</Text></>}
                 </TouchableOpacity>
             </View>
+            <SuggestionModal
+                visible={suggestionVisible}
+                packages={suggestionPackages}
+                selectedDetailIds={selectedSuggestionDetailIds}
+                onClose={() => {
+                    setSuggestionVisible(false);
+                    setReturnToSuggestions(false);
+                }}
+                onSelect={(suggestionDetail) => {
+                    setSuggestionVisible(false);
+                    const accepted = addPackageCandidate(suggestionDetail);
+                    if (accepted) {
+                        setReturnToSuggestions(true);
+                    } else {
+                        setSuggestionVisible(true);
+                    }
+                }}
+            />
             <QuantityModal
                 visible={Boolean(quantityItem)}
                 item={quantityItem}
                 max={quantityMax}
-                onClose={() => setQuantityItem(null)}
+                onClose={closeQuantityModal}
                 onConfirm={(quantity) => {
                     if (Number.isInteger(quantityItem?.editIndex)) {
                         setPendingPicks((current) => current.map((pick, index) => index === quantityItem.editIndex ? { ...pick, quantity } : pick));
                     } else {
                         setPendingPicks((current) => [...current, { ...quantityItem, quantity, line: activeLine }]);
                     }
-                    setQuantityItem(null);
+                    closeQuantityModal();
                 }}
             />
             {loading && <View style={styles.loadingOverlay}><ActivityIndicator size="large" color={COLORS.primary} /></View>}
@@ -421,6 +551,7 @@ const styles = StyleSheet.create({
     backBtn: { width: 40, padding: 8 },
     headerTitle: { maxWidth: '72%', color: COLORS.white, fontSize: 17, fontWeight: '800' },
     content: { padding: 16, paddingBottom: 110 },
+    modalKeyboardView: { flex: 1, justifyContent: 'center', padding: 20 },
     summary: { padding: 16, borderRadius: 18, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
     summaryTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary },
     summarySub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 5 },
@@ -453,6 +584,32 @@ const styles = StyleSheet.create({
     saveText: { color: COLORS.white, fontSize: 15, fontWeight: '800' },
     disabled: { opacity: 0.45 },
     overlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'center', padding: 20 },
+    suggestionOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,0.45)' },
+    suggestionSheet: { height: '86%', minHeight: 320, backgroundColor: COLORS.background, borderTopLeftRadius: 24, borderTopRightRadius: 24, paddingTop: 10 },
+    suggestionIndicator: { width: 44, height: 5, borderRadius: 3, backgroundColor: COLORS.border, alignSelf: 'center' },
+    suggestionHeader: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 14 },
+    suggestionTitle: { fontSize: 18, fontWeight: '900', color: COLORS.textPrimary },
+    suggestionSubtitle: { marginTop: 3, fontSize: 11, color: COLORS.textSecondary },
+    suggestionClose: { padding: 8, borderRadius: 20, backgroundColor: COLORS.surface },
+    suggestionList: {
+        flex: 1,
+        minHeight: 0,
+        ...Platform.select({
+            web: { overflowY: 'scroll', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' },
+        }),
+    },
+    suggestionListContent: { paddingHorizontal: 16, paddingBottom: 30 },
+    suggestionPackage: { marginBottom: 12, padding: 13, borderRadius: 17, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border },
+    suggestionPackageHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 9 },
+    suggestionQrIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primaryLight },
+    suggestionQr: { fontSize: 14, fontWeight: '900', color: COLORS.textPrimary },
+    suggestionMeta: { marginTop: 4, fontSize: 10, color: COLORS.textSecondary },
+    suggestionDetail: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, marginTop: 7, borderRadius: 13, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
+    suggestionDetailDisabled: { opacity: 0.55, backgroundColor: '#ECFDF5' },
+    suggestionWeek: { fontSize: 12, fontWeight: '900', color: COLORS.primary },
+    suggestionProduct: { marginTop: 3, fontSize: 10, color: COLORS.textSecondary },
+    suggestionStock: { minWidth: 52, alignItems: 'center' },
+    suggestionStockValue: { marginTop: 2, fontSize: 14, fontWeight: '900', color: COLORS.success },
     dialog: { backgroundColor: COLORS.surface, borderRadius: 20, padding: 20 },
     dialogTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary },
     dialogSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 6 },

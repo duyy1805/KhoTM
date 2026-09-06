@@ -204,11 +204,11 @@ export const khoBtpApi = {
     }) {
         const params = new URLSearchParams();
         params.append('idPhieuXuat', positiveInt(idPhieuXuat, 'Phiếu xuất'));
-        params.append('idDonHangLoSanxuat', Number(idDonHangLoSanXuat) || 0);
-        params.append('idDonHangSanPham', positiveInt(idDonHangSanPham, 'Sản phẩm'));
-        params.append('idDonHang', positiveInt(idDonHang, 'Đơn hàng'));
-        params.append('IdQuyTrinhSanXuat', Number(idQuyTrinhSanXuat) || 0);
-        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/phieuxuat/list-kien?${params.toString()}` });
+        params.append('idDonHangLoSanXuat', Number(idDonHangLoSanXuat) || 0);
+        params.append('idDonHangSanPham', Number(idDonHangSanPham) || 0);
+        params.append('idDonHang', Number(idDonHang) || 0);
+        params.append('idQuyTrinhSanXuat', Number(idQuyTrinhSanXuat) || 0);
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/phieuxuat/goi-y-kien?${params.toString()}` });
     },
 
     async confirmExport({ idPhieuXuat, picks }) {

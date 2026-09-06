@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { COLORS } from './styles';
+import KeyboardDoneAccessory, { numericKeyboardProps } from '../KeyboardDoneAccessory';
 
 export default function PLQuantityInputModal({
     visible,
@@ -36,22 +37,24 @@ export default function PLQuantityInputModal({
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <KeyboardAvoidingView
-                style={styles.keyboardView}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
-            >
-                <Pressable style={styles.overlay} onPress={onClose}>
+            <View style={styles.overlay}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+                <KeyboardAvoidingView
+                    style={styles.keyboardView}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    enabled={Platform.OS !== 'web'}
+                    keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
+                    pointerEvents="box-none"
+                >
                     <View
                         style={[styles.content, { paddingBottom: Math.max(insets.bottom, 16) + 16 }]}
-                        onStartShouldSetResponder={() => true}
                     >
                         <View style={styles.indicator} />
                         <Text style={styles.title}>{title}</Text>
                         <Text style={styles.label}>{label}</Text>
                         <TextInput
                             style={styles.input}
-                            keyboardType="decimal-pad"
+                            {...numericKeyboardProps({ decimal: true })}
                             value={value}
                             onChangeText={setValue}
                             placeholder="0"
@@ -68,8 +71,9 @@ export default function PLQuantityInputModal({
                             </TouchableOpacity>
                         </View>
                     </View>
-                </Pressable>
-            </KeyboardAvoidingView>
+                </KeyboardAvoidingView>
+                <KeyboardDoneAccessory />
+            </View>
         </Modal>
     );
 }
@@ -77,11 +81,11 @@ export default function PLQuantityInputModal({
 const styles = StyleSheet.create({
     keyboardView: {
         flex: 1,
+        justifyContent: 'flex-end',
     },
     overlay: {
         flex: 1,
         backgroundColor: 'rgba(15,23,42,0.35)',
-        justifyContent: 'flex-end',
     },
     content: {
         backgroundColor: COLORS.surface,

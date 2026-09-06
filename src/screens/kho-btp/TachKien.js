@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
     DeviceEventEmitter,
+    Keyboard,
+    KeyboardAvoidingView,
     View, 
     Text, 
     TouchableOpacity, 
@@ -16,6 +18,11 @@ import Toast from 'react-native-toast-message';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { CameraView, useCameraPermissions } from "expo-camera";
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
+import KeyboardDoneAccessory, {
+    keyboardAwareScrollProps,
+    numericKeyboardProps,
+    webInputFocusProps,
+} from '../../components/KeyboardDoneAccessory';
 import { khoBtpApi } from '../../services/khoBtpApi';
 
 // Design Tokens
@@ -42,6 +49,21 @@ export default function SplitPackageScreen() {
     const [isScanningQR, setIsScanningQR] = useState(false);
     const [hasScannedQR, setHasScannedQR] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
+    const listRef = useRef(null);
+
+    const scrollToQuantityInput = (index) => {
+        requestAnimationFrame(() => {
+            listRef.current?.scrollToIndex({ index, animated: true, viewPosition: 0.5 });
+        });
+    };
+
+    const handleScrollToIndexFailed = ({ index, averageItemLength }) => {
+        listRef.current?.scrollToOffset({
+            offset: Math.max(0, averageItemLength * index),
+            animated: true,
+        });
+        setTimeout(() => scrollToQuantityInput(index), 120);
+    };
 
     const [selectedLocation, setSelectedLocation] = useState(
         originalPackage?.ID_ViTriKho
@@ -68,6 +90,7 @@ export default function SplitPackageScreen() {
     }, []);
 
     const openQRScanner = async () => {
+        Keyboard.dismiss();
         if (!permission?.granted) {
             const { granted } = await requestPermission();
             if (!granted) {
@@ -148,7 +171,8 @@ export default function SplitPackageScreen() {
                 <TextInput
                     style={styles.qtyInput}
                     placeholder="0"
-                    keyboardType="numeric"
+                    {...numericKeyboardProps()}
+                    onFocus={() => scrollToQuantityInput(index)}
                     value={item.SoLuong_Tach ? String(item.SoLuong_Tach) : ""}
                     onChangeText={(val) => {
                         let num = parseInt(val, 10) || 0;
@@ -180,11 +204,19 @@ export default function SplitPackageScreen() {
                         <View style={{ width: 24 }} />
                     </View>
 
+                    <KeyboardAvoidingView
+                        style={styles.keyboardView}
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        enabled={Platform.OS !== 'web'}
+                    >
                     <FlatList
+                        ref={listRef}
                         data={chiTiet}
                         keyExtractor={(_, i) => i.toString()}
                         contentContainerStyle={styles.scrollContent}
                         renderItem={renderItem}
+                        onScrollToIndexFailed={handleScrollToIndexFailed}
+                        {...keyboardAwareScrollProps()}
                         ListHeaderComponent={
                             <View>
                                 {/* Form Section */}
@@ -197,6 +229,7 @@ export default function SplitPackageScreen() {
                                             value={newQRCode}
                                             onChangeText={setNewQRCode}
                                             placeholderTextColor={COLORS.textSecondary}
+                                            {...webInputFocusProps()}
                                         />
                                         <TouchableOpacity style={styles.scanBtn} onPress={openQRScanner}>
                                             <Ionicons name="qr-code-outline" size={20} color={COLORS.white} />
@@ -236,6 +269,7 @@ export default function SplitPackageScreen() {
                             <Text style={styles.submitText}>Xác nhận tách kiện</Text>
                         </TouchableOpacity>
                     </View>
+                    </KeyboardAvoidingView>
                 </>
             )}
 
@@ -261,6 +295,7 @@ export default function SplitPackageScreen() {
                 </View>
             )}
             <Toast />
+            <KeyboardDoneAccessory />
         </View>
     );
 }
@@ -270,6 +305,7 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: COLORS.background,
     },
+    keyboardView: { flex: 1 },
     header: {
         flexDirection: 'row',
         alignItems: 'center',

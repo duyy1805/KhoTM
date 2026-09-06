@@ -1146,6 +1146,72 @@ router.get('/btp/phieuxuat/list-kien', async (req, res) => {
     }
 });
 
+router.get('/btp/phieuxuat/goi-y-kien', async (req, res) => {
+    try {
+        const idPhieuXuat = toIntOrNull(req.query.idPhieuXuat);
+        if (!idPhieuXuat) return res.status(400).json({ message: 'Phiếu xuất BTP không hợp lệ' });
+
+        const pool = await tagpoolPromise;
+        const result = await pool.request()
+            .input('ID_PhieuXuatBTP', sql.Int, idPhieuXuat)
+            .input('ID_DonHang_LoSanXuat', sql.Int, toIntOrNull(req.query.idDonHangLoSanXuat) || 0)
+            .input('ID_DonHang_SanPham', sql.Int, toIntOrNull(req.query.idDonHangSanPham) || 0)
+            .input('ID_DonHang', sql.Int, toIntOrNull(req.query.idDonHang) || 0)
+            .input('ID_QuyTrinhSanXuat', sql.Int, toIntOrNull(req.query.idQuyTrinhSanXuat) || 0)
+            .execute('KhoTM_BTP_PhieuXuat_GoiYKienTheoDauTuan');
+
+        const packagesById = new Map();
+        for (const row of result.recordset || []) {
+            const packageId = toIntOrNull(row.IdTheKhoKienBTP);
+            const detailId = toIntOrNull(row.IdTheKhoKienBTPChiTiet);
+            if (!packageId || !detailId) continue;
+
+            let packageItem = packagesById.get(packageId);
+            if (!packageItem) {
+                packageItem = {
+                    idTheKhoKienBTP: packageId,
+                    qrCode: String(row.QRCode || '').trim(),
+                    idViTriKho: toIntOrNull(row.IdViTriKho),
+                    maViTriKho: row.MaViTriKho || null,
+                    maNha: row.MaNha || null,
+                    earliestWeekMark: null,
+                    totalStockQuantity: 0,
+                    details: [],
+                };
+                packagesById.set(packageId, packageItem);
+            }
+
+            const weekMark = row.DauTuan == null ? null : String(row.DauTuan).trim() || null;
+            const stockQuantity = Math.max(0, toNumber(row.SoLuongTon));
+            if (packageItem.earliestWeekMark == null && weekMark != null) packageItem.earliestWeekMark = weekMark;
+            packageItem.totalStockQuantity += stockQuantity;
+            packageItem.details.push({
+                idTheKhoKienBTPChiTiet: detailId,
+                idTheKhoKienBTP: packageId,
+                qrCode: packageItem.qrCode,
+                idViTriKho: packageItem.idViTriKho,
+                maViTriKho: packageItem.maViTriKho,
+                idDonHangLoSanXuat: toIntOrNull(row.IdDonHangLoSanXuat) || 0,
+                soLoSanXuat: row.SoLoSanXuat || null,
+                idDonHangSanPham: toIntOrNull(row.IdDonHangSanPham) || 0,
+                idDonHang: toIntOrNull(row.IdDonHang) || 0,
+                idQuyTrinhSanXuat: toIntOrNull(row.IdQuyTrinhSanXuat) || 0,
+                itemCode: row.ItemCode || null,
+                tenSanPham: row.TenSanPham || null,
+                maDonHang: row.MaDonHang || null,
+                weekMark,
+                weekMarkSource: row.NguonDauTuan || null,
+                stockQuantity,
+                ngayNhap: row.NgayNhap || null,
+            });
+        }
+
+        res.json({ items: Array.from(packagesById.values()) });
+    } catch (error) {
+        res.status(500).json({ message: 'Không tải được kiện gợi ý theo dấu tuần', detail: error.message });
+    }
+});
+
 router.get('/btp/baocao/khos', async (req, res) => {
     try {
         const userId = toIntOrNull(req.query.idTaiKhoan);

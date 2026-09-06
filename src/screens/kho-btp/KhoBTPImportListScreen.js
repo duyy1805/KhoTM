@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { khoBtpApi } from '../../services/khoBtpApi';
 import { getApiErrorMessage } from '../../services/coreApiClient';
+import { keyboardAwareScrollProps, webInputFocusProps } from '../../components/KeyboardDoneAccessory';
 import {
     asList,
     BTP_COLORS as COLORS,
@@ -124,6 +125,7 @@ export default function KhoBTPImportListScreen({ navigation, route }) {
             <FlatList
                 style={styles.list}
                 data={documents}
+                {...keyboardAwareScrollProps()}
                 keyExtractor={(item, index) => String(getDocumentId(item) || index)}
                 renderItem={({ item }) => (
                     <ImportCard
@@ -150,6 +152,7 @@ export default function KhoBTPImportListScreen({ navigation, route }) {
                                 placeholder="Tìm số phiếu nhập..."
                                 placeholderTextColor={COLORS.textSecondary}
                                 returnKeyType="search"
+                                {...webInputFocusProps()}
                                 onSubmitEditing={() => {
                                     if (pageIndex !== 0) setPageIndex(0);
                                     else fetchDocuments();

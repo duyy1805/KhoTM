@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Toast from 'react-native-toast-message';
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
+import { keyboardAwareScrollProps, webInputFocusProps } from '../../components/KeyboardDoneAccessory';
 import { COLORS, getValue, PLQuantityInputModal } from '../../components/kho-pl';
 import { khoPhuLieuApi } from '../../services/khoPhuLieuApi';
 import { confirm, extractList, extractObject, getDocId, getPackageId } from './plScreenUtils';
@@ -658,6 +659,7 @@ export default function KhoPLExportDetailScreen({ navigation, route }) {
 
             <FlatList
                 data={packageMode ? filteredPackages : materials}
+                {...keyboardAwareScrollProps()}
                 keyExtractor={(item, index) => packageMode ? `${getPackageKey(item)}-${index}` : String(getOrderMaterialId(item) || getMaterialId(item) || index)}
                 renderItem={packageMode ? renderPackage : renderMaterial}
                 contentContainerStyle={styles.listContent}
@@ -694,6 +696,7 @@ export default function KhoPLExportDetailScreen({ navigation, route }) {
                                         onChangeText={setPackageSearch}
                                         placeholder="Tìm kiếm mã vật tư"
                                         placeholderTextColor={COLORS.textSecondary}
+                                        {...webInputFocusProps()}
                                     />
                                 </View>
                             </>

@@ -21,6 +21,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import { KHO_PL_BASE_URL } from '../../services/khoPhuLieuApi';
+import { keyboardAwareScrollProps, webInputFocusProps } from '../../components/KeyboardDoneAccessory';
 
 const { width, height } = Dimensions.get('window');
 
@@ -180,8 +181,7 @@ const LoginScreen = () => {
                 <ScrollView
                     contentContainerStyle={styles.scrollContent}
                     showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                    {...keyboardAwareScrollProps()}
                 >
                     <View style={styles.headerSection}>
                         <View style={styles.logoCircle}>
@@ -207,6 +207,7 @@ const LoginScreen = () => {
                                     autoCapitalize="none"
                                     returnKeyType="next"
                                     onSubmitEditing={() => passwordInputRef.current?.focus()}
+                                    {...webInputFocusProps()}
                                 />
                             </View>
                             {usernameError ? <Text style={styles.errorText}>{usernameError}</Text> : null}
@@ -226,6 +227,7 @@ const LoginScreen = () => {
                                     onChangeText={setPassword}
                                     returnKeyType="go"
                                     onSubmitEditing={() => { Keyboard.dismiss(); handleLogin(); }}
+                                    {...webInputFocusProps()}
                                 />
                                 <TouchableOpacity onPress={() => setShowPassword(!showPassword)}>
                                     <Ionicons

@@ -16,6 +16,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import Toast from 'react-native-toast-message';
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
+import { keyboardAwareScrollProps, webInputFocusProps } from '../../components/KeyboardDoneAccessory';
 import { COLORS, getValue } from '../../components/kho-pl';
 import { khoNguyenLieuApi } from '../../services/khoNguyenLieuApi';
 import {
@@ -404,6 +405,7 @@ export default function KhoNLInspectionDetailScreen({ navigation, route }) {
 
             <FlatList
                 data={visibleCoils}
+                {...keyboardAwareScrollProps()}
                 keyExtractor={(item, index) => String(getCoilId(item) || index)}
                 contentContainerStyle={styles.content}
                 renderItem={({ item }) => {
@@ -451,6 +453,7 @@ export default function KhoNLInspectionDetailScreen({ navigation, route }) {
                                     onChangeText={setLotFilter}
                                     placeholder="LotNo"
                                     placeholderTextColor={COLORS.textSecondary}
+                                    {...webInputFocusProps()}
                                 />
                             </View>
                             <View style={styles.filterBox}>
@@ -461,6 +464,7 @@ export default function KhoNLInspectionDetailScreen({ navigation, route }) {
                                     onChangeText={setRollFilter}
                                     placeholder="RollNo"
                                     placeholderTextColor={COLORS.textSecondary}
+                                    {...webInputFocusProps()}
                                 />
                             </View>
                         </View>

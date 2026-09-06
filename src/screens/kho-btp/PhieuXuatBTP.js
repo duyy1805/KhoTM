@@ -19,6 +19,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { khoBtpApi } from '../../services/khoBtpApi';
 import { getApiErrorMessage } from '../../services/coreApiClient';
+import { keyboardAwareScrollProps, webInputFocusProps } from '../../components/KeyboardDoneAccessory';
 import {
     asList,
     BTP_COLORS as COLORS,
@@ -259,6 +260,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
             <FlatList
                 style={styles.list}
                 data={visibleDocuments}
+                {...keyboardAwareScrollProps()}
                 keyExtractor={(item, index) => String(getDocumentId(item) || readValue(item, ['ID_PhieuXuatBTP'], index))}
                 renderItem={({ item }) => <ExportCard item={item} qrMode={qrMode} onPress={() => handleDocumentPress(item)} />}
                 contentContainerStyle={styles.content}
@@ -326,7 +328,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
                                 )}
                                 <View style={styles.searchBar}>
                                     <Ionicons name="search" size={18} color={COLORS.textSecondary} />
-                                    <TextInput style={styles.searchInput} value={searchText} onChangeText={setSearchText} placeholder="Tìm theo số phiếu..." placeholderTextColor={COLORS.textSecondary} />
+                                    <TextInput style={styles.searchInput} value={searchText} onChangeText={setSearchText} placeholder="Tìm theo số phiếu..." placeholderTextColor={COLORS.textSecondary} {...webInputFocusProps()} />
                                     {!!searchText && <TouchableOpacity style={styles.clearSearchBtn} onPress={() => setSearchText('')}><Ionicons name="close-circle" size={20} color={COLORS.textSecondary} /></TouchableOpacity>}
                                 </View>
                             </View>
@@ -334,7 +336,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
                             <>
                                 <View style={styles.searchBar}>
                                     <Ionicons name="search" size={18} color={COLORS.textSecondary} />
-                                    <TextInput style={styles.searchInput} value={searchText} onChangeText={setSearchText} placeholder="Tìm số phiếu xuất..." placeholderTextColor={COLORS.textSecondary} returnKeyType="search" onSubmitEditing={() => pageIndex ? setPageIndex(0) : fetchDocuments()} />
+                                    <TextInput style={styles.searchInput} value={searchText} onChangeText={setSearchText} placeholder="Tìm số phiếu xuất..." placeholderTextColor={COLORS.textSecondary} returnKeyType="search" onSubmitEditing={() => pageIndex ? setPageIndex(0) : fetchDocuments()} {...webInputFocusProps()} />
                                     <TouchableOpacity style={styles.searchBtn} onPress={() => pageIndex ? setPageIndex(0) : fetchDocuments()}>
                                         {loading ? <ActivityIndicator size="small" color={COLORS.white} /> : <Ionicons name="arrow-forward" size={18} color={COLORS.white} />}
                                     </TouchableOpacity>

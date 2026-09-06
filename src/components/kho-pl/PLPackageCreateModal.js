@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Modal, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, Pressable, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS } from './styles';
+import KeyboardDoneAccessory, { numericKeyboardProps } from '../KeyboardDoneAccessory';
 
 export default function PLPackageCreateModal({ visible, onClose, onConfirm, loading }) {
     const [quantity, setQuantity] = useState('1');
@@ -13,14 +14,21 @@ export default function PLPackageCreateModal({ visible, onClose, onConfirm, load
 
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-            <Pressable style={styles.overlay} onPress={onClose}>
-                <View style={styles.content} onStartShouldSetResponder={() => true}>
+            <View style={styles.overlay}>
+                <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+                <KeyboardAvoidingView
+                    style={styles.keyboardView}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    enabled={Platform.OS !== 'web'}
+                    pointerEvents="box-none"
+                >
+                <View style={styles.content}>
                     <View style={styles.indicator} />
                     <Text style={styles.title}>Tạo kiện phụ liệu</Text>
                     <Text style={styles.label}>Số lượng kiện cần tạo</Text>
                     <TextInput
                         style={styles.input}
-                        keyboardType="numeric"
+                        {...numericKeyboardProps()}
                         value={quantity}
                         onChangeText={setQuantity}
                         selectTextOnFocus
@@ -34,7 +42,9 @@ export default function PLPackageCreateModal({ visible, onClose, onConfirm, load
                         </TouchableOpacity>
                     </View>
                 </View>
-            </Pressable>
+                </KeyboardAvoidingView>
+                <KeyboardDoneAccessory />
+            </View>
         </Modal>
     );
 }
@@ -43,8 +53,8 @@ const styles = StyleSheet.create({
     overlay: {
         flex: 1,
         backgroundColor: 'rgba(15,23,42,0.35)',
-        justifyContent: 'flex-end',
     },
+    keyboardView: { flex: 1, justifyContent: 'flex-end' },
     content: {
         backgroundColor: COLORS.surface,
         borderTopLeftRadius: 24,

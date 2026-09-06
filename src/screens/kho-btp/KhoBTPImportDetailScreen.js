@@ -4,9 +4,11 @@ import {
     Alert,
     DeviceEventEmitter,
     FlatList,
+    KeyboardAvoidingView,
     Modal,
     Platform,
     Pressable,
+    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
@@ -19,6 +21,11 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
+import KeyboardDoneAccessory, {
+    keyboardAwareScrollProps,
+    numericKeyboardProps,
+    webInputFocusProps,
+} from '../../components/KeyboardDoneAccessory';
 import { khoBtpApi } from '../../services/khoBtpApi';
 import { getApiErrorMessage } from '../../services/coreApiClient';
 import {
@@ -64,16 +71,26 @@ function NumberModal({ visible, title, label, max, initialValue = '', onClose, o
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
             <View style={styles.overlay}>
                 <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-                <View style={styles.dialog}>
-                    <Text style={styles.dialogTitle}>{title}</Text>
-                    <Text style={styles.dialogLabel}>{label}</Text>
-                    <TextInput style={styles.dialogInput} value={value} onChangeText={setValue} keyboardType="numeric" autoFocus />
-                    {!!max && <Text style={styles.hint}>Tối đa: {max}</Text>}
-                    <View style={styles.dialogActions}>
-                        <TouchableOpacity style={styles.secondaryBtn} onPress={onClose}><Text style={styles.secondaryText}>Hủy</Text></TouchableOpacity>
-                        <TouchableOpacity style={styles.primaryBtn} onPress={submit}><Text style={styles.primaryText}>Xác nhận</Text></TouchableOpacity>
+                <KeyboardAvoidingView
+                    style={styles.modalKeyboardView}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    enabled={Platform.OS !== 'web'}
+                    pointerEvents="box-none"
+                >
+                    <View style={styles.dialog}>
+                        <ScrollView {...keyboardAwareScrollProps()} contentContainerStyle={styles.dialogScrollContent}>
+                            <Text style={styles.dialogTitle}>{title}</Text>
+                            <Text style={styles.dialogLabel}>{label}</Text>
+                            <TextInput style={styles.dialogInput} value={value} onChangeText={setValue} {...numericKeyboardProps()} autoFocus />
+                            {!!max && <Text style={styles.hint}>Tối đa: {max}</Text>}
+                            <View style={styles.dialogActions}>
+                                <TouchableOpacity style={styles.secondaryBtn} onPress={onClose}><Text style={styles.secondaryText}>Hủy</Text></TouchableOpacity>
+                                <TouchableOpacity style={styles.primaryBtn} onPress={submit}><Text style={styles.primaryText}>Xác nhận</Text></TouchableOpacity>
+                            </View>
+                        </ScrollView>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
+                <KeyboardDoneAccessory />
             </View>
         </Modal>
     );
@@ -107,25 +124,36 @@ function BtpDetailModal({ visible, material, max, onClose, onConfirm }) {
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
             <View style={styles.overlay}>
                 <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-                <View style={styles.dialog}>
-                    <Text style={styles.dialogTitle}>Thông tin BTP trong kiện</Text>
-                    <Text style={styles.dialogLabel}>{readValue(material, ['itemCode', 'ItemCode'], 'Số lượng')}</Text>
-                    <TextInput style={styles.dialogInput} value={quantity} onChangeText={setQuantity} keyboardType="numeric" autoFocus />
-                    {!!max && <Text style={styles.hint}>Tối đa: {max}</Text>}
-                    <Text style={[styles.dialogLabel, { marginTop: 14 }]}>Dấu tuần</Text>
-                    <TextInput
-                        style={styles.dialogInput}
-                        value={dauTuan}
-                        onChangeText={(value) => setDauTuan(value.slice(0, 50))}
-                        maxLength={50}
-                        placeholder="Có thể để trống"
-                    />
-                    <Text style={styles.hint}>{dauTuan.length}/50 ký tự</Text>
-                    <View style={styles.dialogActions}>
-                        <TouchableOpacity style={styles.secondaryBtn} onPress={onClose}><Text style={styles.secondaryText}>Hủy</Text></TouchableOpacity>
-                        <TouchableOpacity style={styles.primaryBtn} onPress={submit}><Text style={styles.primaryText}>Xác nhận</Text></TouchableOpacity>
+                <KeyboardAvoidingView
+                    style={styles.modalKeyboardView}
+                    behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                    enabled={Platform.OS !== 'web'}
+                    pointerEvents="box-none"
+                >
+                    <View style={styles.dialog}>
+                        <ScrollView {...keyboardAwareScrollProps()} contentContainerStyle={styles.dialogScrollContent}>
+                            <Text style={styles.dialogTitle}>Thông tin BTP trong kiện</Text>
+                            <Text style={styles.dialogLabel}>{readValue(material, ['itemCode', 'ItemCode'], 'Số lượng')}</Text>
+                            <TextInput style={styles.dialogInput} value={quantity} onChangeText={setQuantity} {...numericKeyboardProps()} autoFocus />
+                            {!!max && <Text style={styles.hint}>Tối đa: {max}</Text>}
+                            <Text style={[styles.dialogLabel, { marginTop: 14 }]}>Dấu tuần</Text>
+                            <TextInput
+                                style={styles.dialogInput}
+                                value={dauTuan}
+                                onChangeText={(value) => setDauTuan(value.slice(0, 50))}
+                                maxLength={50}
+                                placeholder="Có thể để trống"
+                                {...webInputFocusProps()}
+                            />
+                            <Text style={styles.hint}>{dauTuan.length}/50 ký tự</Text>
+                            <View style={styles.dialogActions}>
+                                <TouchableOpacity style={styles.secondaryBtn} onPress={onClose}><Text style={styles.secondaryText}>Hủy</Text></TouchableOpacity>
+                                <TouchableOpacity style={styles.primaryBtn} onPress={submit}><Text style={styles.primaryText}>Xác nhận</Text></TouchableOpacity>
+                            </View>
+                        </ScrollView>
                     </View>
-                </View>
+                </KeyboardAvoidingView>
+                <KeyboardDoneAccessory />
             </View>
         </Modal>
     );
@@ -136,12 +164,14 @@ function MaterialModal({ visible, materials, onClose, onSelect }) {
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={styles.overlay}>
                 <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+                <View style={styles.materialModalPlacement} pointerEvents="box-none">
                 <View style={styles.sheet}>
                     <View style={styles.sheetHandle} />
                     <Text style={styles.dialogTitle}>Chọn BTP cho kiện</Text>
                     <Text style={styles.hint}>Mỗi kiện chỉ được chọn một ItemCode</Text>
                     <FlatList
                         data={materials}
+                        {...keyboardAwareScrollProps()}
                         keyExtractor={(item, index) => `${readValue(item, ['itemCode', 'ItemCode'], '')}-${index}`}
                         renderItem={({ item }) => (
                             <TouchableOpacity style={styles.materialCard} onPress={() => onSelect(item)}>
@@ -156,6 +186,7 @@ function MaterialModal({ visible, materials, onClose, onSelect }) {
                         )}
                         ListEmptyComponent={<Text style={styles.emptyText}>Phiếu chưa có BTP</Text>}
                     />
+                </View>
                 </View>
             </View>
         </Modal>
@@ -501,6 +532,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
 
             <FlatList
                 data={packages}
+                {...keyboardAwareScrollProps()}
                 keyExtractor={(item, index) => String(getPackageId(item) || index)}
                 renderItem={({ item }) => (
                     <PackageCard
@@ -614,8 +646,11 @@ const styles = StyleSheet.create({
     confirmBtn: { height: 54, borderRadius: 16, backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
     confirmText: { color: COLORS.white, fontSize: 15, fontWeight: '800' },
     disabled: { opacity: 0.45 },
-    overlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'center', padding: 20 },
-    dialog: { backgroundColor: COLORS.surface, borderRadius: 20, padding: 20 },
+    overlay: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)' },
+    modalKeyboardView: { flex: 1, justifyContent: 'center', padding: 20 },
+    materialModalPlacement: { flex: 1, justifyContent: 'center', padding: 20 },
+    dialog: { maxHeight: '92%', backgroundColor: COLORS.surface, borderRadius: 20 },
+    dialogScrollContent: { padding: 20 },
     dialogTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 12 },
     dialogLabel: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 7 },
     dialogInput: { height: 50, borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, paddingHorizontal: 14, fontSize: 16, color: COLORS.textPrimary },
