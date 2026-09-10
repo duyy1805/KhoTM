@@ -351,7 +351,11 @@ export default function SelectLocationScreen({ route }) {
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.filterLabel}>Kho hàng</Text>
-                                    <Text style={styles.filterValue}>{selectedKho ? selectedKho.tenNha : 'Chưa chọn'}</Text>
+                                    <Text style={styles.filterValue} numberOfLines={1}>
+                                        {selectedKho
+                                            ? readValue(selectedKho, ['tenNha', 'TenNha', 'maNha', 'MaNha'], 'Chưa chọn')
+                                            : 'Chưa chọn'}
+                                    </Text>
                                 </View>
                                 <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
                             </TouchableOpacity>
@@ -362,7 +366,11 @@ export default function SelectLocationScreen({ route }) {
                                 </View>
                                 <View style={{ flex: 1 }}>
                                     <Text style={styles.filterLabel}>Dãy kho</Text>
-                                    <Text style={styles.filterValue}>{selectedDay ? selectedDay.tenDay : 'Chưa chọn'}</Text>
+                                    <Text style={styles.filterValue} numberOfLines={1}>
+                                        {selectedDay
+                                            ? readValue(selectedDay, ['tenDay', 'TenDay', 'maDay', 'MaDay'], 'Chưa chọn')
+                                            : 'Chưa chọn'}
+                                    </Text>
                                 </View>
                                 <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
                             </TouchableOpacity>
@@ -423,7 +431,9 @@ export default function SelectLocationScreen({ route }) {
                                 <View style={styles.modalHeader}>
                                     <View style={styles.modalIndicator} />
                                     <Text style={styles.modalTitle}>
-                                        {selectingFor === 'kho' ? 'Chọn kho hàng' : `Chọn dãy kho (${selectedKho?.tenNha})`}
+                                        {selectingFor === 'kho'
+                                            ? 'Chọn kho hàng'
+                                            : `Chọn dãy kho (${readValue(selectedKho, ['tenNha', 'TenNha', 'maNha', 'MaNha'], '-')})`}
                                     </Text>
                                 </View>
                                 

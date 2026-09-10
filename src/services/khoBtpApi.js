@@ -282,6 +282,26 @@ export const khoBtpApi = {
         });
     },
 
+    async searchReportLocations({ idKho, maNha = '', maDay = '', itemCode = '', dauTuan = '' }) {
+        const userId = await getCurrentUserId({ required: true });
+        const normalizedItemCode = String(itemCode || '').trim();
+        const normalizedDauTuan = String(dauTuan || '').trim();
+        if (normalizedItemCode.length > 255) throw new Error('ItemCode tối đa 255 ký tự');
+        if (normalizedDauTuan.length > 50) throw new Error('Dấu tuần tối đa 50 ký tự');
+        const params = new URLSearchParams();
+        params.append('idKho', positiveInt(idKho, 'Kho'));
+        params.append('maNha', String(maNha || '').trim());
+        params.append('maDay', String(maDay || '').trim());
+        params.append('itemCode', normalizedItemCode);
+        params.append('dauTuan', normalizedDauTuan);
+        params.append('idTaiKhoan', userId);
+        return apiRequest({
+            method: 'GET',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/baocao/vi-tri?${params.toString()}`,
+        });
+    },
+
     async getLocationByQr(qrCode) {
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/vitri/qr/${encode(qrCode)}` });
     },

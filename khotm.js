@@ -1235,6 +1235,33 @@ router.get('/btp/baocao/khos', async (req, res) => {
     }
 });
 
+router.get('/btp/baocao/vi-tri', async (req, res) => {
+    try {
+        const userId = toIntOrNull(req.query.idTaiKhoan);
+        const idKho = toIntOrNull(req.query.idKho);
+        if (!userId) return res.status(400).json({ message: 'Tài khoản không hợp lệ' });
+        if (!idKho) return res.status(400).json({ message: 'Kho BTP không hợp lệ' });
+
+        const itemCode = String(req.query.itemCode || '').trim();
+        const dauTuan = String(req.query.dauTuan || '').trim();
+        if (itemCode.length > 255) return res.status(400).json({ message: 'ItemCode tối đa 255 ký tự' });
+        if (dauTuan.length > 50) return res.status(400).json({ message: 'Dấu tuần tối đa 50 ký tự' });
+
+        const pool = await tagpoolPromise;
+        const result = await pool.request()
+            .input('ID_Kho', sql.SmallInt, idKho)
+            .input('MaNha', sql.NVarChar(50), String(req.query.maNha || '').trim() || null)
+            .input('MaDay', sql.NVarChar(20), String(req.query.maDay || '').trim() || null)
+            .input('ItemCode', sql.NVarChar(255), itemCode || null)
+            .input('DauTuan', sql.NVarChar(50), dauTuan || null)
+            .input('ID_TaiKhoanDangNhap', sql.Int, userId)
+            .execute('KhoTM_BTP_BaoCao_ViTriTheoItemCodeDauTuan');
+        res.json(result.recordset || []);
+    } catch (error) {
+        res.status(500).json({ message: 'Không tải được báo cáo vị trí BTP', detail: error.message });
+    }
+});
+
 router.get('/btp/phieuxuat/:id', async (req, res, next) => {
     try {
         const id = toIntOrNull(req.params.id);

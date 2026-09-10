@@ -48,6 +48,14 @@ function stockQuantity(item) {
     return asNumber(readValue(item, ['stockQuantity', 'StockQuantity', 'soLuongTon', 'SoLuongTon', 'soLuongTonTong', 'SoLuongTonTong', 'conLai', 'ConLai', 'soLuong', 'SoLuong'], 0));
 }
 
+function normalizeQr(value) {
+    return String(value || '').trim().toUpperCase();
+}
+
+function scannedPackageKey(lineKeyValue, qrCode) {
+    return `${lineKeyValue}|${normalizeQr(qrCode)}`;
+}
+
 function QuantityModal({ visible, item, max, onClose, onConfirm }) {
     const [value, setValue] = useState('');
     useEffect(() => {
@@ -88,7 +96,7 @@ function QuantityModal({ visible, item, max, onClose, onConfirm }) {
     );
 }
 
-function SuggestionModal({ visible, packages, selectedDetailIds, onClose, onSelect }) {
+function SuggestionModal({ visible, packages, selectedDetailIds, scannedQrCodes, bottomInset, onClose, onScan, onSelect }) {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={styles.suggestionOverlay}>
@@ -110,15 +118,21 @@ function SuggestionModal({ visible, packages, selectedDetailIds, onClose, onSele
                         style={styles.suggestionList}
                         contentContainerStyle={styles.suggestionListContent}
                         keyExtractor={(item, index) => String(item.idTheKhoKienBTP || index)}
-                        renderItem={({ item }) => (
-                            <View style={styles.suggestionPackage}>
+                        renderItem={({ item }) => {
+                            const packageQr = normalizeQr(item.qrCode);
+                            const packageScanned = scannedQrCodes.has(packageQr);
+                            return (
+                            <View style={[styles.suggestionPackage, packageScanned && styles.suggestionPackageScanned]}>
                                 <View style={styles.suggestionPackageHeader}>
-                                    <View style={styles.suggestionQrIcon}>
-                                        <Ionicons name="qr-code-outline" size={21} color={COLORS.primary} />
+                                    <View style={[styles.suggestionQrIcon, packageScanned && styles.suggestionQrIconScanned]}>
+                                        <Ionicons name={packageScanned ? 'checkmark-circle' : 'qr-code-outline'} size={21} color={packageScanned ? COLORS.success : COLORS.primary} />
                                     </View>
                                     <View style={{ flex: 1, minWidth: 0 }}>
                                         <Text style={styles.suggestionQr} numberOfLines={1}>{item.qrCode || '-'}</Text>
                                         <Text style={styles.suggestionMeta}>Vị trí: {item.maViTriKho || '-'} • Tổng tồn: {asNumber(item.totalStockQuantity)}</Text>
+                                    </View>
+                                    <View style={[styles.scanStatus, packageScanned ? styles.scanStatusDone : styles.scanStatusPending]}>
+                                        <Text style={[styles.scanStatusText, packageScanned && styles.scanStatusTextDone]}>{packageScanned ? 'Đã quét' : 'Chưa quét'}</Text>
                                     </View>
                                 </View>
                                 {(item.details || []).map((detail) => {
@@ -129,9 +143,19 @@ function SuggestionModal({ visible, packages, selectedDetailIds, onClose, onSele
                                     return (
                                         <TouchableOpacity
                                             key={String(detailId)}
-                                            style={[styles.suggestionDetail, selected && styles.suggestionDetailDisabled]}
+                                            style={[
+                                                styles.suggestionDetail,
+                                                !packageScanned && styles.suggestionDetailLocked,
+                                                selected && styles.suggestionDetailDisabled,
+                                            ]}
                                             disabled={selected}
-                                            onPress={() => onSelect(detail)}
+                                            onPress={() => {
+                                                if (!packageScanned) {
+                                                    Toast.show({ type: 'info', text1: 'Vui lòng quét QR kiện trước' });
+                                                    return;
+                                                }
+                                                onSelect(detail);
+                                            }}
                                         >
                                             <View style={{ flex: 1, minWidth: 0 }}>
                                                 <Text style={styles.suggestionWeek}>{weekMark || 'Chưa có dấu tuần'}{legacy ? ' • dữ liệu cũ' : ''}</Text>
@@ -141,14 +165,25 @@ function SuggestionModal({ visible, packages, selectedDetailIds, onClose, onSele
                                                 <Text style={styles.qtyLabel}>{selected ? 'Đã chọn' : 'Tồn'}</Text>
                                                 <Text style={styles.suggestionStockValue}>{asNumber(detail.stockQuantity)}</Text>
                                             </View>
-                                            <Ionicons name={selected ? 'checkmark-circle' : 'chevron-forward'} size={20} color={selected ? COLORS.success : COLORS.primary} />
+                                            <Ionicons
+                                                name={selected ? 'checkmark-circle' : packageScanned ? 'chevron-forward' : 'lock-closed-outline'}
+                                                size={20}
+                                                color={selected ? COLORS.success : packageScanned ? COLORS.primary : COLORS.textSecondary}
+                                            />
                                         </TouchableOpacity>
                                     );
                                 })}
                             </View>
-                        )}
+                            );
+                        }}
                         ListEmptyComponent={<Text style={styles.emptyText}>Không có kiện gợi ý phù hợp</Text>}
                     />
+                    <View style={[styles.suggestionScanFooter, { paddingBottom: Math.max(12, bottomInset || 0) }]}>
+                        <TouchableOpacity style={styles.suggestionScanButton} onPress={onScan}>
+                            <Ionicons name="scan-outline" size={21} color={COLORS.white} />
+                            <Text style={styles.suggestionScanText}>Quét QR kiện</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             </View>
         </Modal>
@@ -205,6 +240,8 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
     const [loading, setLoading] = useState(false);
     const [scanMode, setScanMode] = useState(false);
     const [scanned, setScanned] = useState(false);
+    const [scanOrigin, setScanOrigin] = useState('main');
+    const [scannedPackageKeys, setScannedPackageKeys] = useState(() => new Set());
     const [quantityItem, setQuantityItem] = useState(null);
     const [quantityMax, setQuantityMax] = useState(0);
     const [suggestionPackages, setSuggestionPackages] = useState([]);
@@ -248,11 +285,31 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
         () => new Set(pendingPicks.map((item) => String(packageDetailId(item.raw))).filter((value) => value && value !== 'null')),
         [pendingPicks],
     );
+    const activeScannedQrCodes = useMemo(() => {
+        const prefix = `${activeKey}|`;
+        return new Set(
+            Array.from(scannedPackageKeys)
+                .filter((key) => key.startsWith(prefix))
+                .map((key) => key.slice(prefix.length)),
+        );
+    }, [activeKey, scannedPackageKeys]);
+
+    const markPackageScanned = (qrCode, targetLineKey = activeKey) => {
+        const normalizedQr = normalizeQr(qrCode);
+        if (!targetLineKey || !normalizedQr) return;
+        setScannedPackageKeys((current) => {
+            const key = scannedPackageKey(targetLineKey, normalizedQr);
+            if (current.has(key)) return current;
+            const next = new Set(current);
+            next.add(key);
+            return next;
+        });
+    };
 
     const addPackageCandidate = (raw) => {
         if (!activeLine) return false;
         const rows = asList(raw, ['bTPs', 'kiens', 'items', 'rows']);
-        const item = rows[0] || raw?.data || raw;
+        const item = rows.find((candidate) => stockQuantity(candidate) > 0) || rows[0] || raw?.data || raw;
         if (!item || typeof item !== 'object') {
             Toast.show({ type: 'error', text1: 'Không tìm thấy chi tiết kiện' });
             return false;
@@ -295,7 +352,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
         return true;
     };
 
-    const scanQr = async () => {
+    const scanQr = async (origin = 'main') => {
         if (isConfirmed) return;
         if (!activeLine) {
             Toast.show({ type: 'info', text1: 'Chọn dòng BTP trước' });
@@ -305,6 +362,8 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
             const result = await requestPermission();
             if (!result.granted) return;
         }
+        setScanOrigin(origin);
+        if (origin === 'suggestions') setSuggestionVisible(false);
         setScanned(false);
         setScanMode(true);
     };
@@ -312,13 +371,36 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
     const handleScanned = async ({ data }) => {
         if (scanned) return;
         setScanned(true);
+        const scannedQr = normalizeQr(data);
+        const isSuggestedQr = suggestionPackages.some((item) => normalizeQr(item.qrCode) === scannedQr);
+        if (scanOrigin === 'suggestions' && isSuggestedQr && activeScannedQrCodes.has(scannedQr)) {
+            setScanMode(false);
+            setSuggestionVisible(true);
+            setScanned(false);
+            Toast.show({ type: 'info', text1: 'Kiện này đã được quét' });
+            return;
+        }
         try {
             const response = await khoBtpApi.getExportPackageByQr({
                 qrCode: data,
                 idPhieuXuat: id,
                 idDonHangLoSanXuat: readValue(activeLine, ['idDonHangLoSanXuat'], 0),
             });
+            const verifiedDetails = asList(response, ['bTPs', 'kiens', 'items', 'rows']);
+            if (!verifiedDetails.some((item) => stockQuantity(item) > 0)) {
+                throw new Error('Kiện đã hết tồn');
+            }
+            const verifiedQr = normalizeQr(getPackageQr(response) || data);
+            markPackageScanned(verifiedQr);
             setScanMode(false);
+            setScanned(false);
+            const matchedSuggestion = suggestionPackages.some((item) => normalizeQr(item.qrCode) === verifiedQr);
+            if (scanOrigin === 'suggestions' && matchedSuggestion) {
+                setSuggestionVisible(true);
+                Toast.show({ type: 'success', text1: 'Đã quét đúng kiện', text2: 'Bạn có thể chọn các dòng dấu tuần của kiện' });
+                return;
+            }
+            setReturnToSuggestions(false);
             addPackageCandidate(response);
         } catch (error) {
             Toast.show({ type: 'error', text1: 'QR không phù hợp', text2: getApiErrorMessage(error) });
@@ -337,7 +419,10 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                     idPhieuXuat: id,
                     idDonHangLoSanXuat: readValue(activeLine, ['idDonHangLoSanXuat'], 0),
                 });
-                if (mounted) addPackageCandidate(response);
+                if (mounted) {
+                    markPackageScanned(getPackageQr(response) || initialQr);
+                    addPackageCandidate(response);
+                }
             } catch (error) {
                 if (mounted) Toast.show({ type: 'error', text1: 'Kiện quét trước không khớp phiếu', text2: getApiErrorMessage(error) });
             } finally {
@@ -345,7 +430,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
             }
         })();
         return () => { mounted = false; };
-    }, [activeLine, id, initialQr, isConfirmed]);
+    }, [activeLine, activeKey, id, initialQr, isConfirmed]);
 
     const loadSuggestions = async () => {
         if (isConfirmed) return;
@@ -422,8 +507,18 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
             <View style={styles.scanner}>
                 <CameraView style={StyleSheet.absoluteFill} onBarcodeScanned={scanned ? undefined : handleScanned} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} />
                 <ScanOverlay />
-                <TouchableOpacity style={[styles.scanClose, { top: insets.top + 18 }]} onPress={() => setScanMode(false)}><Ionicons name="close" size={28} color={COLORS.white} /></TouchableOpacity>
-                <Text style={styles.scanHint}>Quét kiện cho {readValue(activeLine, ['itemCode'], 'dòng phiếu')}</Text>
+                <TouchableOpacity
+                    style={[styles.scanClose, { top: insets.top + 18 }]}
+                    onPress={() => {
+                        setScanMode(false);
+                        setScanned(false);
+                        if (scanOrigin === 'suggestions') setSuggestionVisible(true);
+                    }}
+                >
+                    <Ionicons name="close" size={28} color={COLORS.white} />
+                </TouchableOpacity>
+                <Text style={styles.scanHint}>{scanOrigin === 'suggestions' ? 'Quét QR để mở khóa kiện gợi ý' : `Quét kiện cho ${readValue(activeLine, ['itemCode'], 'dòng phiếu')}`}</Text>
+                <Toast />
             </View>
         );
     }
@@ -469,7 +564,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                     <View>
                         {!!activeLine && !isConfirmed && (
                             <View style={styles.actions}>
-                                <TouchableOpacity style={styles.actionBtn} onPress={scanQr}><Ionicons name="scan-outline" size={20} color={COLORS.white} /><Text style={styles.actionText}>Quét kiện</Text></TouchableOpacity>
+                                <TouchableOpacity style={styles.actionBtn} onPress={() => scanQr('main')}><Ionicons name="scan-outline" size={20} color={COLORS.white} /><Text style={styles.actionText}>Quét kiện</Text></TouchableOpacity>
                                 <TouchableOpacity style={[styles.actionBtn, { backgroundColor: COLORS.success }]} onPress={loadSuggestions}><Ionicons name="list-outline" size={20} color={COLORS.white} /><Text style={styles.actionText}>Kiện gợi ý</Text></TouchableOpacity>
                             </View>
                         )}
@@ -511,11 +606,18 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                 visible={suggestionVisible}
                 packages={suggestionPackages}
                 selectedDetailIds={selectedSuggestionDetailIds}
+                scannedQrCodes={activeScannedQrCodes}
+                bottomInset={insets.bottom}
                 onClose={() => {
                     setSuggestionVisible(false);
                     setReturnToSuggestions(false);
                 }}
+                onScan={() => scanQr('suggestions')}
                 onSelect={(suggestionDetail) => {
+                    if (!activeScannedQrCodes.has(normalizeQr(getPackageQr(suggestionDetail)))) {
+                        Toast.show({ type: 'info', text1: 'Vui lòng quét QR kiện trước' });
+                        return;
+                    }
                     setSuggestionVisible(false);
                     const accepted = addPackageCandidate(suggestionDetail);
                     if (accepted) {
@@ -598,18 +700,29 @@ const styles = StyleSheet.create({
             web: { overflowY: 'scroll', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' },
         }),
     },
-    suggestionListContent: { paddingHorizontal: 16, paddingBottom: 30 },
+    suggestionListContent: { paddingHorizontal: 16, paddingBottom: 16 },
     suggestionPackage: { marginBottom: 12, padding: 13, borderRadius: 17, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border },
+    suggestionPackageScanned: { borderColor: '#86EFAC', backgroundColor: '#F0FDF4' },
     suggestionPackageHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 9 },
     suggestionQrIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primaryLight },
+    suggestionQrIconScanned: { backgroundColor: '#DCFCE7' },
     suggestionQr: { fontSize: 14, fontWeight: '900', color: COLORS.textPrimary },
     suggestionMeta: { marginTop: 4, fontSize: 10, color: COLORS.textSecondary },
+    scanStatus: { borderRadius: 999, paddingHorizontal: 9, paddingVertical: 5 },
+    scanStatusPending: { backgroundColor: '#F1F5F9' },
+    scanStatusDone: { backgroundColor: '#DCFCE7' },
+    scanStatusText: { fontSize: 9, fontWeight: '900', color: COLORS.textSecondary },
+    scanStatusTextDone: { color: '#047857' },
     suggestionDetail: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8, padding: 10, marginTop: 7, borderRadius: 13, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
+    suggestionDetailLocked: { opacity: 0.52, backgroundColor: '#F8FAFC' },
     suggestionDetailDisabled: { opacity: 0.55, backgroundColor: '#ECFDF5' },
     suggestionWeek: { fontSize: 12, fontWeight: '900', color: COLORS.primary },
     suggestionProduct: { marginTop: 3, fontSize: 10, color: COLORS.textSecondary },
     suggestionStock: { minWidth: 52, alignItems: 'center' },
     suggestionStockValue: { marginTop: 2, fontSize: 14, fontWeight: '900', color: COLORS.success },
+    suggestionScanFooter: { paddingHorizontal: 16, paddingTop: 10, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border },
+    suggestionScanButton: { height: 52, borderRadius: 16, backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+    suggestionScanText: { color: COLORS.white, fontSize: 14, fontWeight: '900' },
     dialog: { backgroundColor: COLORS.surface, borderRadius: 20, padding: 20 },
     dialogTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary },
     dialogSub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 6 },

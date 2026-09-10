@@ -355,14 +355,22 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
     const handleQrScanned = async ({ data }) => {
         if (scanned || !scanPackage) return;
         setScanned(true);
-        if (packages.some((item) => String(getPackageQr(item)).trim() === String(data).trim())) {
-            Toast.show({ type: 'error', text1: 'QR đã được dùng trong phiếu' });
+        const scannedQr = String(data || '').trim();
+        const assignedPackage = packages.find(
+            (item) => String(getPackageQr(item) || '').trim().toUpperCase() === scannedQr.toUpperCase(),
+        );
+        if (assignedPackage) {
+            Toast.show({
+                type: 'error',
+                text1: 'QR đã được gán',
+                text2: `${scannedQr} đang thuộc kiện #${getPackageId(assignedPackage)}`,
+            });
             setTimeout(() => setScanned(false), 800);
             return;
         }
         try {
             setLoading(true);
-            await khoBtpApi.assignPackageQr({ qrCode: data, idPackage: getPackageId(scanPackage) });
+            await khoBtpApi.assignPackageQr({ qrCode: scannedQr, idPackage: getPackageId(scanPackage) });
             setScanPackage(null);
             Toast.show({ type: 'success', text1: 'Đã gán QR cho kiện' });
             await fetchDetail();
@@ -517,6 +525,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                     <Ionicons name="close" size={28} color={COLORS.white} />
                 </TouchableOpacity>
                 <Text style={styles.scanHint}>Quét QR gán cho kiện #{getPackageId(scanPackage)}</Text>
+                <Toast />
             </View>
         );
     }
