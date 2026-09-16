@@ -126,12 +126,14 @@ export const khoBtpApi = {
     },
 
     async assignPackageLocations(items) {
+        const userId = await getCurrentUserId({ required: true });
         if (!Array.isArray(items) || !items.length) throw new Error('Chưa chọn kiện cần gán vị trí');
         return apiRequest({
             method: 'POST',
             baseURL: KHO_TM_API_BASE_URL,
             url: '/btp/phieunhap/gan-vi-tri',
             data: {
+                IdTaiKhoanDangNhap: userId,
                 viTriKienBTPs: items.map((item) => ({
                     QrCode: String(item.QrCode || item.qrCode || ''),
                     ID_ViTriKho: positiveInt(item.ID_ViTriKho, 'Vị trí'),
@@ -328,14 +330,30 @@ export const khoBtpApi = {
     },
 
     async updatePackageLocation({ idPackage, idLocation }) {
+        const userId = await getCurrentUserId({ required: true });
         return apiRequest({
             method: 'POST',
             baseURL: KHO_TM_API_BASE_URL,
             url: '/btp/vitri/cap-nhat-kien',
             data: {
+                IdTaiKhoanDangNhap: userId,
                 ID_TheKhoKienBTP: positiveInt(idPackage, 'Kiện'),
                 ID_ViTriKho: positiveInt(idLocation, 'Vị trí'),
             },
+        });
+    },
+
+    async getPackageLocationHistory(idPackage, pageIndex = 0, pageSize = 20) {
+        return apiRequest({
+            method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/kien/${positiveInt(idPackage, 'Kiện')}/lich-su-vi-tri?pageIndex=${pageIndex}&pageSize=${pageSize}`,
+        });
+    },
+
+    async getPackageLocationHistoryDetail(idPackage, idHistory) {
+        return apiRequest({
+            method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/kien/${positiveInt(idPackage, 'Kiện')}/lich-su-vi-tri/${encode(idHistory)}`,
         });
     },
 

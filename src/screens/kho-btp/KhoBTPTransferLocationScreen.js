@@ -235,6 +235,11 @@ export default function KhoBTPTransferLocationScreen({ navigation, route }) {
                                 <TouchableOpacity style={styles.chooseBtn} onPress={chooseDestination}><Text style={styles.chooseText}>Chọn vị trí</Text></TouchableOpacity>
                             </View>
                         )}
+                        {!!selectedPackage && (
+                            <TouchableOpacity accessibilityRole="button" style={{ paddingVertical: 14 }} onPress={() => navigation.navigate('KhoBTPLocationHistory', { idPackage: getPackageId(selectedPackage), qrCode: getPackageQr(selectedPackage) })}>
+                                <Text style={styles.chooseText}>Lịch sử vị trí kiện đã chọn</Text>
+                            </TouchableOpacity>
+                        )}
                         <Text style={styles.sectionTitle}>Danh sách kiện</Text>
                     </View>
                 }

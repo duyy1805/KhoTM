@@ -230,6 +230,11 @@ const ScannedDetail = ({ route }) => {
                 <View style={{ width: 24 }} />
             </View>
 
+            {!!data?.[0]?.ID_TheKhoKienBTP && (
+                <TouchableOpacity accessibilityRole="button" style={{ padding: 16 }} onPress={() => navigation.navigate('KhoBTPLocationHistory', { idPackage: data[0].ID_TheKhoKienBTP, qrCode: currentQR })}>
+                    <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Lịch sử vị trí</Text>
+                </TouchableOpacity>
+            )}
             <FlatList
                 data={data}
                 keyExtractor={(item, index) => index.toString()}

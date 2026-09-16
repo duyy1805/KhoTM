@@ -39,6 +39,9 @@ import KhoBTPReportScreen from "./src/screens/kho-btp/KhoBTPReportScreen";
 import KhoBTPReportLocationScreen from "./src/screens/kho-btp/KhoBTPReportLocationScreen";
 import KhoBTPReportPackagesScreen from "./src/screens/kho-btp/KhoBTPReportPackagesScreen";
 
+import KhoBTPLocationHistoryScreen from "./src/screens/kho-btp/KhoBTPLocationHistoryScreen";
+import KhoBTPLocationHistoryDetailScreen from "./src/screens/kho-btp/KhoBTPLocationHistoryDetailScreen";
+
 const Stack = createStackNavigator();
 
 export default function App() {
@@ -46,6 +49,8 @@ export default function App() {
     <SafeAreaProvider>
       <NavigationContainer>
         <Stack.Navigator initialRouteName="LoginScreen">
+          <Stack.Screen name="KhoBTPLocationHistory" component={KhoBTPLocationHistoryScreen} options={{ title: "Lịch sử vị trí" }} />
+          <Stack.Screen name="KhoBTPLocationHistoryDetail" component={KhoBTPLocationHistoryDetailScreen} options={{ title: "Nội dung kiện lúc điều chuyển" }} />
           <Stack.Screen
             name="LoginScreen"
             component={LoginScreen}

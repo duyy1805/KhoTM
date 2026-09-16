@@ -43,3 +43,5 @@ yarn-error.*
 
 *.sql
 !database/scripts/add-btp-report-item-week-search.sql
+!database/scripts/add-btp-location-history.sql
+!database/scripts/test-btp-location-history.sql
