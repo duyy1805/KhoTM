@@ -33,6 +33,7 @@ import {
     BTP_COLORS as COLORS,
     buildImportConfirmPackage,
     getBtpMaterialPayload,
+    getImportQuantityMismatches,
     getLocationCode,
     getLocationId,
     getPackageDetails,
@@ -303,6 +304,8 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
 
     const selectedPackages = useMemo(() => packages.filter((item) => selectedIds.includes(getPackageId(item))), [packages, selectedIds]);
     const allReady = packages.length > 0 && packages.every(isImportPackageReady);
+    const quantityMismatches = useMemo(() => getImportQuantityMismatches(materials, packages), [materials, packages]);
+    const canConfirm = allReady && materials.length > 0 && quantityMismatches.length === 0;
     const isConfirmed = readValue(detail, ['trangThai', 'TrangThai'], false) === true
         || Number(readValue(detail, ['trangThai', 'TrangThai'], 0)) === 1;
     const workingMaterialRemaining = useMemo(() => {
@@ -502,6 +505,15 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
             Toast.show({ type: 'error', text1: 'Tất cả kiện phải có BTP, QR và vị trí' });
             return;
         }
+        if (!materials.length || quantityMismatches.length) {
+            const mismatch = quantityMismatches[0];
+            Toast.show({
+                type: 'error',
+                text1: 'Số lượng QR chưa khớp phiếu nhập',
+                text2: mismatch ? `${mismatch.itemCode || 'BTP'}: ${mismatch.scanned}/${mismatch.requested}` : 'Phiếu chưa có BTP',
+            });
+            return;
+        }
         confirmAction('Xác nhận phiếu nhập', 'Phiếu sẽ được chuyển sang trạng thái phê duyệt trên ERP.', async () => {
             try {
                 setLoading(true);
@@ -576,6 +588,11 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                                 <Text style={styles.stat}>Kiện: {packages.length}</Text>
                                 <Text style={styles.stat}>Sẵn sàng: {packages.filter(isImportPackageReady).length}</Text>
                             </View>
+                            {!isConfirmed && quantityMismatches.map((item) => (
+                                <Text key={item.itemCode} style={[styles.summarySub, { color: COLORS.danger }]}>
+                                    {item.itemCode || 'BTP'}: đã gán QR {item.scanned}/{item.requested}
+                                </Text>
+                            ))}
                         </View>
                         {!isConfirmed && <View style={styles.toolbar}>
                             <TouchableOpacity style={styles.toolBtn} onPress={() => setCreateVisible(true)}><Ionicons name="add" size={19} color={COLORS.primary} /><Text style={styles.toolText}>Tạo kiện</Text></TouchableOpacity>
@@ -589,7 +606,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
             />
 
             <View style={styles.footer}>
-                <TouchableOpacity style={[styles.confirmBtn, (!allReady || isConfirmed) && styles.disabled]} onPress={confirmImport} disabled={!allReady || isConfirmed || loading}>
+                <TouchableOpacity style={[styles.confirmBtn, (!canConfirm || isConfirmed) && styles.disabled]} onPress={confirmImport} disabled={!canConfirm || isConfirmed || loading}>
                     {loading ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="save-outline" size={20} color={COLORS.white} /><Text style={styles.confirmText}>Lưu / Xác nhận phiếu</Text></>}
                 </TouchableOpacity>
             </View>

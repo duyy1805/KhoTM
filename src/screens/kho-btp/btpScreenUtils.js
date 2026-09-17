@@ -125,3 +125,21 @@ export function isImportPackageReady(item) {
     );
 }
 
+export function getImportQuantityMismatches(materials, packages) {
+    const totals = new Map();
+    const addQuantity = (row, field) => {
+        const itemCode = String(readValue(row, ['itemCode', 'ItemCode'], '')).trim();
+        const key = itemCode.toUpperCase();
+        const total = totals.get(key) || { itemCode, requested: 0, scanned: 0 };
+        total[field] += asNumber(readValue(row, field === 'requested'
+            ? ['soLuong', 'SoLuong']
+            : ['soLuongTon', 'SoLuong', 'soLuong'], 0));
+        totals.set(key, total);
+    };
+
+    materials.forEach((row) => addQuantity(row, 'requested'));
+    packages.filter(getPackageQr).forEach((item) => getPackageDetails(item).forEach((row) => addQuantity(row, 'scanned')));
+
+    return [...totals.values()].filter(({ requested, scanned }) => requested !== scanned);
+}
+

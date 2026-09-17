@@ -675,6 +675,7 @@ const quantitiesFit = (allowedRows, requestedRows, keys, allowedQuantityKey, req
 // Gia tri 0 duoc xem la "khong xac dinh"; van tru so luong khoi tung dong ERP
 // de khong cho phep cung mot han muc bi tinh lap lai cho nhieu dong kien.
 const importQuantitiesFit = (allowedRows, requestedRows, keys, allowedQuantityKey, requestedQuantityKey) => {
+    const quantityTolerance = 0.000001;
     const requested = [...groupQuantity(requestedRows, keys, requestedQuantityKey).entries()]
         .map(([key, quantity]) => ({ values: key.split('|').map(Number), quantity }))
         .sort((left, right) => (
@@ -690,7 +691,7 @@ const importQuantitiesFit = (allowedRows, requestedRows, keys, allowedQuantityKe
         const candidates = allowed.filter((limit) => item.values.every((value, index) => (
             value === 0 || limit.values[index] === 0 || value === limit.values[index]
         )));
-        if (candidates.reduce((sum, limit) => sum + limit.remaining, 0) < item.quantity) return false;
+        if (candidates.reduce((sum, limit) => sum + limit.remaining, 0) < item.quantity - quantityTolerance) return false;
 
         let quantityLeft = item.quantity;
         for (const limit of candidates) {
@@ -700,7 +701,7 @@ const importQuantitiesFit = (allowedRows, requestedRows, keys, allowedQuantityKe
             if (quantityLeft <= 0) break;
         }
     }
-    return true;
+    return allowed.every((limit) => Math.abs(limit.remaining) < quantityTolerance);
 };
 
 const importDetailResponse = (recordsets = []) => {
@@ -1089,7 +1090,7 @@ router.put('/btp/phieunhap/xac-nhan', async (req, res) => {
             SoLuong_NhapKho: item.soLuongTon,
         }));
         if (!importQuantitiesFit(allowedResult.recordset || [], requestedDetails, importKeys, 'SoLuong_NhapKho', 'SoLuong_NhapKho')) {
-            return res.status(400).json({ message: 'Số lượng nhập lớn hơn trên ERP' });
+            return res.status(400).json({ message: 'Số lượng nhập phải bằng số lượng trên ERP' });
         }
         const table = new sql.Table('dbo.TheKhoKienBTPChiTietNhapsType');
         table.columns.add('ID_PhieuNhapBTP', sql.Int);

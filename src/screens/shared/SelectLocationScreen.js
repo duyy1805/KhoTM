@@ -401,6 +401,7 @@ export default function SelectLocationScreen({ route }) {
                             </View>
                         ) : (
                             <FlatList
+                                style={styles.locationList}
                                 data={viTriList}
                                 renderItem={renderLocationItem}
                                 keyExtractor={(item, index) => String(getLocationId(item) || index)}
@@ -437,7 +438,7 @@ export default function SelectLocationScreen({ route }) {
                                     </Text>
                                 </View>
                                 
-                                <ScrollView contentContainerStyle={styles.chipContainer}>
+                                <ScrollView style={styles.modalList} contentContainerStyle={styles.chipContainer}>
                                     {(selectingFor === 'kho' ? khoList : currentAisles).map((item, idx) => (
                                         <TouchableOpacity
                                             key={idx}
@@ -502,7 +503,11 @@ export default function SelectLocationScreen({ route }) {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        minHeight: 0,
         backgroundColor: COLORS.background,
+        ...Platform.select({
+            web: { height: '100vh', maxHeight: '100vh', overflow: 'hidden' },
+        }),
     },
     header: {
         flexDirection: 'row',
@@ -524,6 +529,7 @@ const styles = StyleSheet.create({
     },
     content: {
         flex: 1,
+        minHeight: 0,
         padding: 16,
     },
     filterSection: {
@@ -592,7 +598,18 @@ const styles = StyleSheet.create({
         marginBottom: 20,
     },
     listContent: {
-        paddingBottom: 80,
+        paddingBottom: 16,
+    },
+    locationList: {
+        flex: 1,
+        minHeight: 0,
+        ...Platform.select({
+            web: {
+                overflowY: 'auto',
+                touchAction: 'pan-y',
+                WebkitOverflowScrolling: 'touch',
+            },
+        }),
     },
     locationCard: {
         flex: 1,
@@ -640,10 +657,6 @@ const styles = StyleSheet.create({
         color: COLORS.textSecondary,
     },
     footer: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
         padding: 16,
         backgroundColor: COLORS.surface,
         borderTopWidth: 1,
@@ -691,6 +704,17 @@ const styles = StyleSheet.create({
         borderTopRightRadius: 32,
         padding: 24,
         maxHeight: '80%',
+        minHeight: 0,
+    },
+    modalList: {
+        minHeight: 0,
+        ...Platform.select({
+            web: {
+                overflowY: 'auto',
+                touchAction: 'pan-y',
+                WebkitOverflowScrolling: 'touch',
+            },
+        }),
     },
     modalHeader: {
         alignItems: 'center',
