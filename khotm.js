@@ -1484,15 +1484,34 @@ router.get('/btp/vitri/:id/chitiet', async (req, res) => {
             .query(`
                 SELECT k.ID_TheKhoKienBTP, k.QRCode, ct.ItemCode, ct.Ten_SanPham,
                        ct.ID_DonHang, ct.ID_DonHang_LoSanXuat, ct.ID_DonHang_SanPham,
-                       ct.ID_QuyTrinhSanXuat, ct.Ten_QuyTrinhSanXuat, ct.DauTuan
+                       ct.ID_QuyTrinhSanXuat, ct.Ten_QuyTrinhSanXuat, ct.DauTuan,
+                       dh.Ma_DonHang, lsx.So_LoSanXuat
                 FROM TheKhoKienBTP k
                 INNER JOIN TheKhoKienBTP_ChiTiet ct ON ct.ID_TheKhoKienBTP = k.ID_TheKhoKienBTP
+                LEFT JOIN DonHang_LoSanXuat lsx ON lsx.ID_DonHang_LoSanXuat = ct.ID_DonHang_LoSanXuat
+                LEFT JOIN DonHang dh ON dh.ID_DonHang = COALESCE(NULLIF(ct.ID_DonHang, 0), lsx.ID_DonHang)
                 WHERE k.ID_ViTriKho = @ID_ViTri_Metadata
                   AND ISNULL(k.TonTai, 1) = 1 AND ISNULL(ct.TonTai, 1) = 1;
             `);
-        const metadataByKey = new Map((metadata.recordset || []).map((row) => [`${row.ID_TheKhoKienBTP}:${row.ItemCode || ''}`, row]));
+        const metadataKey = (row) => `${row.ID_TheKhoKienBTP ?? row.idPackage}:${String(row.ItemCode ?? row.itemCode ?? '').trim().toUpperCase()}`;
+        const metadataByKey = new Map((metadata.recordset || []).map((row) => [metadataKey(row), row]));
+        const metadataByPackage = new Map();
+        for (const row of metadata.recordset || []) {
+            const key = String(row.ID_TheKhoKienBTP);
+            metadataByPackage.set(key, [...(metadataByPackage.get(key) || []), row]);
+        }
         res.json(stockRows
-            .map((row) => ({ ...row, ...(metadataByKey.get(`${row.ID_TheKhoKienBTP}:${row.ItemCode || ''}`) || {}) }))
+            .map((row) => {
+                const matches = metadataByPackage.get(String(row.ID_TheKhoKienBTP)) || [];
+                const detail = metadataByKey.get(metadataKey(row)) || (matches.length === 1 ? matches[0] : null);
+                return {
+                    ...row,
+                    ...detail,
+                    DauTuan: detail?.DauTuan || row.DauTuan || null,
+                    Ma_DonHang: detail?.Ma_DonHang || row.Ma_DonHang || null,
+                    So_LoSanXuat: detail?.So_LoSanXuat || row.So_LoSanXuat || null,
+                };
+            })
             .filter((row) => Number(row.SoLuongTonKien || 0) > 0));
     } catch (error) {
         res.status(500).json({ message: 'Không tải được kiện theo vị trí', detail: error.message });

@@ -3,6 +3,7 @@ import { ActivityIndicator, FlatList, Modal, Platform, Pressable, ScrollView, St
 import { Ionicons } from '@expo/vector-icons';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
 import { keyboardAwareScrollProps, webInputFocusProps } from '../../components/KeyboardDoneAccessory';
@@ -86,7 +87,7 @@ export default function KhoBTPReportScreen({ navigation }) {
         catch (error) { Toast.show({ type: 'error', text1: 'Không tải được vị trí', text2: getApiErrorMessage(error) }); }
         finally { setLoading(false); }
     }, [aisle, appliedItemCode, appliedWeekMark, house]);
-    useEffect(() => { loadLocations(); }, [loadLocations]);
+    useFocusEffect(useCallback(() => { loadLocations(); }, [loadLocations]));
 
     const filtered = useMemo(() => { const q = locationSearch.trim().toLowerCase(); return !q ? locations : locations.filter((item) => [locationCode(item), readValue(item, ['TenViTriKho'], ''), readValue(item, ['TenNha'], ''), readValue(item, ['TenDay'], '')].join(' ').toLowerCase().includes(q)); }, [locationSearch, locations]);
     const summary = useMemo(() => ({ total: locations.length, occupied: locations.filter((x) => packageCount(x) > 0).length, empty: locations.filter((x) => packageCount(x) === 0).length, packages: locations.reduce((sum, x) => sum + packageCount(x), 0), stock: locations.reduce((sum, x) => sum + stockAtLocation(x), 0) }), [locations]);

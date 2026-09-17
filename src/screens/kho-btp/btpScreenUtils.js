@@ -60,6 +60,10 @@ export function getLocationCode(item) {
     return readValue(item, ['maViTriKho', 'MaViTriKho', 'qrCode', 'QrCode', 'QRCode', 'tenViTriKho', 'label'], '');
 }
 
+export function getPackageLocationCode(item) {
+    return readValue(item, ['maViTriKho', 'MaViTriKho', 'tenViTriKho', 'TenViTriKho'], '');
+}
+
 export function formatDate(value) {
     if (!value) return '-';
     const raw = String(value);
@@ -89,7 +93,7 @@ export function buildImportConfirmPackage(item) {
     return {
         idTheKhoKienBTP: getPackageId(item),
         idViTriKho: getLocationId(item),
-        maViTriKho: getLocationCode(item),
+        maViTriKho: getPackageLocationCode(item),
         qrCode: getPackageQr(item),
         soLuongTon: asNumber(readValue(item, ['soLuongTon', 'SoLuongTon', 'soLuongTonTong'], 0)),
         bTPs: details.map((detail) => ({

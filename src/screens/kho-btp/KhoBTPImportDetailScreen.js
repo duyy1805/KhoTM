@@ -36,6 +36,7 @@ import {
     getImportQuantityMismatches,
     getLocationCode,
     getLocationId,
+    getPackageLocationCode,
     getPackageDetails,
     getPackageId,
     getPackageQr,
@@ -222,7 +223,7 @@ function PackageCard({ item, selected, locked, onSelect, onMaterial, onQr, onLoc
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.infoBox} onPress={onLocation} disabled={locked}>
                     <Text style={styles.infoLabel}>Vị trí</Text>
-                    <Text style={styles.infoValue} numberOfLines={1}>{getLocationCode(item) || 'Chưa có'}</Text>
+                    <Text style={styles.infoValue} numberOfLines={1}>{getPackageLocationCode(item) || 'Chưa có'}</Text>
                 </TouchableOpacity>
             </View>
             {!locked && <View style={styles.packageActions}>
@@ -267,7 +268,18 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
             const response = await khoBtpApi.getImportDetail(id);
             setDetail(response || {});
             setMaterials(Array.isArray(response?.chiTiets) ? response.chiTiets : []);
-            setPackages(Array.isArray(response?.kiens) ? response.kiens : []);
+            const incomingPackages = Array.isArray(response?.kiens) ? response.kiens : [];
+            setPackages((previous) => {
+                const previousPositions = new Map(previous.map((item, index) => [String(getPackageId(item)), index]));
+                return incomingPackages
+                    .map((item, index) => ({ item, index }))
+                    .sort((left, right) => {
+                        const leftPosition = previousPositions.get(String(getPackageId(left.item)));
+                        const rightPosition = previousPositions.get(String(getPackageId(right.item)));
+                        return (leftPosition ?? previous.length + left.index) - (rightPosition ?? previous.length + right.index);
+                    })
+                    .map(({ item }) => item);
+            });
             return response;
         } catch (error) {
             Toast.show({ type: 'error', text1: 'Lỗi tải phiếu nhập', text2: getApiErrorMessage(error) });
@@ -528,20 +540,6 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
         });
     };
 
-    if (scanPackage) {
-        return (
-            <View style={styles.scanner}>
-                <CameraView style={StyleSheet.absoluteFill} onBarcodeScanned={scanned ? undefined : handleQrScanned} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} />
-                <ScanOverlay />
-                <TouchableOpacity style={[styles.scanClose, { top: insets.top + 18 }]} onPress={() => setScanPackage(null)}>
-                    <Ionicons name="close" size={28} color={COLORS.white} />
-                </TouchableOpacity>
-                <Text style={styles.scanHint}>Quét QR gán cho kiện #{getPackageId(scanPackage)}</Text>
-                <Toast />
-            </View>
-        );
-    }
-
     return (
         <View style={[styles.container, { paddingBottom: insets.bottom }]}>
             <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
@@ -630,6 +628,16 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                 onConfirm={addMaterial}
             />
             {loading && <View style={styles.loadingOverlay}><ActivityIndicator size="large" color={COLORS.primary} /></View>}
+            {scanPackage && (
+                <View style={styles.scanner}>
+                    <CameraView style={StyleSheet.absoluteFill} onBarcodeScanned={scanned ? undefined : handleQrScanned} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} />
+                    <ScanOverlay />
+                    <TouchableOpacity style={[styles.scanClose, { top: insets.top + 18 }]} onPress={() => setScanPackage(null)}>
+                        <Ionicons name="close" size={28} color={COLORS.white} />
+                    </TouchableOpacity>
+                    <Text style={styles.scanHint}>Quét QR gán cho kiện #{getPackageId(scanPackage)}</Text>
+                </View>
+            )}
             <Toast />
         </View>
     );
@@ -694,7 +702,7 @@ const styles = StyleSheet.create({
     materialName: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
     materialQty: { fontSize: 16, fontWeight: '800', color: COLORS.primary, marginLeft: 8 },
     emptyText: { textAlign: 'center', color: COLORS.textSecondary, marginTop: 45 },
-    scanner: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
+    scanner: { ...StyleSheet.absoluteFillObject, zIndex: 10, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
     scanClose: { position: 'absolute', left: 18, zIndex: 3, padding: 10, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.45)' },
     scanHint: { position: 'absolute', bottom: 70, color: COLORS.white, fontSize: 14, fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 },
     loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.45)', alignItems: 'center', justifyContent: 'center' },

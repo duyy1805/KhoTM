@@ -38,7 +38,8 @@ const COLORS = {
 const ScannedDetail = ({ route }) => {
     const navigation = useNavigation();
     const insets = useSafeAreaInsets();
-    const { data: initialData, qrCode, kho, readOnly = false } = route.params;
+    const { data: initialData, qrCode, kho, readOnly = false, allowMetadataEdit = false } = route.params;
+    const canEditMetadata = !readOnly || allowMetadataEdit;
     
     const [currentQR, setCurrentQR] = useState(qrCode);
     const [data, setData] = useState(initialData);
@@ -254,7 +255,7 @@ const ScannedDetail = ({ route }) => {
                             <View style={styles.divider} />
 
                             <View style={styles.infoGrid}>
-                                <TouchableOpacity style={styles.infoItem} disabled={readOnly} onPress={openUpdateQRScan}>
+                                <TouchableOpacity style={styles.infoItem} disabled={!canEditMetadata} onPress={openUpdateQRScan}>
                                     <View style={styles.infoIconBg}>
                                         <Icon name="qrcode" size={20} color={COLORS.primary} />
                                     </View>
@@ -262,14 +263,14 @@ const ScannedDetail = ({ route }) => {
                                         <Text style={styles.infoLabel}>Mã QR</Text>
                                         <View style={styles.editableValue}>
                                             <Text style={styles.infoValue} numberOfLines={1}>{currentQR}</Text>
-                                            {!readOnly && <AntDesign name="edit" size={14} color={COLORS.primary} style={{ marginLeft: 4 }} />}
+                                            {canEditMetadata && <AntDesign name="edit" size={14} color={COLORS.primary} style={{ marginLeft: 4 }} />}
                                         </View>
                                     </View>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity 
                                     style={styles.infoItem} 
-                                    disabled={readOnly}
+                                    disabled={!canEditMetadata}
                                     onPress={() => navigation.navigate('SelectLocationScreen', {
                                         locationMode: 'btp',
                                         idKho: kho?.id || 1,
@@ -287,7 +288,7 @@ const ScannedDetail = ({ route }) => {
                                         <Text style={styles.infoLabel}>Vị trí</Text>
                                         <View style={styles.editableValue}>
                                             <Text style={styles.infoValue}>{data[0]?.MaViTriKho || 'Chưa có'}</Text>
-                                            {!readOnly && <AntDesign name="edit" size={14} color="#0EA5E9" style={{ marginLeft: 4 }} />}
+                                            {canEditMetadata && <AntDesign name="edit" size={14} color="#0EA5E9" style={{ marginLeft: 4 }} />}
                                         </View>
                                     </View>
                                 </TouchableOpacity>
