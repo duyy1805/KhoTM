@@ -91,9 +91,9 @@ export const khoBtpApi = {
         });
     },
 
-    async addPackageDetails({ idPackage, idPhieuNhap, btps }) {
+    async addPackageDetails({ idPackage, idPhieuNhap, btps, idDetail = null }) {
         if (!Array.isArray(btps) || btps.length !== 1) {
-            throw new Error('Mỗi kiện phải có đúng một loại BTP');
+            throw new Error('Mỗi lần lưu cần đúng một dòng BTP');
         }
         const normalizedBtps = btps.map((item) => {
             const dauTuan = String(item?.DauTuan ?? item?.dauTuan ?? '').trim();
@@ -107,7 +107,21 @@ export const khoBtpApi = {
             data: {
                 ID_TheKhoKienBTP: positiveInt(idPackage, 'Kiện'),
                 ID_PhieuNhapBTP: positiveInt(idPhieuNhap, 'Phiếu nhập'),
+                ID_TheKhoKienBTP_ChiTiet: idDetail == null ? null : positiveInt(idDetail, 'Chi tiết kiện'),
                 bTPs: normalizedBtps,
+            },
+        });
+    },
+
+    async deletePackageDetail({ idPackage, idPhieuNhap, idDetail }) {
+        return apiRequest({
+            method: 'POST',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/phieunhap/xoa-chi-tiet',
+            data: {
+                ID_TheKhoKienBTP: positiveInt(idPackage, 'Kiện'),
+                ID_PhieuNhapBTP: positiveInt(idPhieuNhap, 'Phiếu nhập'),
+                ID_TheKhoKienBTP_ChiTiet: positiveInt(idDetail, 'Chi tiết kiện'),
             },
         });
     },

@@ -708,7 +708,7 @@ const importDetailResponse = (recordsets = []) => {
     const header = recordsets[0]?.[0] || {};
     const materials = recordsets[1] || [];
     const packageHeaders = recordsets[2] || [];
-    const packageDetails = recordsets[3] || [];
+    const packageDetails = (recordsets[3] || []).filter((row) => row.TonTai == null || Number(row.TonTai) !== 0);
     return {
         id: header.ID_PhieuNhapBTP,
         soPhieu: header.So_PhieuNhapBTP,
@@ -823,6 +823,18 @@ router.get('/btp/phieunhap/:id', async (req, res) => {
         const pool = await tagpoolPromise;
         const result = await pool.request().input('ID_PhieuNhapBTP', sql.Int, id).execute('App_PhieuNhapBTP_ThongTinChiTiet');
         if (!result.recordsets?.[0]?.length) return res.status(404).json({ message: 'Không tìm thấy phiếu nhập BTP' });
+        const activeDetails = await pool.request()
+            .input('ID_PhieuNhap_ActiveDetails', sql.Int, id)
+            .query(`
+                SELECT ct.ID_TheKhoKienBTP_ChiTiet
+                FROM TheKhoKienBTP_ChiTiet ct
+                INNER JOIN TheKhoKienBTP k ON k.ID_TheKhoKienBTP = ct.ID_TheKhoKienBTP
+                WHERE k.ID_PhieuNhapBTP = @ID_PhieuNhap_ActiveDetails
+                  AND ISNULL(k.TonTai, 1) = 1 AND ISNULL(ct.TonTai, 1) = 1;
+            `);
+        const activeIds = new Set((activeDetails.recordset || []).map((row) => Number(row.ID_TheKhoKienBTP_ChiTiet)));
+        result.recordsets[3] = (result.recordsets[3] || [])
+            .filter((row) => activeIds.has(Number(row.ID_TheKhoKienBTP_ChiTiet)));
         res.json(importDetailResponse(result.recordsets));
     } catch (error) {
         res.status(500).json({ message: 'Không tải được chi tiết phiếu nhập BTP', detail: error.message });
@@ -915,14 +927,18 @@ router.post('/btp/phieunhap/add-chi-tiet', async (req, res) => {
     const body = req.body || {};
     const idKien = toIntOrNull(body.ID_TheKhoKienBTP);
     const idPhieuNhap = toIntOrNull(body.ID_PhieuNhapBTP);
+    const idDetail = toIntOrNull(body.ID_TheKhoKienBTP_ChiTiet);
     const btps = Array.isArray(body.bTPs) ? body.bTPs : [];
-    if (!idKien || !idPhieuNhap || btps.length !== 1) return res.status(400).json({ message: 'Mỗi kiện phải có đúng một loại BTP' });
+    if (!idKien || !idPhieuNhap || btps.length !== 1) return res.status(400).json({ message: 'Mỗi lần lưu cần đúng một dòng BTP' });
     try {
         const pool = await tagpoolPromise;
         const tx = new sql.Transaction(pool);
         await tx.begin();
         try {
             await ensureImportEditable(new sql.Request(tx), idPhieuNhap);
+            await new sql.Request(tx)
+                .input('ID_PhieuNhap_Lock', sql.Int, idPhieuNhap)
+                .query('SELECT ID_PhieuNhapBTP FROM PhieuNhapBTP WITH (UPDLOCK, HOLDLOCK) WHERE ID_PhieuNhapBTP = @ID_PhieuNhap_Lock;');
             const packageResult = await new sql.Request(tx)
                 .input('ID_Kien_AddDetail', sql.Int, idKien)
                 .input('ID_PhieuNhap_AddDetail', sql.Int, idPhieuNhap)
@@ -934,43 +950,111 @@ router.post('/btp/phieunhap/add-chi-tiet', async (req, res) => {
                       AND TonTai = 1;
                 `);
             if (!packageResult.recordset?.length) throw new Error('Kiện không thuộc phiếu nhập BTP này');
-            for (const item of btps) {
-                const soLuong = toNumber(item.SoLuong ?? item.soLuong);
-                if (soLuong <= 0) throw new Error('Số lượng BTP phải lớn hơn 0');
-                const dauTuan = normalizeDauTuan(item.DauTuan ?? item.dauTuan);
-                await new sql.Request(tx)
+            const item = btps[0];
+            const soLuong = Number(item.SoLuong ?? item.soLuong);
+            const itemCode = String(item.ItemCode || '').trim();
+            if (!Number.isFinite(soLuong) || soLuong <= 0 || !itemCode) throw new Error('BTP hoặc số lượng không hợp lệ');
+            const dauTuan = normalizeDauTuan(item.DauTuan ?? item.dauTuan);
+            if (idDetail) {
+                const existing = await new sql.Request(tx)
+                    .input('ID_Kien_ExistingDetail', sql.Int, idKien)
+                    .input('ID_ExistingDetail', sql.Int, idDetail)
+                    .query(`
+                        SELECT ItemCode, ID_KeHoachSanXuat, ID_DonHang_LoSanXuat,
+                               ID_DonHang_SanPham, ID_QuyTrinhSanXuat, ID_DonHang
+                        FROM TheKhoKienBTP_ChiTiet WITH (UPDLOCK, HOLDLOCK)
+                        WHERE ID_TheKhoKienBTP = @ID_Kien_ExistingDetail
+                          AND ID_TheKhoKienBTP_ChiTiet = @ID_ExistingDetail
+                          AND ISNULL(TonTai, 1) = 1;
+                    `);
+                const row = existing.recordset?.[0];
+                if (!row || String(row.ItemCode || '').trim().toUpperCase() !== itemCode.toUpperCase()
+                    || [['ID_KeHoachSanXuat', 'IdKeHoachSanXuat'],
+                        ['ID_DonHang_LoSanXuat', 'IdDonHangLoSanXuat'],
+                        ['ID_DonHang_SanPham', 'IdDonHangSanPham'],
+                        ['ID_QuyTrinhSanXuat', 'IdQuyTrinhSanXuat'],
+                        ['ID_DonHang', 'IdDonHang']]
+                        .some(([field, payloadField]) => (toIntOrNull(row[field]) || 0) !== (toIntOrNull(item[payloadField]) || 0))) {
+                    throw new Error('Chỉ có thể sửa số lượng và dấu tuần của dòng BTP hiện có');
+                }
+            }
+            const detailRequest = new sql.Request(tx)
                     .input('ID_TheKhoKienBTP', sql.Int, idKien)
                     .input('ID_PhieuNhapBTP', sql.Int, idPhieuNhap)
+                    .input('ID_TheKhoKienBTP_ChiTiet', sql.Int, idDetail)
                     .input('ID_KeHoachSanXuat', sql.Int, toIntOrNull(item.IdKeHoachSanXuat) || 0)
                     .input('ID_DonHang_LoSanXuat', sql.Int, toIntOrNull(item.IdDonHangLoSanXuat) || 0)
                     .input('ID_DonHang_SanPham', sql.Int, toIntOrNull(item.IdDonHangSanPham) || 0)
-                    .input('ItemCode', sql.NVarChar(255), item.ItemCode || null)
+                    .input('ItemCode', sql.NVarChar(255), itemCode)
                     .input('Ten_SanPham', sql.NVarChar(255), item.tenSanPham || item.TenSanPham || null)
                     .input('ID_QuyTrinhSanXuat', sql.Int, toIntOrNull(item.IdQuyTrinhSanXuat) || 0)
                     .input('Ten_QuyTrinhSanXuat', sql.NVarChar(255), item.Ten_QuyTrinhSanXuat || null)
                     .input('ID_DonHang', sql.Int, toIntOrNull(item.IdDonHang) || 0)
                     .input('SoLuong', sql.Decimal(18, 2), soLuong)
-                    .input('DauTuan', sql.NVarChar(50), dauTuan)
-                    .query(`
-                        MERGE TheKhoKienBTP_ChiTiet AS Target
-                        USING (SELECT @ID_TheKhoKienBTP AS ID_TheKhoKienBTP) AS Source
-                        ON Target.ID_TheKhoKienBTP = Source.ID_TheKhoKienBTP
-                           AND (Target.ItemCode = @ItemCode OR Target.ItemCode IS NULL)
-                           AND ISNULL(Target.ID_KeHoachSanXuat, 0) = @ID_KeHoachSanXuat
-                           AND ISNULL(Target.ID_DonHang_LoSanXuat, 0) = @ID_DonHang_LoSanXuat
-                           AND ISNULL(Target.ID_DonHang_SanPham, 0) = @ID_DonHang_SanPham
-                           AND ISNULL(Target.ID_PhieuNhapBTP, 0) = @ID_PhieuNhapBTP
-                           AND ISNULL(Target.ID_QuyTrinhSanXuat, 0) = @ID_QuyTrinhSanXuat
-                           AND ISNULL(Target.ID_DonHang, 0) = @ID_DonHang
-                        WHEN MATCHED THEN UPDATE SET SoLuong = @SoLuong, DauTuan = @DauTuan, TonTai = 1
-                        WHEN NOT MATCHED THEN INSERT
-                            (ID_TheKhoKienBTP, ID_PhieuNhapBTP, ID_KeHoachSanXuat, ID_DonHang_LoSanXuat, ID_DonHang_SanPham, ItemCode, Ten_SanPham, ID_QuyTrinhSanXuat, Ten_QuyTrinhSanXuat, ID_DonHang, SoLuong, TonTai, DauTuan)
-                        VALUES
-                            (@ID_TheKhoKienBTP, @ID_PhieuNhapBTP, @ID_KeHoachSanXuat, @ID_DonHang_LoSanXuat, @ID_DonHang_SanPham, @ItemCode, @Ten_SanPham, @ID_QuyTrinhSanXuat, @Ten_QuyTrinhSanXuat, @ID_DonHang, @SoLuong, 1, @DauTuan);
-                    `);
+                    .input('DauTuan', sql.NVarChar(50), dauTuan);
+            const result = await detailRequest.query(`
+                IF @ID_TheKhoKienBTP_ChiTiet IS NOT NULL AND NOT EXISTS (
+                    SELECT 1 FROM TheKhoKienBTP_ChiTiet WITH (UPDLOCK, HOLDLOCK)
+                    WHERE ID_TheKhoKienBTP_ChiTiet = @ID_TheKhoKienBTP_ChiTiet
+                      AND ID_TheKhoKienBTP = @ID_TheKhoKienBTP AND ISNULL(TonTai, 1) = 1
+                ) THROW 51046, N'Chi tiết kiện không còn tồn tại', 1;
+
+                IF EXISTS (
+                    SELECT 1 FROM TheKhoKienBTP_ChiTiet WITH (UPDLOCK, HOLDLOCK)
+                    WHERE ID_TheKhoKienBTP = @ID_TheKhoKienBTP AND ISNULL(TonTai, 1) = 1
+                      AND (@ID_TheKhoKienBTP_ChiTiet IS NULL OR ID_TheKhoKienBTP_ChiTiet <> @ID_TheKhoKienBTP_ChiTiet)
+                      AND UPPER(LTRIM(RTRIM(ISNULL(ItemCode, N'')))) = UPPER(@ItemCode)
+                      AND ISNULL(ID_KeHoachSanXuat, 0) = @ID_KeHoachSanXuat
+                      AND ISNULL(ID_DonHang_LoSanXuat, 0) = @ID_DonHang_LoSanXuat
+                      AND ISNULL(ID_DonHang_SanPham, 0) = @ID_DonHang_SanPham
+                      AND ISNULL(ID_QuyTrinhSanXuat, 0) = @ID_QuyTrinhSanXuat
+                      AND ISNULL(ID_DonHang, 0) = @ID_DonHang
+                      AND ISNULL(NULLIF(LTRIM(RTRIM(DauTuan)), N''), N'') = ISNULL(@DauTuan, N'')
+                ) THROW 51047, N'BTP và dấu tuần đã có trong kiện, hãy sửa dòng hiện có', 1;
+
+                IF @ID_TheKhoKienBTP_ChiTiet IS NULL
+                BEGIN
+                    INSERT INTO TheKhoKienBTP_ChiTiet
+                        (ID_TheKhoKienBTP, ID_PhieuNhapBTP, ID_KeHoachSanXuat, ID_DonHang_LoSanXuat,
+                         ID_DonHang_SanPham, ItemCode, Ten_SanPham, ID_QuyTrinhSanXuat,
+                         Ten_QuyTrinhSanXuat, ID_DonHang, SoLuong, TonTai, DauTuan)
+                    VALUES
+                        (@ID_TheKhoKienBTP, @ID_PhieuNhapBTP, @ID_KeHoachSanXuat, @ID_DonHang_LoSanXuat,
+                         @ID_DonHang_SanPham, @ItemCode, @Ten_SanPham, @ID_QuyTrinhSanXuat,
+                         @Ten_QuyTrinhSanXuat, @ID_DonHang, @SoLuong, 1, @DauTuan);
+                    SELECT CAST(SCOPE_IDENTITY() AS int) AS IdDetail;
+                END
+                ELSE
+                BEGIN
+                    UPDATE TheKhoKienBTP_ChiTiet
+                    SET SoLuong = @SoLuong, DauTuan = @DauTuan
+                    WHERE ID_TheKhoKienBTP_ChiTiet = @ID_TheKhoKienBTP_ChiTiet
+                      AND ID_TheKhoKienBTP = @ID_TheKhoKienBTP AND ISNULL(TonTai, 1) = 1;
+                    SELECT @ID_TheKhoKienBTP_ChiTiet AS IdDetail;
+                END;
+            `);
+            const importDetail = await new sql.Request(tx)
+                .input('ID_PhieuNhapBTP', sql.Int, idPhieuNhap)
+                .execute('App_PhieuNhapBTP_ThongTinChiTiet');
+            const requested = (importDetail.recordsets?.[1] || [])
+                .filter((row) => String(row.ItemCode || '').trim().toUpperCase() === itemCode.toUpperCase())
+                .reduce((sum, row) => sum + toNumber(row.SoLuong_NhapKho), 0);
+            const allocatedResult = await new sql.Request(tx)
+                .input('ID_PhieuNhap_Allocated', sql.Int, idPhieuNhap)
+                .input('ItemCode_Allocated', sql.NVarChar(255), itemCode)
+                .query(`
+                    SELECT ISNULL(SUM(ct.SoLuong), 0) AS Allocated
+                    FROM TheKhoKienBTP_ChiTiet ct
+                    INNER JOIN TheKhoKienBTP k ON k.ID_TheKhoKienBTP = ct.ID_TheKhoKienBTP
+                    WHERE k.ID_PhieuNhapBTP = @ID_PhieuNhap_Allocated
+                      AND ISNULL(k.TonTai, 1) = 1 AND ISNULL(ct.TonTai, 1) = 1
+                      AND UPPER(LTRIM(RTRIM(ct.ItemCode))) = UPPER(@ItemCode_Allocated);
+                `);
+            if (requested <= 0 || toNumber(allocatedResult.recordset?.[0]?.Allocated) > requested + 0.000001) {
+                throw new Error('Số lượng BTP vượt quá số lượng của phiếu nhập');
             }
             await tx.commit();
-            res.json({ ok: true, message: 'success' });
+            res.json({ ok: true, message: 'success', idDetail: result.recordset?.[0]?.IdDetail });
         } catch (error) {
             await tx.rollback();
             throw error;
@@ -1046,8 +1130,15 @@ router.put('/btp/phieunhap/xac-nhan', async (req, res) => {
         const details = packages.flatMap((item) => Array.isArray(item.bTPs) ? item.bTPs : []);
         if (!idPhieuNhap || !packages.length || !details.length) return res.status(400).json({ message: 'Phiếu nhập chưa có kiện hợp lệ' });
         if (packages.some((item) => !item.qrCode || !toIntOrNull(item.idViTriKho))) return res.status(400).json({ message: 'Chưa gán hết vị trí và QRCode' });
+        if (packages.some((item) => !Array.isArray(item.bTPs) || !item.bTPs.length
+            || item.bTPs.some((detail) => toNumber(detail.soLuongTon) <= 0))) {
+            return res.status(400).json({ message: 'Mỗi kiện phải có ít nhất một dòng BTP với số lượng lớn hơn 0' });
+        }
         const positiveDetails = details.filter((item) => toNumber(item.soLuongTon) > 0);
         if (!positiveDetails.length) return res.status(400).json({ message: 'Phiếu nhập chưa có số lượng BTP' });
+        if (positiveDetails.some((item) => !toIntOrNull(item.idTheKhoKienBTPChiTiet))) {
+            return res.status(400).json({ message: 'Chi tiết kiện chưa được lưu, vui lòng tải lại phiếu nhập' });
+        }
         const pool = await tagpoolPromise;
         await ensureImportEditable(pool.request(), idPhieuNhap);
         const allowedResult = await pool.request()
@@ -1121,13 +1212,41 @@ router.put('/btp/phieunhap/xac-nhan', async (req, res) => {
             item.maDonHang || null,
             toNumber(item.soLuongTon),
         ));
-        const result = await pool.request()
-            .input('TheKhoKienBTPChiTietNhapsTable', table)
-            .output('InsertResult', sql.NVarChar(50))
-            .execute('App_XacNhanPhieuNhap_BTP');
-        const status = result.output?.InsertResult;
-        if (status !== 'success') return res.status(400).json({ message: status || 'Xác nhận phiếu nhập thất bại' });
-        res.json({ ok: true, isSuccess: status });
+        const tx = new sql.Transaction(pool);
+        await tx.begin();
+        try {
+            await ensureImportEditable(new sql.Request(tx), idPhieuNhap);
+            const result = await new sql.Request(tx)
+                .input('TheKhoKienBTPChiTietNhapsTable', table)
+                .output('InsertResult', sql.NVarChar(50))
+                .execute('App_XacNhanPhieuNhap_BTP');
+            const status = result.output?.InsertResult;
+            if (status !== 'success') throw new Error(status || 'Xác nhận phiếu nhập thất bại');
+            const persisted = await new sql.Request(tx)
+                .input('ID_PhieuNhap_VerifyDetails', sql.Int, idPhieuNhap)
+                .query(`
+                    SELECT ct.ID_TheKhoKienBTP_ChiTiet, ct.ID_TheKhoKienBTP, ct.SoLuong, ct.DauTuan
+                    FROM TheKhoKienBTP_ChiTiet ct
+                    INNER JOIN TheKhoKienBTP k ON k.ID_TheKhoKienBTP = ct.ID_TheKhoKienBTP
+                    WHERE k.ID_PhieuNhapBTP = @ID_PhieuNhap_VerifyDetails
+                      AND ISNULL(k.TonTai, 1) = 1 AND ISNULL(ct.TonTai, 1) = 1;
+                `);
+            const persistedById = new Map((persisted.recordset || [])
+                .map((row) => [Number(row.ID_TheKhoKienBTP_ChiTiet), row]));
+            const submittedIds = new Set(positiveDetails.map((item) => Number(item.idTheKhoKienBTPChiTiet)));
+            if (submittedIds.size !== positiveDetails.length || persistedById.size !== submittedIds.size
+                || positiveDetails.some((item) => {
+                const row = persistedById.get(Number(item.idTheKhoKienBTPChiTiet));
+                return !row || Number(row.ID_TheKhoKienBTP) !== Number(item.idTheKhoKienBTP)
+                    || Math.abs(toNumber(row.SoLuong) - toNumber(item.soLuongTon)) > 0.000001
+                    || String(row.DauTuan || '').trim() !== String(item.dauTuan || '').trim();
+            })) throw new Error('Thủ tục xác nhận không giữ đúng toàn bộ chi tiết BTP và dấu tuần của kiện');
+            await tx.commit();
+            res.json({ ok: true, isSuccess: status });
+        } catch (error) {
+            try { await tx.rollback(); } catch (_) { /* Thủ tục có thể đã tự rollback. */ }
+            throw error;
+        }
     } catch (error) {
         res.status(400).json({ message: error.message });
     }
@@ -1552,6 +1671,44 @@ router.get('/btp/kien/:idKien/lich-su-vi-tri/:idLichSu', async (req, res) => {
         res.json({ ...row, hasPackageSnapshot, ThongTinKien: packageInfo, ChiTietKien: details });
     } catch (error) {
         res.status(500).json({ message: 'Không tải được nội dung kiện lúc điều chuyển', detail: error.message });
+    }
+});
+
+router.post('/btp/phieunhap/xoa-chi-tiet', async (req, res) => {
+    const idKien = toIntOrNull(req.body?.ID_TheKhoKienBTP);
+    const idPhieuNhap = toIntOrNull(req.body?.ID_PhieuNhapBTP);
+    const idDetail = toIntOrNull(req.body?.ID_TheKhoKienBTP_ChiTiet);
+    if (!idKien || !idPhieuNhap || !idDetail) return res.status(400).json({ message: 'Chi tiết kiện không hợp lệ' });
+    try {
+        const pool = await tagpoolPromise;
+        const tx = new sql.Transaction(pool);
+        await tx.begin();
+        try {
+            await ensureImportEditable(new sql.Request(tx), idPhieuNhap);
+            const result = await new sql.Request(tx)
+                .input('ID_PhieuNhap_DeleteDetail', sql.Int, idPhieuNhap)
+                .input('ID_Kien_DeleteDetail', sql.Int, idKien)
+                .input('ID_Detail_DeleteDetail', sql.Int, idDetail)
+                .query(`
+                    UPDATE ct SET TonTai = 0
+                    FROM TheKhoKienBTP_ChiTiet ct
+                    INNER JOIN TheKhoKienBTP k WITH (UPDLOCK, HOLDLOCK)
+                      ON k.ID_TheKhoKienBTP = ct.ID_TheKhoKienBTP
+                    WHERE k.ID_PhieuNhapBTP = @ID_PhieuNhap_DeleteDetail AND ISNULL(k.TonTai, 1) = 1
+                      AND ct.ID_TheKhoKienBTP = @ID_Kien_DeleteDetail
+                      AND ct.ID_TheKhoKienBTP_ChiTiet = @ID_Detail_DeleteDetail
+                      AND ISNULL(ct.TonTai, 1) = 1;
+                    SELECT @@ROWCOUNT AS Deleted;
+                `);
+            if (result.recordset?.[0]?.Deleted !== 1) throw new Error('Không tìm thấy chi tiết BTP cần xóa');
+            await tx.commit();
+            res.json({ ok: true, idDetail });
+        } catch (error) {
+            await tx.rollback();
+            throw error;
+        }
+    } catch (error) {
+        res.status(400).json({ message: error.message });
     }
 });
 

@@ -76,6 +76,7 @@ export function formatDate(value) {
 
 export function getBtpMaterialPayload(material, quantity, dauTuan = '') {
     return {
+        IdKeHoachSanXuat: asNumber(readValue(material, ['idKeHoachSanXuat', 'ID_KeHoachSanXuat'], 0)),
         IdDonHangLoSanXuat: asNumber(readValue(material, ['idDonHangLoSanXuat', 'ID_DonHang_LoSanXuat'], 0)),
         IdDonHangSanPham: asNumber(readValue(material, ['idDonHangSanPham', 'ID_DonHang_SanPham'], 0)),
         ItemCode: readValue(material, ['itemCode', 'ItemCode'], ''),
@@ -124,8 +125,8 @@ export function isImportPackageReady(item) {
         getPackageId(item)
         && getPackageQr(item)
         && getLocationId(item)
-        && getPackageDetails(item).length === 1
-        && asNumber(readValue(getPackageDetails(item)[0], ['soLuongTon', 'SoLuong', 'soLuong'], 0)) > 0
+        && getPackageDetails(item).length > 0
+        && getPackageDetails(item).every((detail) => asNumber(readValue(detail, ['soLuongTon', 'SoLuong', 'soLuong'], 0)) > 0)
     );
 }
 
@@ -145,5 +146,17 @@ export function getImportQuantityMismatches(materials, packages) {
     packages.filter(getPackageQr).forEach((item) => getPackageDetails(item).forEach((row) => addQuantity(row, 'scanned')));
 
     return [...totals.values()].filter(({ requested, scanned }) => requested !== scanned);
+}
+
+export function getImportMaterialRemaining(materials, packages, material, editedDetail = null) {
+    if (!material) return 0;
+    const code = String(readValue(material, ['itemCode', 'ItemCode'], '')).trim().toUpperCase();
+    const matches = (row) => String(readValue(row, ['itemCode', 'ItemCode'], '')).trim().toUpperCase() === code;
+    const requested = materials.filter(matches)
+        .reduce((sum, row) => sum + asNumber(readValue(row, ['soLuong', 'SoLuong'], 0)), 0);
+    const allocated = packages.flatMap(getPackageDetails).filter(matches)
+        .reduce((sum, row) => sum + asNumber(readValue(row, ['soLuongTon', 'SoLuong', 'soLuong'], 0)), 0);
+    const editingQuantity = asNumber(readValue(editedDetail, ['soLuongTon', 'SoLuong', 'soLuong'], 0));
+    return Math.max(0, requested - allocated + editingQuantity);
 }
 

@@ -56,12 +56,13 @@ export default function KhoBTPReportScreen({ navigation }) {
     const [loading, setLoading] = useState(false);
     const [scanning, setScanning] = useState(false);
     const [scanned, setScanned] = useState(false);
+    const hasStockFilters = Boolean(appliedItemCode || appliedWeekMark);
 
     const loadHouses = useCallback(async () => {
         try {
             setLoading(true);
             const rows = asList(await khoBtpApi.getLocationWarehouses(REPORT_WAREHOUSE.id));
-            setHouses(rows); setHouse(null); setAisles([]); setAisle(null); setLocations([]);
+            setHouses(rows); setHouse(null); setAisles([]); setAisle(null);
         } catch (error) { Toast.show({ type: 'error', text1: 'Không tải được nhà kho', text2: getApiErrorMessage(error) }); }
         finally { setLoading(false); }
     }, []);
@@ -73,25 +74,27 @@ export default function KhoBTPReportScreen({ navigation }) {
     }, [house]);
 
     const loadLocations = useCallback(async () => {
-        if (!house || !aisle) return;
+        if (!hasStockFilters && (!house || !aisle)) {
+            setLocations([]);
+            return;
+        }
         try {
             setLoading(true);
             setLocations(asList(await khoBtpApi.searchReportLocations({
                 idKho: REPORT_WAREHOUSE.id,
-                maNha: readValue(house, ['MaNha', 'maNha'], ''),
-                maDay: readValue(aisle, ['MaDay', 'maDay'], ''),
+                maNha: hasStockFilters ? '' : readValue(house, ['MaNha', 'maNha'], ''),
+                maDay: hasStockFilters ? '' : readValue(aisle, ['MaDay', 'maDay'], ''),
                 itemCode: appliedItemCode,
                 dauTuan: appliedWeekMark,
             })));
         }
         catch (error) { Toast.show({ type: 'error', text1: 'Không tải được vị trí', text2: getApiErrorMessage(error) }); }
         finally { setLoading(false); }
-    }, [aisle, appliedItemCode, appliedWeekMark, house]);
+    }, [aisle, appliedItemCode, appliedWeekMark, hasStockFilters, house]);
     useFocusEffect(useCallback(() => { loadLocations(); }, [loadLocations]));
 
     const filtered = useMemo(() => { const q = locationSearch.trim().toLowerCase(); return !q ? locations : locations.filter((item) => [locationCode(item), readValue(item, ['TenViTriKho'], ''), readValue(item, ['TenNha'], ''), readValue(item, ['TenDay'], '')].join(' ').toLowerCase().includes(q)); }, [locationSearch, locations]);
     const summary = useMemo(() => ({ total: locations.length, occupied: locations.filter((x) => packageCount(x) > 0).length, empty: locations.filter((x) => packageCount(x) === 0).length, packages: locations.reduce((sum, x) => sum + packageCount(x), 0), stock: locations.reduce((sum, x) => sum + stockAtLocation(x), 0) }), [locations]);
-    const hasStockFilters = Boolean(appliedItemCode || appliedWeekMark);
     const applyStockFilters = () => {
         const nextItemCode = itemCode.trim();
         const nextWeekMark = weekMark.trim();
@@ -128,7 +131,7 @@ export default function KhoBTPReportScreen({ navigation }) {
                 <TouchableOpacity style={styles.stockFilterButton} onPress={applyStockFilters}><Ionicons name="search" size={19} color="#fff" /><Text style={styles.stockFilterButtonText}>Tìm tồn kho</Text></TouchableOpacity>
                 {(hasStockFilters || itemCode || weekMark) && <TouchableOpacity style={styles.clearFilterButton} onPress={clearStockFilters}><Ionicons name="close" size={19} color={COLORS.textSecondary} /><Text style={styles.clearFilterText}>Xóa lọc</Text></TouchableOpacity>}
             </View>
-            {hasStockFilters && <Text style={styles.appliedFilterText}>Đang lọc: {appliedItemCode ? `ItemCode ${appliedItemCode}` : ''}{appliedItemCode && appliedWeekMark ? ' • ' : ''}{appliedWeekMark ? `Dấu tuần ${appliedWeekMark}` : ''} • Tồn {summary.stock}</Text>}
+            {hasStockFilters && <Text style={styles.appliedFilterText}>Tất cả nhà kho và dãy • {appliedItemCode ? `ItemCode ${appliedItemCode}` : ''}{appliedItemCode && appliedWeekMark ? ' • ' : ''}{appliedWeekMark ? `Dấu tuần ${appliedWeekMark}` : ''} • Tồn {summary.stock}</Text>}
             <View style={styles.stats}><Stat label="Vị trí" value={summary.total} /><Stat label="Có hàng" value={summary.occupied} color={COLORS.success} /><Stat label="Trống" value={summary.empty} color={COLORS.warning} /><Stat label="Kiện" value={summary.packages} /></View>
             <TouchableOpacity style={styles.scanButton} onPress={openScanner}><Ionicons name="scan" size={21} color="#fff" /><Text style={styles.scanButtonText}>Quét QR vị trí</Text></TouchableOpacity>
             <Text style={styles.sectionTitle}>Danh sách vị trí</Text>

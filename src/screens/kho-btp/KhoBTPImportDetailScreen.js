@@ -34,6 +34,7 @@ import {
     buildImportConfirmPackage,
     getBtpMaterialPayload,
     getImportQuantityMismatches,
+    getImportMaterialRemaining,
     getLocationCode,
     getLocationId,
     getPackageLocationCode,
@@ -98,20 +99,20 @@ function NumberModal({ visible, title, label, max, initialValue = '', onClose, o
     );
 }
 
-function BtpDetailModal({ visible, material, max, onClose, onConfirm }) {
+function BtpDetailModal({ visible, material, detail, max, onClose, onConfirm }) {
     const [quantity, setQuantity] = useState('');
     const [dauTuan, setDauTuan] = useState('');
 
     useEffect(() => {
         if (!visible) return;
-        setQuantity(String(readValue(material, ['soLuongTon', 'SoLuong', 'soLuong'], '') || ''));
-        setDauTuan(String(readValue(material, ['dauTuan', 'DauTuan'], '') || ''));
-    }, [material, visible]);
+        setQuantity(String(readValue(detail, ['soLuongTon', 'SoLuong', 'soLuong'], '') || ''));
+        setDauTuan(String(readValue(detail, ['dauTuan', 'DauTuan'], '') || ''));
+    }, [detail, visible]);
 
     const submit = () => {
         const number = Number(quantity);
-        if (!Number.isFinite(number) || number <= 0 || (max && number > max)) {
-            Toast.show({ type: 'error', text1: max ? `Số lượng phải từ 1 đến ${max}` : 'Số lượng phải lớn hơn 0' });
+        if (!Number.isFinite(number) || number <= 0 || (max != null && number > max)) {
+            Toast.show({ type: 'error', text1: max != null ? `Số lượng tối đa: ${max}` : 'Số lượng phải lớn hơn 0' });
             return;
         }
         const normalizedDauTuan = dauTuan.trim();
@@ -137,7 +138,7 @@ function BtpDetailModal({ visible, material, max, onClose, onConfirm }) {
                             <Text style={styles.dialogTitle}>Thông tin BTP trong kiện</Text>
                             <Text style={styles.dialogLabel}>{readValue(material, ['itemCode', 'ItemCode'], 'Số lượng')}</Text>
                             <TextInput style={styles.dialogInput} value={quantity} onChangeText={setQuantity} {...numericKeyboardProps()} autoFocus />
-                            {!!max && <Text style={styles.hint}>Tối đa: {max}</Text>}
+                            {max != null && <Text style={styles.hint}>Tối đa: {max}</Text>}
                             <Text style={[styles.dialogLabel, { marginTop: 14 }]}>Dấu tuần</Text>
                             <TextInput
                                 style={styles.dialogInput}
@@ -170,7 +171,7 @@ function MaterialModal({ visible, materials, onClose, onSelect }) {
                 <View style={styles.sheet}>
                     <View style={styles.sheetHandle} />
                     <Text style={styles.dialogTitle}>Chọn BTP cho kiện</Text>
-                    <Text style={styles.hint}>Mỗi kiện chỉ được chọn một ItemCode</Text>
+                    <Text style={styles.hint}>Có thể thêm nhiều dòng BTP vào cùng một kiện</Text>
                     <FlatList
                         data={materials}
                         {...keyboardAwareScrollProps()}
@@ -195,9 +196,8 @@ function MaterialModal({ visible, materials, onClose, onSelect }) {
     );
 }
 
-function PackageCard({ item, selected, locked, onSelect, onMaterial, onQr, onLocation }) {
+function PackageCard({ item, selected, locked, onSelect, onAddMaterial, onEditDetail, onDeleteDetail, onQr, onLocation }) {
     const details = getPackageDetails(item);
-    const detail = details[0];
     const ready = isImportPackageReady(item);
     return (
         <View style={[styles.packageCard, selected && styles.packageSelected]}>
@@ -206,16 +206,25 @@ function PackageCard({ item, selected, locked, onSelect, onMaterial, onQr, onLoc
                     <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={22} color={COLORS.primary} />
                     <View style={{ flex: 1 }}>
                         <Text style={styles.packageTitle}>Kiện #{getPackageId(item) || '-'}</Text>
-                        <Text style={styles.packageSub} numberOfLines={1}>
-                            {detail ? `${readValue(detail, ['itemCode', 'ItemCode'], '-')} • SL ${readValue(detail, ['soLuongTon', 'SoLuong', 'soLuong'], 0)}` : 'Kiện trống'}
-                        </Text>
-                        {!!detail && <Text style={styles.packageSub}>Dấu tuần: {readValue(detail, ['dauTuan', 'DauTuan'], '-')}</Text>}
+                        <Text style={styles.packageSub}>{details.length ? `${details.length} dòng BTP` : 'Kiện trống'}</Text>
                     </View>
                 </TouchableOpacity>
                 <View style={[styles.readyBadge, ready && styles.readyBadgeDone]}>
                     <Text style={[styles.readyText, ready && styles.readyTextDone]}>{ready ? 'Sẵn sàng' : 'Chưa đủ'}</Text>
                 </View>
             </View>
+            {details.map((detail, index) => (
+                <View key={String(readValue(detail, ['idTheKhoKienBTPChiTiet', 'ID_TheKhoKienBTP_ChiTiet'], index))} style={styles.detailLine}>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.detailCode}>{readValue(detail, ['itemCode', 'ItemCode'], '-')} • SL {readValue(detail, ['soLuongTon', 'SoLuong', 'soLuong'], 0)}</Text>
+                        <Text style={styles.packageSub}>Dấu tuần: {readValue(detail, ['dauTuan', 'DauTuan'], '-')}</Text>
+                    </View>
+                    {!locked && <>
+                        <TouchableOpacity accessibilityLabel="Sửa dòng BTP" style={styles.detailAction} onPress={() => onEditDetail(detail)}><Ionicons name="create-outline" size={18} color={COLORS.primary} /></TouchableOpacity>
+                        <TouchableOpacity accessibilityLabel="Xóa dòng BTP" style={styles.detailAction} onPress={() => onDeleteDetail(detail)}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /></TouchableOpacity>
+                    </>}
+                </View>
+            ))}
             <View style={styles.packageInfoRow}>
                 <TouchableOpacity style={styles.infoBox} onPress={onQr} disabled={locked}>
                     <Text style={styles.infoLabel}>Mã QR</Text>
@@ -227,9 +236,9 @@ function PackageCard({ item, selected, locked, onSelect, onMaterial, onQr, onLoc
                 </TouchableOpacity>
             </View>
             {!locked && <View style={styles.packageActions}>
-                <TouchableOpacity style={styles.smallAction} onPress={onMaterial}>
-                    <Ionicons name={detail ? 'create-outline' : 'add-circle-outline'} size={18} color={COLORS.primary} />
-                    <Text style={styles.smallActionText}>{detail ? 'Sửa SL' : 'Thêm BTP'}</Text>
+                <TouchableOpacity style={styles.smallAction} onPress={onAddMaterial}>
+                    <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
+                    <Text style={styles.smallActionText}>Thêm BTP</Text>
                 </TouchableOpacity>
                 <TouchableOpacity style={styles.smallAction} onPress={onQr}>
                     <Ionicons name="qr-code-outline" size={18} color={COLORS.primary} />
@@ -257,6 +266,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
     const [quantityVisible, setQuantityVisible] = useState(false);
     const [workingPackage, setWorkingPackage] = useState(null);
     const [workingMaterial, setWorkingMaterial] = useState(null);
+    const [workingDetail, setWorkingDetail] = useState(null);
     const [scanPackage, setScanPackage] = useState(null);
     const [scanned, setScanned] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
@@ -320,21 +330,10 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
     const canConfirm = allReady && materials.length > 0 && quantityMismatches.length === 0;
     const isConfirmed = readValue(detail, ['trangThai', 'TrangThai'], false) === true
         || Number(readValue(detail, ['trangThai', 'TrangThai'], 0)) === 1;
-    const workingMaterialRemaining = useMemo(() => {
-        if (!workingMaterial) return 0;
-        const itemCode = readValue(workingMaterial, ['itemCode', 'ItemCode'], '');
-        const requested = asNumber(readValue(workingMaterial, ['soLuong', 'SoLuong'], 0));
-        const allocated = packages.reduce((sum, item) => {
-            const packageQuantity = getPackageDetails(item)
-                .filter((row) => String(readValue(row, ['itemCode', 'ItemCode'], '')) === String(itemCode))
-                .reduce((detailSum, row) => detailSum + asNumber(readValue(row, ['soLuongTon', 'SoLuong', 'soLuong'], 0)), 0);
-            return sum + packageQuantity;
-        }, 0);
-        const currentPackageQuantity = getPackageDetails(workingPackage)
-            .filter((row) => String(readValue(row, ['itemCode', 'ItemCode'], '')) === String(itemCode))
-            .reduce((sum, row) => sum + asNumber(readValue(row, ['soLuongTon', 'SoLuong', 'soLuong'], 0)), 0);
-        return Math.max(0, requested - allocated + currentPackageQuantity);
-    }, [packages, workingMaterial, workingPackage]);
+    const workingMaterialRemaining = useMemo(
+        () => getImportMaterialRemaining(materials, packages, workingMaterial, workingDetail),
+        [materials, packages, workingMaterial, workingDetail],
+    );
 
     const toggleSelected = (item) => {
         const packageId = getPackageId(item);
@@ -465,51 +464,48 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
     const addMaterial = async ({ quantity, dauTuan }) => {
         try {
             setLoading(true);
-            await khoBtpApi.addPackageDetails({
+            const saved = await khoBtpApi.addPackageDetails({
                 idPackage: getPackageId(workingPackage),
                 idPhieuNhap: id,
+                idDetail: readValue(workingDetail, ['idTheKhoKienBTPChiTiet', 'ID_TheKhoKienBTP_ChiTiet'], null),
                 btps: [getBtpMaterialPayload(workingMaterial, quantity, dauTuan)],
             });
-            setQuantityVisible(false);
             const editedPackageId = getPackageId(workingPackage);
-            const wasEditing = getPackageDetails(workingPackage).length > 0;
-            setWorkingPackage(null);
-            setWorkingMaterial(null);
+            const wasEditing = Boolean(workingDetail);
             const refreshed = await fetchDetail();
             const refreshedPackage = (refreshed?.kiens || []).find((item) => String(getPackageId(item)) === String(editedPackageId));
             const refreshedDetails = getPackageDetails(refreshedPackage);
-            const detailCount = refreshedDetails.length;
-            const refreshedQuantity = asNumber(readValue(refreshedDetails[0], ['soLuongTon', 'SoLuong', 'soLuong'], 0));
-            const refreshedDauTuan = String(readValue(refreshedDetails[0], ['dauTuan', 'DauTuan'], '') || '').trim();
-            if (detailCount > 1) {
-                Toast.show({
-                    type: 'error',
-                    text1: 'API đang insert thêm dòng',
-                    text2: `Kiện #${editedPackageId} hiện có ${detailCount} dòng BTP`,
-                });
-            } else if (wasEditing && refreshedQuantity !== asNumber(quantity)) {
-                Toast.show({
-                    type: 'error',
-                    text1: 'API chưa cập nhật số lượng',
-                    text2: `Giá trị trên server vẫn là ${refreshedQuantity}`,
-                });
-            } else if (refreshedDauTuan !== String(dauTuan || '').trim()) {
-                Toast.show({
-                    type: 'error',
-                    text1: 'API chưa lưu dấu tuần',
-                    text2: `Giá trị trên server: ${refreshedDauTuan || '-'}`,
-                });
-            } else {
-                Toast.show({
-                    type: 'success',
-                    text1: wasEditing ? 'API đã cập nhật số lượng' : 'Đã thêm BTP vào kiện',
-                });
+            const savedDetail = refreshedDetails.find((item) => String(readValue(item, ['idTheKhoKienBTPChiTiet', 'ID_TheKhoKienBTP_ChiTiet'], '')) === String(saved?.idDetail));
+            if (!savedDetail || asNumber(readValue(savedDetail, ['soLuongTon', 'SoLuong', 'soLuong'], 0)) !== asNumber(quantity)
+                || String(readValue(savedDetail, ['dauTuan', 'DauTuan'], '') || '').trim() !== String(dauTuan || '').trim()) {
+                throw new Error('Dữ liệu sau khi tải lại chưa khớp, vui lòng kiểm tra kiện');
             }
+            setQuantityVisible(false);
+            setWorkingPackage(null);
+            setWorkingMaterial(null);
+            setWorkingDetail(null);
+            Toast.show({ type: 'success', text1: wasEditing ? 'Đã cập nhật dòng BTP' : 'Đã thêm BTP vào kiện' });
         } catch (error) {
-            Toast.show({ type: 'error', text1: 'Thêm BTP thất bại', text2: getApiErrorMessage(error) });
+            Toast.show({ type: 'error', text1: 'Lưu BTP thất bại', text2: getApiErrorMessage(error) });
         } finally {
             setLoading(false);
         }
+    };
+
+    const deleteMaterial = (item, detailRow) => {
+        const idDetail = readValue(detailRow, ['idTheKhoKienBTPChiTiet', 'ID_TheKhoKienBTP_ChiTiet'], null);
+        confirmAction('Xóa dòng BTP', `Xóa ${readValue(detailRow, ['itemCode', 'ItemCode'], 'BTP')} khỏi kiện #${getPackageId(item)}?`, async () => {
+            try {
+                setLoading(true);
+                await khoBtpApi.deletePackageDetail({ idPackage: getPackageId(item), idPhieuNhap: id, idDetail });
+                await fetchDetail();
+                Toast.show({ type: 'success', text1: 'Đã xóa dòng BTP' });
+            } catch (error) {
+                Toast.show({ type: 'error', text1: 'Xóa dòng BTP thất bại', text2: getApiErrorMessage(error) });
+            } finally {
+                setLoading(false);
+            }
+        });
     };
 
     const confirmImport = () => {
@@ -559,16 +555,19 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                         selected={selectedIds.includes(getPackageId(item))}
                         locked={isConfirmed}
                         onSelect={() => toggleSelected(item)}
-                        onMaterial={() => {
-                            const existingDetail = getPackageDetails(item)[0];
+                        onAddMaterial={() => {
                             setWorkingPackage(item);
-                            if (existingDetail) {
-                                setWorkingMaterial(existingDetail);
-                                setQuantityVisible(true);
-                            } else {
-                                setMaterialVisible(true);
-                            }
+                            setWorkingDetail(null);
+                            setWorkingMaterial(null);
+                            setMaterialVisible(true);
                         }}
+                        onEditDetail={(detailRow) => {
+                            setWorkingPackage(item);
+                            setWorkingDetail(detailRow);
+                            setWorkingMaterial(detailRow);
+                            setQuantityVisible(true);
+                        }}
+                        onDeleteDetail={(detailRow) => deleteMaterial(item, detailRow)}
                         onQr={() => startQrScan(item)}
                         onLocation={() => openLocation([item])}
                     />
@@ -616,6 +615,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                 onClose={() => setMaterialVisible(false)}
                 onSelect={(material) => {
                     setWorkingMaterial(material);
+                    setWorkingDetail(null);
                     setMaterialVisible(false);
                     setQuantityVisible(true);
                 }}
@@ -623,6 +623,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
             <BtpDetailModal
                 visible={quantityVisible}
                 material={workingMaterial}
+                detail={workingDetail}
                 max={workingMaterialRemaining}
                 onClose={() => setQuantityVisible(false)}
                 onConfirm={addMaterial}
@@ -665,6 +666,9 @@ const styles = StyleSheet.create({
     packageTitleWrap: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 },
     packageTitle: { fontSize: 15, fontWeight: '800', color: COLORS.textPrimary },
     packageSub: { fontSize: 11, color: COLORS.textSecondary, marginTop: 3 },
+    detailLine: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9, borderTopWidth: 1, borderTopColor: COLORS.border },
+    detailCode: { fontSize: 12, fontWeight: '700', color: COLORS.textPrimary },
+    detailAction: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
     readyBadge: { backgroundColor: '#FEF3C7', borderRadius: 9, paddingHorizontal: 8, paddingVertical: 4 },
     readyBadgeDone: { backgroundColor: '#D1FAE5' },
     readyText: { fontSize: 9, color: '#B45309', fontWeight: '800' },
