@@ -81,7 +81,7 @@ const WarehouseItem = ({ title, pushedShelves, totalShelves, percentage, icon, i
                     <View style={styles.statsRow}>
                         <Ionicons name="layers-outline" size={14} color={COLORS.textSecondary} />
                         <Text style={styles.warehouseSubtitle}>
-                            {isCrane ? (demoMode ? 'Thử phiếu kho BTP trên DB test' : craneConfigured ? 'WMS đang dùng mock' : 'Chưa cấu hình kho cầu trục') : `${pushedShelves} / ${totalShelves} kệ đã đẩy`}
+                            {isCrane ? (demoMode ? 'WMS xác nhận xuất • Kho BTP trên DB test' : craneConfigured ? 'WMS xác nhận xuất' : 'Chưa cấu hình kho cầu trục') : `${pushedShelves} / ${totalShelves} kệ đã đẩy`}
                         </Text>
                     </View>
                 </View>

@@ -359,6 +359,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
     };
 
     const scanQr = async (origin = 'main') => {
+        if (kho?.isCrane) return;
         if (isConfirmed) return;
         if (!activeLine) {
             Toast.show({ type: 'info', text1: 'Chọn dòng BTP trước' });
@@ -415,7 +416,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
     };
 
     useEffect(() => {
-        if (!initialQr || !activeLine || pendingPicks.length || isConfirmed) return;
+        if (kho?.isCrane || !initialQr || !activeLine || pendingPicks.length || isConfirmed) return;
         let mounted = true;
         (async () => {
             try {
@@ -475,6 +476,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
     };
 
     const savePicks = () => {
+        if (kho?.isCrane) return;
         if (!pendingPicks.length) {
             Toast.show({ type: 'info', text1: 'Chưa có kiện chờ xuất' });
             return;
@@ -483,6 +485,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
     };
 
     const confirmSavePicks = async () => {
+        if (kho?.isCrane) return;
         if (loading || !pendingPicks.length) return;
         setSaveConfirmVisible(false);
         try {
@@ -555,8 +558,8 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                         {isConfirmed && <Text style={styles.confirmedBanner}>Phiếu đã xác nhận — chỉ xem dữ liệu</Text>}
                         {kho?.isCrane && craneStatus && <View style={styles.summary}>
                             <Text style={styles.summaryTitle}>{({ WAITING_WMS: 'CHỜ WMS', FAILED_RETRY: 'WMS BÁO LỖI – CHỜ THỬ LẠI', WAITING_RETURN: 'CHỜ NHẬP LẠI', COMPLETE: 'ĐÃ HOÀN TẤT' })[craneStatus.status] || craneStatus.status}</Text>
-                            <Text style={styles.summarySub}>Gửi WMS: {craneStatus.dispatchStatus === 'MOCKED' ? 'Đã lưu mock, chưa gửi WMS thật' : craneStatus.dispatchStatus}</Text>
-                            {(craneStatus.pallets || []).map((pallet) => <Text key={pallet.PalletID} style={styles.summarySub}>{pallet.PalletID}: còn {pallet.remainingQuantity} • {pallet.Status === 'WAITING_RETURN' ? 'chờ nhập lại' : pallet.Status === 'RETURNED' ? 'đã nhập lại' : 'đang xử lý'}{pallet.CurrentLocationCode ? ` • Vị trí ${pallet.CurrentLocationCode}` : ''}</Text>)}
+                            <Text style={styles.summarySub}>{craneStatus.dispatchStatus === 'WMS_CONFIRMED' ? 'ERP đã lưu phiếu từ kết quả WMS' : `Luồng cũ: ${craneStatus.dispatchStatus}`}</Text>
+                            {(craneStatus.pallets || []).map((pallet) => <Text key={pallet.PalletID} style={styles.summarySub}>{pallet.PalletID}: đã xuất {pallet.ActualQuantity ?? pallet.PlannedQuantity} • còn {pallet.remainingQuantity} • {({ WAITING_RETURN: 'chờ nhập lại', RETURNED: 'đã nhập lại', EXPORTED_FULL: 'đã xuất hết' })[pallet.Status] || 'đang xử lý'}{pallet.CurrentLocationCode ? ` • Vị trí ${pallet.CurrentLocationCode}` : ''}</Text>)}
                         </View>}
                         <View style={styles.summary}>
                             <Text style={styles.summaryTitle}>{readValue(detail, ['loaiPhieu'], '-')}</Text>
@@ -565,7 +568,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                             <View style={styles.summaryStats}>
                                 <Text style={styles.stat}>Dòng BTP: {lines.length}</Text>
                                 <Text style={styles.stat}>Đã lưu: {savedPackages.length}</Text>
-                                <Text style={styles.stat}>Chờ lưu: {pendingPicks.length}</Text>
+                                {!kho?.isCrane && <Text style={styles.stat}>Chờ lưu: {pendingPicks.length}</Text>}
                             </View>
                         </View>
                         {kho?.isCrane && kho?.demoMode && isConfirmed && !craneStatus && <View style={styles.summary}>
@@ -580,18 +583,22 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                             ))}
                             {!savedPackages.length && <Text style={styles.summarySub}>Phiếu chưa có chi tiết kiện đã lưu.</Text>}
                         </View>}
-                        <Text style={styles.sectionTitle}>{kho?.isCrane ? 'Chọn BTP cần xuất' : 'Chọn BTP cần quét xuất'}</Text>
+                        {kho?.isCrane && !isConfirmed && <View style={styles.summary}>
+                            <Text style={styles.summaryTitle}>CHỜ WMS XÁC NHẬN XUẤT</Text>
+                            <Text style={styles.summarySub}>WMS chọn kiện và gửi kết quả để ERP lưu phiếu. Kéo xuống để cập nhật.</Text>
+                        </View>}
+                        <Text style={styles.sectionTitle}>{kho?.isCrane ? 'BTP yêu cầu xuất' : 'Chọn BTP cần quét xuất'}</Text>
                     </View>
                 }
                 ListFooterComponent={
                     <View>
-                        {!!activeLine && !isConfirmed && (
+                        {!!activeLine && !isConfirmed && !kho?.isCrane && (
                             <View style={styles.actions}>
                                 <TouchableOpacity style={styles.actionBtn} onPress={() => scanQr('main')}><Ionicons name="scan-outline" size={20} color={COLORS.white} /><Text style={styles.actionText}>Quét kiện</Text></TouchableOpacity>
                                 <TouchableOpacity style={[styles.actionBtn, { backgroundColor: COLORS.success }]} onPress={loadSuggestions}><Ionicons name="list-outline" size={20} color={COLORS.white} /><Text style={styles.actionText}>Kiện gợi ý</Text></TouchableOpacity>
                             </View>
                         )}
-                        {!isConfirmed && <><View style={styles.remainingBox}>
+                        {!isConfirmed && !kho?.isCrane && <><View style={styles.remainingBox}>
                             <Text style={styles.remainingLabel}>Số lượng còn phải xuất</Text>
                             <Text style={styles.remainingValue}>{remainingForActive}</Text>
                         </View>
@@ -620,7 +627,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                     </View>
                 }
             />
-            {!isConfirmed && <View style={styles.footer}>
+            {!isConfirmed && !kho?.isCrane && <View style={styles.footer}>
                 <TouchableOpacity style={[styles.saveBtn, (!pendingPicks.length || isConfirmed) && styles.disabled]} disabled={!pendingPicks.length || isConfirmed || loading} onPress={savePicks}>
                     {loading ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="save-outline" size={20} color={COLORS.white} /><Text style={styles.saveText}>Lưu phiếu ({pendingPicks.length})</Text></>}
                 </TouchableOpacity>

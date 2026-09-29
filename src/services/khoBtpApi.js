@@ -188,6 +188,7 @@ export const khoBtpApi = {
 
     async searchExports({
         idKho = [],
+        craneMode = false,
         trangThai = null,
         soPhieu = '',
         loaiPhieu = null,
@@ -200,6 +201,7 @@ export const khoBtpApi = {
             baseURL: KHO_TM_API_BASE_URL,
             url: '/btp/phieuxuat/tim-kiem',
             data: {
+                craneMode: Boolean(craneMode),
                 idKho: cleanIdList(idKho),
                 trangThai,
                 soPhieu: soPhieu.trim(),

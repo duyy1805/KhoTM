@@ -51,12 +51,12 @@ function FilterChip({ label, selected, onPress }) {
     );
 }
 
-function ExportCard({ item, onPress, qrMode = false }) {
+function ExportCard({ item, onPress, qrMode = false, isCrane = false }) {
     const status = readValue(item, ['trangThai', 'TrangThai'], false);
     const wmsStatus = readValue(item, ['wmsStatus'], null);
     const statusLabel = ({ WAITING_WMS: 'Chờ WMS', FAILED_RETRY: 'WMS lỗi, chờ thử lại',
         WAITING_RETURN: 'Chờ nhập lại', COMPLETE: 'Đã hoàn tất' })[wmsStatus]
-        || (status ? 'Đã xác nhận' : 'Chờ xử lý');
+        || (status ? 'Đã xác nhận' : isCrane ? 'Chờ WMS xác nhận xuất' : 'Chờ xử lý');
     const documentType = readValue(item, ['loaiPhieu', 'LoaiPhieu'], '');
     const warehouse = readValue(item, ['khoXuat', 'KhoXuat'], '');
     const orderCode = readValue(item, ['maDonHang', 'MaDonHang'], '');
@@ -148,6 +148,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
                 return;
             }
             const response = await khoBtpApi.searchExports({
+                craneMode: Boolean(kho?.isCrane),
                 idKho: kho?.isCrane ? [kho.id] : [],
                 loaiPhieu: selectedType ? readValue(selectedType, ['idHinhThucXuatBTP', 'id'], null) : null,
                 soPhieu: searchText,
@@ -267,7 +268,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
                 data={visibleDocuments}
                 {...keyboardAwareScrollProps()}
                 keyExtractor={(item, index) => String(getDocumentId(item) || readValue(item, ['ID_PhieuXuatBTP'], index))}
-                renderItem={({ item }) => <ExportCard item={item} qrMode={qrMode} onPress={() => handleDocumentPress(item)} />}
+                renderItem={({ item }) => <ExportCard item={item} qrMode={qrMode} isCrane={Boolean(kho?.isCrane)} onPress={() => handleDocumentPress(item)} />}
                 contentContainerStyle={styles.content}
                 showsVerticalScrollIndicator
                 refreshControl={Platform.OS === 'web' ? undefined : (
