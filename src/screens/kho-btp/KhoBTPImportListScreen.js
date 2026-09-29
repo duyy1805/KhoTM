@@ -84,6 +84,7 @@ export default function KhoBTPImportListScreen({ navigation, route }) {
         try {
             setLoading(true);
             const response = await khoBtpApi.searchImports({
+                idKho: kho?.isCrane ? [kho.id] : [],
                 loaiPhieu: selectedType ? readValue(selectedType, ['idHinhThucNhapBTP', 'id'], null) : null,
                 soPhieu: searchText,
                 pageIndex,
@@ -95,7 +96,7 @@ export default function KhoBTPImportListScreen({ navigation, route }) {
         } finally {
             setLoading(false);
         }
-    }, [pageIndex, searchText, selectedType]);
+    }, [pageIndex, searchText, selectedType, kho]);
 
     useEffect(() => {
         fetchFilters();

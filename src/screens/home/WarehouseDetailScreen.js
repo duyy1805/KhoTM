@@ -17,6 +17,7 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
 import axios from 'axios';
 import { khoBtpApi } from '../../services/khoBtpApi';
+import { KHO_TM_API_BASE_URL } from '../../services/coreApiClient';
 
 // Design Tokens
 const COLORS = {
@@ -124,7 +125,7 @@ const WarehouseDetailScreen = ({ route }) => {
             navigation.navigate('KhoPLExportList', { kho });
             return;
         }
-        if (kho.id === 5) {
+        if (kho.id === 5 || kho.isCrane) {
             navigation.navigate('PhieuXuatBTP', { kho });
         }
     };
@@ -148,7 +149,7 @@ const WarehouseDetailScreen = ({ route }) => {
             navigation.navigate('KhoNLReport', { kho });
             return;
         }
-        if (kho.id === 5) {
+        if (kho.id === 5 || kho.isCrane) {
             navigation.navigate('KhoBTPReport', { kho });
             return;
         }
@@ -163,7 +164,7 @@ const WarehouseDetailScreen = ({ route }) => {
 
     const handleQRCodeScanned = async (qrCode) => {
         try {
-            if (kho.id === 5) {
+            if (kho.id === 5 || kho.isCrane) {
                 const response = await khoBtpApi.getPackageInfo(qrCode);
 
                 if (response && response.ok && response.data) {
@@ -180,7 +181,7 @@ const WarehouseDetailScreen = ({ route }) => {
 
             if (kho.id === 1) {
                 const response = await axios.post(
-                    'https://nodeapi.z76.vn/khotm/khonl/getcuontheovitri',
+                    `${KHO_TM_API_BASE_URL}/khonl/getcuontheovitri`,
                     { QRCode: qrCode }
                 );
 
@@ -198,7 +199,7 @@ const WarehouseDetailScreen = ({ route }) => {
 
             if (kho.id === 3) {
                 const response = await axios.post(
-                    'https://nodeapi.z76.vn/khotm/khopl/getthongtinkien',
+                    `${KHO_TM_API_BASE_URL}/khopl/getthongtinkien`,
                     { QRCode: qrCode }
                 );
 
@@ -272,7 +273,7 @@ const WarehouseDetailScreen = ({ route }) => {
     };
 
     const showInspectionReport = kho.id === 1 || kho.id === 3;
-    const showReport = kho.id === 1 || kho.id === 5;
+    const showReport = kho.id === 1 || kho.id === 5 || kho.isCrane;
 
     return (
         <View style={[styles.container, { paddingBottom: insets.bottom }]}>
@@ -288,6 +289,10 @@ const WarehouseDetailScreen = ({ route }) => {
                     </View>
 
                     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                        {kho.isCrane && kho.demoMode && <View style={{ backgroundColor: '#EEF2FF', padding: 14, borderRadius: 14, marginBottom: 16 }}>
+                            <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Chế độ thử nghiệm</Text>
+                            <Text style={{ color: COLORS.textSecondary, marginTop: 4 }}>Đang dùng phiếu và vị trí kho BTP (ID 5) trên DB test. Luồng callback WMS sẽ hoạt động sau khi cấu hình kho cầu trục và vị trí tạm.</Text>
+                        </View>}
                         <View style={styles.mainActions}>
                             <TouchableOpacity style={styles.mainButton} onPress={handleScanPress} activeOpacity={0.8}>
                                 <View style={styles.mainButtonIconBg}>
@@ -312,7 +317,7 @@ const WarehouseDetailScreen = ({ route }) => {
                                 description="Quản lý và tạo mới phiếu nhập kho"
                                 iconName="download"
                                 onPress={() => {
-                                    if (kho.id === 5) navigation.navigate('KhoBTPImportList', { kho });
+                                    if (kho.id === 5 || kho.isCrane) navigation.navigate('KhoBTPImportList', { kho });
                                     else Toast.show({ type: 'info', text1: 'Phiếu nhập đang được hoàn thiện cho kho này' });
                                 }}
                             />
@@ -338,12 +343,12 @@ const WarehouseDetailScreen = ({ route }) => {
                                     onPress={handleReportPress}
                                 />
                             )}
-                            <OptionItem
+                            {(!kho.isCrane || kho.demoMode) && <OptionItem
                                 title="Điều chuyển vị trí"
                                 description="Thay đổi vị trí lưu trữ của kiện hàng"
                                 iconName="swap-horizontal"
                                 onPress={handleTransferPress}
-                            />
+                            />}
                         </View>
                     </ScrollView>
                 </>

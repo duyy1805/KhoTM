@@ -18,6 +18,7 @@ import axios from 'axios';
 import Toast from 'react-native-toast-message';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
+import { KHO_TM_API_BASE_URL } from '../../services/coreApiClient';
 
 // Design Tokens
 const COLORS = {
@@ -54,7 +55,7 @@ const ScannedDetailPL = ({ route }) => {
         try {
             setRefreshing(true);
             const res = await axios.post(
-                'https://nodeapi.z76.vn/khotm/khopl/getthongtinkien',
+                `${KHO_TM_API_BASE_URL}/khopl/getthongtinkien`,
                 { QRCode: qrToUse }
             );
 
@@ -108,7 +109,7 @@ const ScannedDetailPL = ({ route }) => {
 
         try {
             const res = await axios.post(
-                'https://nodeapi.z76.vn/khotm/khopl/updateqrcodekien',
+                `${KHO_TM_API_BASE_URL}/khopl/updateqrcodekien`,
                 { ID_Kien: kienInfo?.ID_Kien, QRCode: scannedQR }
             );
 
@@ -131,7 +132,7 @@ const ScannedDetailPL = ({ route }) => {
             if (String(packageId) !== String(kienInfo?.ID_Kien) || !location) return;
             try {
                 await axios.post(
-                    'https://nodeapi.z76.vn/khotm/khopl/updatevitrikien',
+                    `${KHO_TM_API_BASE_URL}/khopl/updatevitrikien`,
                     { ID_Kien: kienInfo?.ID_Kien, ID_ViTriKho: location.value }
                 );
                 await loadData();

@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     KeyboardAvoidingView,
     Modal,
@@ -96,7 +95,7 @@ function QuantityModal({ visible, item, max, onClose, onConfirm }) {
     );
 }
 
-function SuggestionModal({ visible, packages, selectedDetailIds, scannedQrCodes, bottomInset, onClose, onScan, onSelect }) {
+function SuggestionModal({ visible, packages, selectedDetailIds, scannedQrCodes, allowDirectSelect, bottomInset, onClose, onScan, onSelect }) {
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={styles.suggestionOverlay}>
@@ -106,7 +105,7 @@ function SuggestionModal({ visible, packages, selectedDetailIds, scannedQrCodes,
                     <View style={styles.suggestionHeader}>
                         <View style={{ flex: 1 }}>
                             <Text style={styles.suggestionTitle}>Kiện gợi ý theo dấu tuần</Text>
-                            <Text style={styles.suggestionSubtitle}>Ưu tiên dấu tuần thấp trước</Text>
+                            <Text style={styles.suggestionSubtitle}>{allowDirectSelect ? 'Chạm vào kiện để chọn • Ưu tiên dấu tuần thấp trước' : 'Ưu tiên dấu tuần thấp trước'}</Text>
                         </View>
                         <TouchableOpacity style={styles.suggestionClose} onPress={onClose}>
                             <Ionicons name="close" size={22} color={COLORS.textSecondary} />
@@ -121,6 +120,7 @@ function SuggestionModal({ visible, packages, selectedDetailIds, scannedQrCodes,
                         renderItem={({ item }) => {
                             const packageQr = normalizeQr(item.qrCode);
                             const packageScanned = scannedQrCodes.has(packageQr);
+                            const packageUnlocked = allowDirectSelect || packageScanned;
                             return (
                             <View style={[styles.suggestionPackage, packageScanned && styles.suggestionPackageScanned]}>
                                 <View style={styles.suggestionPackageHeader}>
@@ -132,7 +132,7 @@ function SuggestionModal({ visible, packages, selectedDetailIds, scannedQrCodes,
                                         <Text style={styles.suggestionMeta}>Vị trí: {item.maViTriKho || '-'} • Tổng tồn: {asNumber(item.totalStockQuantity)}</Text>
                                     </View>
                                     <View style={[styles.scanStatus, packageScanned ? styles.scanStatusDone : styles.scanStatusPending]}>
-                                        <Text style={[styles.scanStatusText, packageScanned && styles.scanStatusTextDone]}>{packageScanned ? 'Đã quét' : 'Chưa quét'}</Text>
+                                        <Text style={[styles.scanStatusText, packageScanned && styles.scanStatusTextDone]}>{packageScanned ? 'Đã quét' : allowDirectSelect ? 'Có thể chọn' : 'Chưa quét'}</Text>
                                     </View>
                                 </View>
                                 {(item.details || []).map((detail) => {
@@ -145,12 +145,12 @@ function SuggestionModal({ visible, packages, selectedDetailIds, scannedQrCodes,
                                             key={String(detailId)}
                                             style={[
                                                 styles.suggestionDetail,
-                                                !packageScanned && styles.suggestionDetailLocked,
+                                                !packageUnlocked && styles.suggestionDetailLocked,
                                                 selected && styles.suggestionDetailDisabled,
                                             ]}
                                             disabled={selected}
                                             onPress={() => {
-                                                if (!packageScanned) {
+                                                if (!packageUnlocked) {
                                                     Toast.show({ type: 'info', text1: 'Vui lòng quét QR kiện trước' });
                                                     return;
                                                 }
@@ -166,9 +166,9 @@ function SuggestionModal({ visible, packages, selectedDetailIds, scannedQrCodes,
                                                 <Text style={styles.suggestionStockValue}>{asNumber(detail.stockQuantity)}</Text>
                                             </View>
                                             <Ionicons
-                                                name={selected ? 'checkmark-circle' : packageScanned ? 'chevron-forward' : 'lock-closed-outline'}
+                                                name={selected ? 'checkmark-circle' : packageUnlocked ? 'chevron-forward' : 'lock-closed-outline'}
                                                 size={20}
-                                                color={selected ? COLORS.success : packageScanned ? COLORS.primary : COLORS.textSecondary}
+                                                color={selected ? COLORS.success : packageUnlocked ? COLORS.primary : COLORS.textSecondary}
                                             />
                                         </TouchableOpacity>
                                     );
@@ -231,8 +231,9 @@ function PickCard({ item, onEdit, onRemove }) {
 
 export default function PhieuXuatBTP_Detail({ navigation, route }) {
     const insets = useSafeAreaInsets();
-    const { id, exportDoc, initialQr } = route.params || {};
+    const { id, exportDoc, initialQr, kho } = route.params || {};
     const [detail, setDetail] = useState(exportDoc || {});
+    const [craneStatus, setCraneStatus] = useState(null);
     const [lines, setLines] = useState([]);
     const [savedPackages, setSavedPackages] = useState([]);
     const [activeLineIndex, setActiveLineIndex] = useState(0);
@@ -247,6 +248,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
     const [suggestionPackages, setSuggestionPackages] = useState([]);
     const [suggestionVisible, setSuggestionVisible] = useState(false);
     const [returnToSuggestions, setReturnToSuggestions] = useState(false);
+    const [saveConfirmVisible, setSaveConfirmVisible] = useState(false);
     const [permission, requestPermission] = useCameraPermissions();
 
     const activeLine = lines[activeLineIndex] || null;
@@ -262,12 +264,16 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
             setDetail(response || {});
             setLines(Array.isArray(response?.chiTiets) ? response.chiTiets : []);
             setSavedPackages(Array.isArray(response?.kiens) ? response.kiens : []);
+            if (kho?.isCrane && response?.trangThai) {
+                try { setCraneStatus(await khoBtpApi.getCraneOrderStatus(id)); }
+                catch (statusError) { setCraneStatus(null); }
+            }
         } catch (error) {
             Toast.show({ type: 'error', text1: 'Lỗi tải chi tiết phiếu xuất', text2: getApiErrorMessage(error) });
         } finally {
             setLoading(false);
         }
-    }, [id]);
+    }, [id, kho?.isCrane, kho?.demoMode]);
 
     useEffect(() => {
         fetchDetail();
@@ -473,33 +479,31 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
             Toast.show({ type: 'info', text1: 'Chưa có kiện chờ xuất' });
             return;
         }
-        Alert.alert('Xác nhận phiếu xuất', 'Lưu toàn bộ kiện và chuyển phiếu sang trạng thái phê duyệt?', [
-            { text: 'Hủy', style: 'cancel' },
-            {
-                text: 'Xác nhận',
-                onPress: async () => {
-                    try {
-                        setLoading(true);
-                        const picks = pendingPicks.map((pick) => ({
-                            IdTheKhoKienBTPChiTiet: packageDetailId(pick.raw),
-                            IdDonHangLoSanXuat: asNumber(readValue(pick.raw, ['idDonHangLoSanXuat', 'ID_DonHang_LoSanXuat'], readValue(pick.line, ['idDonHangLoSanXuat'], 0))),
-                            IdDonHangSanPham: asNumber(readValue(pick.raw, ['idDonHangSanPham', 'ID_DonHang_SanPham'], readValue(pick.line, ['idDonHangSanPham'], 0))),
-                            IdDonHang: asNumber(readValue(pick.raw, ['idDonHang', 'ID_DonHang'], readValue(pick.line, ['idDonHang'], 0))),
-                            SoLuongXuatKho: pick.quantity,
-                        }));
-                        if (picks.some((pick) => !pick.IdTheKhoKienBTPChiTiet)) throw new Error('Thiếu ID chi tiết kiện xuất');
-                        await khoBtpApi.confirmExport({ idPhieuXuat: id, picks });
-                        setPendingPicks([]);
-                        Toast.show({ type: 'success', text1: 'Xác nhận phiếu xuất thành công' });
-                        await fetchDetail();
-                    } catch (error) {
-                        Toast.show({ type: 'error', text1: 'Xác nhận phiếu xuất thất bại', text2: getApiErrorMessage(error) });
-                    } finally {
-                        setLoading(false);
-                    }
-                },
-            },
-        ]);
+        setSaveConfirmVisible(true);
+    };
+
+    const confirmSavePicks = async () => {
+        if (loading || !pendingPicks.length) return;
+        setSaveConfirmVisible(false);
+        try {
+            setLoading(true);
+            const picks = pendingPicks.map((pick) => ({
+                IdTheKhoKienBTPChiTiet: packageDetailId(pick.raw),
+                IdDonHangLoSanXuat: asNumber(readValue(pick.raw, ['idDonHangLoSanXuat', 'ID_DonHang_LoSanXuat'], readValue(pick.line, ['idDonHangLoSanXuat'], 0))),
+                IdDonHangSanPham: asNumber(readValue(pick.raw, ['idDonHangSanPham', 'ID_DonHang_SanPham'], readValue(pick.line, ['idDonHangSanPham'], 0))),
+                IdDonHang: asNumber(readValue(pick.raw, ['idDonHang', 'ID_DonHang'], readValue(pick.line, ['idDonHang'], 0))),
+                SoLuongXuatKho: pick.quantity,
+            }));
+            if (picks.some((pick) => !pick.IdTheKhoKienBTPChiTiet)) throw new Error('Thiếu ID chi tiết kiện xuất');
+            await khoBtpApi.confirmExport({ idPhieuXuat: id, picks });
+            setPendingPicks([]);
+            Toast.show({ type: 'success', text1: 'Xác nhận phiếu xuất thành công' });
+            await fetchDetail();
+        } catch (error) {
+            Toast.show({ type: 'error', text1: 'Xác nhận phiếu xuất thất bại', text2: getApiErrorMessage(error) });
+        } finally {
+            setLoading(false);
+        }
     };
 
     if (scanMode) {
@@ -533,6 +537,8 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
             </View>
             <FlatList
                 data={lines}
+                refreshing={loading}
+                onRefresh={fetchDetail}
                 {...keyboardAwareScrollProps()}
                 keyExtractor={(item, index) => lineKey(item, index)}
                 renderItem={({ item, index }) => (
@@ -547,6 +553,11 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                 ListHeaderComponent={
                     <View>
                         {isConfirmed && <Text style={styles.confirmedBanner}>Phiếu đã xác nhận — chỉ xem dữ liệu</Text>}
+                        {kho?.isCrane && craneStatus && <View style={styles.summary}>
+                            <Text style={styles.summaryTitle}>{({ WAITING_WMS: 'CHỜ WMS', FAILED_RETRY: 'WMS BÁO LỖI – CHỜ THỬ LẠI', WAITING_RETURN: 'CHỜ NHẬP LẠI', COMPLETE: 'ĐÃ HOÀN TẤT' })[craneStatus.status] || craneStatus.status}</Text>
+                            <Text style={styles.summarySub}>Gửi WMS: {craneStatus.dispatchStatus === 'MOCKED' ? 'Đã lưu mock, chưa gửi WMS thật' : craneStatus.dispatchStatus}</Text>
+                            {(craneStatus.pallets || []).map((pallet) => <Text key={pallet.PalletID} style={styles.summarySub}>{pallet.PalletID}: còn {pallet.remainingQuantity} • {pallet.Status === 'WAITING_RETURN' ? 'chờ nhập lại' : pallet.Status === 'RETURNED' ? 'đã nhập lại' : 'đang xử lý'}{pallet.CurrentLocationCode ? ` • Vị trí ${pallet.CurrentLocationCode}` : ''}</Text>)}
+                        </View>}
                         <View style={styles.summary}>
                             <Text style={styles.summaryTitle}>{readValue(detail, ['loaiPhieu'], '-')}</Text>
                             <Text style={styles.summarySub}>Ngày xuất: {String(readValue(detail, ['ngayXuat'], '-')).slice(0, 10)}</Text>
@@ -557,7 +568,19 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                                 <Text style={styles.stat}>Chờ lưu: {pendingPicks.length}</Text>
                             </View>
                         </View>
-                        <Text style={styles.sectionTitle}>Chọn BTP cần quét xuất</Text>
+                        {kho?.isCrane && kho?.demoMode && isConfirmed && !craneStatus && <View style={styles.summary}>
+                            <Text style={styles.summaryTitle}>Kiện đã xuất và vị trí hiện tại</Text>
+                            <Text style={styles.summarySub}>Chế độ thử nghiệm đã ghi xuất trên DB test. Chưa có yêu cầu hoặc callback WMS, nên phần tồn còn lại chưa được chuyển sang vị trí nền/tạm.</Text>
+                            {savedPackages.map((item, index) => (
+                                <View key={`${packageDetailId(item) || getPackageId(item)}-${index}`} style={styles.savedPalletCard}>
+                                    <Text style={styles.savedPalletTitle}>{getPackageQr(item) || `Kiện ${getPackageId(item)}`}</Text>
+                                    <Text style={styles.summarySub}>Đã xuất: {asNumber(readValue(item, ['soLuong', 'soLuongXuatKho', 'SoLuong_XuatKho'], 0))} • Tồn chi tiết: {stockQuantity(item)}</Text>
+                                    <Text style={styles.summarySub}>Vị trí đang ghi trên DB test: {readValue(item, ['maViTriKho', 'MaViTriKho'], `ID ${readValue(item, ['idViTriKho', 'ID_ViTriKho'], '-')}`)}</Text>
+                                </View>
+                            ))}
+                            {!savedPackages.length && <Text style={styles.summarySub}>Phiếu chưa có chi tiết kiện đã lưu.</Text>}
+                        </View>}
+                        <Text style={styles.sectionTitle}>{kho?.isCrane ? 'Chọn BTP cần xuất' : 'Chọn BTP cần quét xuất'}</Text>
                     </View>
                 }
                 ListFooterComponent={
@@ -568,7 +591,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                                 <TouchableOpacity style={[styles.actionBtn, { backgroundColor: COLORS.success }]} onPress={loadSuggestions}><Ionicons name="list-outline" size={20} color={COLORS.white} /><Text style={styles.actionText}>Kiện gợi ý</Text></TouchableOpacity>
                             </View>
                         )}
-                        <View style={styles.remainingBox}>
+                        {!isConfirmed && <><View style={styles.remainingBox}>
                             <Text style={styles.remainingLabel}>Số lượng còn phải xuất</Text>
                             <Text style={styles.remainingValue}>{remainingForActive}</Text>
                         </View>
@@ -593,37 +616,82 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                                 }}
                                 onRemove={() => setPendingPicks((current) => current.filter((_, itemIndex) => itemIndex !== index))}
                             />
-                        )) : <Text style={styles.emptyText}>Chưa có kiện nào được quét</Text>}
+                        )) : <Text style={styles.emptyText}>{kho?.isCrane ? 'Chưa có kiện nào được chọn' : 'Chưa có kiện nào được quét'}</Text>}</>}
                     </View>
                 }
             />
-            <View style={styles.footer}>
+            {!isConfirmed && <View style={styles.footer}>
                 <TouchableOpacity style={[styles.saveBtn, (!pendingPicks.length || isConfirmed) && styles.disabled]} disabled={!pendingPicks.length || isConfirmed || loading} onPress={savePicks}>
                     {loading ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="save-outline" size={20} color={COLORS.white} /><Text style={styles.saveText}>Lưu phiếu ({pendingPicks.length})</Text></>}
                 </TouchableOpacity>
-            </View>
+            </View>}
+            <Modal visible={saveConfirmVisible} transparent animationType="fade" onRequestClose={() => setSaveConfirmVisible(false)}>
+                <View style={styles.overlay}>
+                    <Pressable style={StyleSheet.absoluteFill} onPress={() => setSaveConfirmVisible(false)} />
+                    <View style={styles.dialog}>
+                        <Text style={styles.dialogTitle}>Xác nhận phiếu xuất</Text>
+                        <Text style={styles.dialogSub}>Lưu {pendingPicks.length} kiện và chuyển phiếu sang trạng thái phê duyệt?</Text>
+                        <View style={styles.dialogActions}>
+                            <TouchableOpacity style={styles.secondaryBtn} onPress={() => setSaveConfirmVisible(false)}><Text style={styles.secondaryText}>Hủy</Text></TouchableOpacity>
+                            <TouchableOpacity style={styles.primaryBtn} onPress={confirmSavePicks}><Text style={styles.primaryText}>Xác nhận</Text></TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
             <SuggestionModal
                 visible={suggestionVisible}
                 packages={suggestionPackages}
                 selectedDetailIds={selectedSuggestionDetailIds}
                 scannedQrCodes={activeScannedQrCodes}
+                allowDirectSelect={Boolean(kho?.isCrane)}
                 bottomInset={insets.bottom}
                 onClose={() => {
                     setSuggestionVisible(false);
                     setReturnToSuggestions(false);
                 }}
                 onScan={() => scanQr('suggestions')}
-                onSelect={(suggestionDetail) => {
-                    if (!activeScannedQrCodes.has(normalizeQr(getPackageQr(suggestionDetail)))) {
+                onSelect={async (suggestionDetail) => {
+                    if (!kho?.isCrane && !activeScannedQrCodes.has(normalizeQr(getPackageQr(suggestionDetail)))) {
                         Toast.show({ type: 'info', text1: 'Vui lòng quét QR kiện trước' });
                         return;
                     }
                     setSuggestionVisible(false);
-                    const accepted = addPackageCandidate(suggestionDetail);
-                    if (accepted) {
-                        setReturnToSuggestions(true);
-                    } else {
+                    try {
+                        let candidate = suggestionDetail;
+                        if (kho?.isCrane) {
+                            setLoading(true);
+                            const response = await khoBtpApi.getSuggestedPackages({
+                                idPhieuXuat: id,
+                                idDonHangLoSanXuat: readValue(activeLine, ['idDonHangLoSanXuat'], 0),
+                                idDonHangSanPham: readValue(activeLine, ['idDonHangSanPham'], 0),
+                                idDonHang: readValue(activeLine, ['idDonHang'], 0),
+                                idQuyTrinhSanXuat: readValue(activeLine, ['idQuyTrinhSanXuat', 'ID_QuyTrinhSanXuat'], 0),
+                            });
+                            const verifiedPackage = asList(response, ['items', 'kiens', 'rows'])
+                                .find((item) => String(getPackageId(item)) === String(getPackageId(suggestionDetail)) &&
+                                    normalizeQr(getPackageQr(item)) === normalizeQr(getPackageQr(suggestionDetail)));
+                            const verified = verifiedPackage?.details?.find((item) =>
+                                String(packageDetailId(item)) === String(packageDetailId(suggestionDetail)));
+                            if (!verified || stockQuantity(verified) <= 0) {
+                                throw new Error('Kiện không còn tồn phù hợp với phiếu xuất');
+                            }
+                            candidate = {
+                                ...suggestionDetail,
+                                ...verified,
+                                qrCode: getPackageQr(verifiedPackage),
+                                weekMark: readValue(suggestionDetail, ['weekMark'], readValue(verified, ['weekMark', 'dauTuan', 'DauTuan'], null)),
+                            };
+                        }
+                        if (addPackageCandidate(candidate)) {
+                            setReturnToSuggestions(true);
+                        } else {
+                            setSuggestionVisible(true);
+                        }
+                    } catch (error) {
                         setSuggestionVisible(true);
+                        Toast.show({ type: 'error', text1: 'Không chọn được kiện', text2: getApiErrorMessage(error) });
+                    } finally {
+                        setLoading(false);
                     }
                 }}
             />
@@ -658,6 +726,8 @@ const styles = StyleSheet.create({
     summaryTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary },
     summarySub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 5 },
     summaryStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
+    savedPalletCard: { marginTop: 10, padding: 12, borderRadius: 12, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
+    savedPalletTitle: { fontSize: 14, fontWeight: '800', color: COLORS.textPrimary },
     stat: { fontSize: 11, fontWeight: '800', color: COLORS.primary, backgroundColor: COLORS.primaryLight, borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5 },
     confirmedBanner: { padding: 12, borderRadius: 13, backgroundColor: '#D1FAE5', color: '#047857', fontSize: 12, fontWeight: '800', marginBottom: 12, textAlign: 'center' },
     sectionTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary, marginVertical: 11 },

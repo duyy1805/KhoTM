@@ -39,8 +39,10 @@ function Stat({ label, value, color = COLORS.primary }) {
     return <View style={styles.stat}><Text style={[styles.statValue, { color }]}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>;
 }
 
-export default function KhoBTPReportScreen({ navigation }) {
+export default function KhoBTPReportScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
+    const reportWarehouse = route?.params?.kho || REPORT_WAREHOUSE;
+    const [craneSummary, setCraneSummary] = useState(null);
     const [permission, requestPermission] = useCameraPermissions();
     const [houses, setHouses] = useState([]);
     const [aisles, setAisles] = useState([]);
@@ -61,16 +63,17 @@ export default function KhoBTPReportScreen({ navigation }) {
     const loadHouses = useCallback(async () => {
         try {
             setLoading(true);
-            const rows = asList(await khoBtpApi.getLocationWarehouses(REPORT_WAREHOUSE.id));
+            const rows = asList(await khoBtpApi.getLocationWarehouses(reportWarehouse.id));
             setHouses(rows); setHouse(null); setAisles([]); setAisle(null);
+            if (reportWarehouse.isCrane && !reportWarehouse.demoMode) setCraneSummary(await khoBtpApi.getCraneSummary());
         } catch (error) { Toast.show({ type: 'error', text1: 'Không tải được nhà kho', text2: getApiErrorMessage(error) }); }
         finally { setLoading(false); }
-    }, []);
+    }, [reportWarehouse.id]);
 
     useEffect(() => { loadHouses(); }, [loadHouses]);
     useEffect(() => {
         if (!house) return;
-        (async () => { try { setLoading(true); const rows = asList(await khoBtpApi.getAisles({ idKho: REPORT_WAREHOUSE.id, maNha: readValue(house, ['MaNha', 'maNha'], '') })); setAisles(rows); setAisle(rows[0] || null); setLocations([]); } catch (error) { Toast.show({ type: 'error', text1: 'Không tải được dãy kho', text2: getApiErrorMessage(error) }); } finally { setLoading(false); } })();
+        (async () => { try { setLoading(true); const rows = asList(await khoBtpApi.getAisles({ idKho: reportWarehouse.id, maNha: readValue(house, ['MaNha', 'maNha'], '') })); setAisles(rows); setAisle(rows[0] || null); setLocations([]); } catch (error) { Toast.show({ type: 'error', text1: 'Không tải được dãy kho', text2: getApiErrorMessage(error) }); } finally { setLoading(false); } })();
     }, [house]);
 
     const loadLocations = useCallback(async () => {
@@ -81,7 +84,7 @@ export default function KhoBTPReportScreen({ navigation }) {
         try {
             setLoading(true);
             setLocations(asList(await khoBtpApi.searchReportLocations({
-                idKho: REPORT_WAREHOUSE.id,
+                idKho: reportWarehouse.id,
                 maNha: hasStockFilters ? '' : readValue(house, ['MaNha', 'maNha'], ''),
                 maDay: hasStockFilters ? '' : readValue(aisle, ['MaDay', 'maDay'], ''),
                 itemCode: appliedItemCode,
@@ -111,7 +114,7 @@ export default function KhoBTPReportScreen({ navigation }) {
         setAppliedItemCode('');
         setAppliedWeekMark('');
     };
-    const openLocation = (location) => navigation.navigate('KhoBTPReportLocation', { location, warehouse: REPORT_WAREHOUSE });
+    const openLocation = (location) => navigation.navigate('KhoBTPReportLocation', { location, warehouse: reportWarehouse });
     const openScanner = async () => { if (!permission?.granted) { const result = await requestPermission(); if (!result.granted) return; } setScanned(false); setScanning(true); };
     const onScanned = async ({ data }) => { if (scanned) return; setScanned(true); try { const location = await khoBtpApi.getReportLocationByQr(data); setScanning(false); openLocation(location); } catch (error) { Toast.show({ type: 'error', text1: 'Không tìm thấy vị trí được phép', text2: getApiErrorMessage(error) }); setTimeout(() => setScanned(false), 900); } };
 
@@ -119,8 +122,10 @@ export default function KhoBTPReportScreen({ navigation }) {
 
     const modalConfig = modal === 'house' ? { title: 'Chọn nhà kho', items: houses, selected: house, labels: ['TenNha', 'MaNha'], ids: ['MaNha'], select: setHouse } : { title: 'Chọn dãy', items: aisles, selected: aisle, labels: ['TenDay', 'MaDay'], ids: ['MaDay'], select: setAisle };
     return <View style={styles.container}><StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-        <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}><TouchableOpacity onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={24} color="#fff" /></TouchableOpacity><Text style={styles.headerTitle}>Báo cáo tồn kho BTP</Text><TouchableOpacity onPress={loadLocations}><Ionicons name="refresh" size={22} color="#fff" /></TouchableOpacity></View>
+        <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}><TouchableOpacity onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={24} color="#fff" /></TouchableOpacity><Text style={styles.headerTitle}>{reportWarehouse.isCrane ? 'Báo cáo kho cầu trục' : 'Báo cáo tồn kho BTP'}</Text><TouchableOpacity onPress={loadLocations}><Ionicons name="refresh" size={22} color="#fff" /></TouchableOpacity></View>
         <View style={styles.controls}>
+            {reportWarehouse.isCrane && reportWarehouse.demoMode && <Text style={{ color: COLORS.primary, fontWeight: '800', marginBottom: 10 }}>Đang hiển thị dữ liệu kho BTP để thử nghiệm.</Text>}
+            {reportWarehouse.isCrane && craneSummary && <View style={{ backgroundColor: '#FFF7ED', padding: 12, borderRadius: 12, marginBottom: 12 }}><Text style={{ fontWeight: '800' }}>Chờ WMS: {craneSummary.waitingWms} pallet • {craneSummary.waitingWmsQuantity} đã ghi xuất chờ xác nhận</Text><Text style={{ fontWeight: '800' }}>Chờ nhập lại: {craneSummary.waitingReturn} pallet • {craneSummary.waitingReturnQuantity} sản phẩm</Text><Text>Số chờ nhập lại không khả dụng để xuất.</Text></View>}
             <View style={styles.search}><Ionicons name="search" size={20} color={COLORS.textSecondary} /><TextInput style={{ flex: 1 }} value={locationSearch} onChangeText={setLocationSearch} placeholder="Lọc mã hoặc QR vị trí" {...webInputFocusProps()} /></View>
             <View style={styles.filters}>{[['house', house, ['TenNha', 'MaNha']], ['aisle', aisle, ['TenDay', 'MaDay']]].map(([key, value, keys]) => <TouchableOpacity key={key} style={styles.filter} onPress={() => setModal(key)}><Text numberOfLines={1} style={styles.filterText}>{readValue(value, keys, 'Chọn')}</Text><Ionicons name="chevron-down" size={16} /></TouchableOpacity>)}</View>
             <View style={styles.stockFilterInputs}>

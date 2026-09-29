@@ -53,6 +53,10 @@ function FilterChip({ label, selected, onPress }) {
 
 function ExportCard({ item, onPress, qrMode = false }) {
     const status = readValue(item, ['trangThai', 'TrangThai'], false);
+    const wmsStatus = readValue(item, ['wmsStatus'], null);
+    const statusLabel = ({ WAITING_WMS: 'Chờ WMS', FAILED_RETRY: 'WMS lỗi, chờ thử lại',
+        WAITING_RETURN: 'Chờ nhập lại', COMPLETE: 'Đã hoàn tất' })[wmsStatus]
+        || (status ? 'Đã xác nhận' : 'Chờ xử lý');
     const documentType = readValue(item, ['loaiPhieu', 'LoaiPhieu'], '');
     const warehouse = readValue(item, ['khoXuat', 'KhoXuat'], '');
     const orderCode = readValue(item, ['maDonHang', 'MaDonHang'], '');
@@ -79,7 +83,7 @@ function ExportCard({ item, onPress, qrMode = false }) {
                         </View>
                     ) : (
                         <View style={[styles.status, status && styles.statusDone]}>
-                            <Text style={[styles.statusText, status && styles.statusDoneText]}>{status ? 'Đã xác nhận' : 'Chờ xử lý'}</Text>
+                            <Text style={[styles.statusText, status && styles.statusDoneText]}>{statusLabel}</Text>
                         </View>
                     )}
                 </View>
@@ -144,6 +148,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
                 return;
             }
             const response = await khoBtpApi.searchExports({
+                idKho: kho?.isCrane ? [kho.id] : [],
                 loaiPhieu: selectedType ? readValue(selectedType, ['idHinhThucXuatBTP', 'id'], null) : null,
                 soPhieu: searchText,
                 pageIndex,
@@ -156,7 +161,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
         } finally {
             setLoading(false);
         }
-    }, [endDate, pageIndex, qrCode, qrMode, searchText, selectedType, startDate]);
+    }, [endDate, pageIndex, qrCode, qrMode, searchText, selectedType, startDate, kho]);
 
     useEffect(() => {
         fetchFilters();

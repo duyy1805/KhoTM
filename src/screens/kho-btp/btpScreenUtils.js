@@ -120,13 +120,15 @@ export function buildImportConfirmPackage(item) {
     };
 }
 
-export function isImportPackageReady(item) {
+export function isImportPackageReady(item, isCrane = false) {
     return Boolean(
         getPackageId(item)
         && getPackageQr(item)
-        && getLocationId(item)
+        && (isCrane || getLocationId(item))
         && getPackageDetails(item).length > 0
-        && getPackageDetails(item).every((detail) => asNumber(readValue(detail, ['soLuongTon', 'SoLuong', 'soLuong'], 0)) > 0)
+        && getPackageDetails(item).every((detail) =>
+            asNumber(readValue(detail, ['soLuongTon', 'SoLuong', 'soLuong'], 0)) > 0
+            && (!isCrane || String(readValue(detail, ['dauTuan', 'DauTuan'], '')).trim()))
     );
 }
 

@@ -23,6 +23,16 @@ function encode(value) {
 }
 
 export const khoBtpApi = {
+    async getCraneConfig() {
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/cau-truc/config' });
+    },
+    async getCraneOrderStatus(idPhieuXuat) {
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/orders/${positiveInt(idPhieuXuat, 'Phiếu xuất')}` });
+    },
+    async getCraneSummary() {
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/cau-truc/summary' });
+    },
     async getImportTypes() {
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/phieunhap/types' });
     },
@@ -157,15 +167,17 @@ export const khoBtpApi = {
         });
     },
 
-    async confirmImport({ idPhieuNhap, packages }) {
+    async confirmImport({ idPhieuNhap, packages, craneMode = false }) {
         if (!Array.isArray(packages) || !packages.length) throw new Error('Phiếu nhập chưa có kiện');
         return apiRequest({
             method: 'PUT',
             baseURL: KHO_TM_API_BASE_URL,
             url: '/btp/phieunhap/xac-nhan',
+            timeout: 45000,
             data: {
                 IdPhieuNhap: positiveInt(idPhieuNhap, 'Phiếu nhập'),
                 kiens: packages,
+                craneMode: Boolean(craneMode),
             },
         });
     },

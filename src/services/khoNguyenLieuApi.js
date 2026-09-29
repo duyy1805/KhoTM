@@ -2,6 +2,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { KHO_PL_BASE_URL } from './khoPhuLieuApi';
 import { getCurrentUserId } from './khoPhuLieuApi';
+import { KHO_TM_API_BASE_URL } from './coreApiClient';
 
 async function getAuthHeaders() {
     const authToken = await AsyncStorage.getItem('authToken');
@@ -64,7 +65,7 @@ export const khoNguyenLieuApi = {
     async getInspectionDetail(idBienBan) {
         return request({
             method: 'POST',
-            url: 'https://nodeapi.z76.vn/khotm/giamdinhvt-detail',
+            url: `${KHO_TM_API_BASE_URL}/giamdinhvt-detail`,
             data: { ID_GiamDinhVT: idBienBan },
         });
     },

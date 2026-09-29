@@ -16,6 +16,8 @@ import { Svg, Circle } from 'react-native-svg';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { khoBtpApi } from '../../services/khoBtpApi';
+import { IS_KHO_TM_TEST } from '../../services/coreApiClient';
 
 const { width } = Dimensions.get('window');
 
@@ -67,7 +69,7 @@ const CircularProgress = ({ percentage, color = COLORS.primary }) => {
     );
 };
 
-const WarehouseItem = ({ title, pushedShelves, totalShelves, percentage, icon }) => {
+const WarehouseItem = ({ title, pushedShelves, totalShelves, percentage, icon, isCrane, demoMode, craneConfigured }) => {
     return (
         <View style={styles.warehouseItem}>
             <View style={styles.warehouseInfo}>
@@ -79,12 +81,12 @@ const WarehouseItem = ({ title, pushedShelves, totalShelves, percentage, icon })
                     <View style={styles.statsRow}>
                         <Ionicons name="layers-outline" size={14} color={COLORS.textSecondary} />
                         <Text style={styles.warehouseSubtitle}>
-                            {pushedShelves} / {totalShelves} kệ đã đẩy
+                            {isCrane ? (demoMode ? 'Thử phiếu kho BTP trên DB test' : craneConfigured ? 'WMS đang dùng mock' : 'Chưa cấu hình kho cầu trục') : `${pushedShelves} / ${totalShelves} kệ đã đẩy`}
                         </Text>
                     </View>
                 </View>
             </View>
-            <CircularProgress percentage={percentage} />
+            {isCrane ? <Ionicons name={demoMode ? 'flask-outline' : craneConfigured ? 'checkmark-circle-outline' : 'alert-circle-outline'} size={29} color={COLORS.primary} /> : <CircularProgress percentage={percentage} />}
         </View>
     );
 };
@@ -94,9 +96,10 @@ const INITIAL_DATA = [
     { title: "Kho phụ liệu", pushedShelves: 10, totalShelves: 24, id: 3, icon: "construct-outline" },
     { title: "Kho thành phẩm", pushedShelves: 12, totalShelves: 24, id: 6, icon: "checkmark-done-circle-outline" },
     { title: "Kho bán thành phẩm", pushedShelves: 6, totalShelves: 24, id: 5, icon: "hammer-outline" },
+    { title: "Kho cầu trục", pushedShelves: 0, totalShelves: 0, id: IS_KHO_TM_TEST ? 5 : null, isCrane: true, demoMode: IS_KHO_TM_TEST, craneConfigured: IS_KHO_TM_TEST, icon: 'git-branch-outline' },
 ].map(kho => ({
     ...kho,
-    percentage: Number(((kho.pushedShelves / kho.totalShelves) * 100).toFixed(1))
+    percentage: kho.totalShelves > 0 ? Number(((kho.pushedShelves / kho.totalShelves) * 100).toFixed(1)) : 0
 }));
 
 const HomeScreen = () => {
@@ -106,11 +109,27 @@ const HomeScreen = () => {
     const [refreshing, setRefreshing] = useState(false);
     const [wareHouseList, setWareHouseList] = useState(INITIAL_DATA);
 
+    const loadCraneConfig = useCallback(async () => {
+        if (IS_KHO_TM_TEST) return;
+        try {
+            const config = await khoBtpApi.getCraneConfig();
+            setWareHouseList((current) => current.map((item) => item.isCrane ? {
+                ...item,
+                id: config?.enabled && config?.warehouseID ? config.warehouseID : null,
+                demoMode: false,
+                craneConfigured: Boolean(config?.enabled && config?.warehouseID && config?.temporaryLocationID),
+            } : item));
+        } catch {
+            setWareHouseList((current) => current.map((item) => item.isCrane ? {
+                ...item, id: null, demoMode: false, craneConfigured: false,
+            } : item));
+        }
+    }, []);
+
     const handleRefresh = useCallback(async () => {
         setRefreshing(true);
-        // Simulate API call
-        setTimeout(() => setRefreshing(false), 1000);
-    }, []);
+        try { await loadCraneConfig(); } finally { setRefreshing(false); }
+    }, [loadCraneConfig]);
 
     useEffect(() => {
         const fetchUserInfo = async () => {
@@ -126,7 +145,13 @@ const HomeScreen = () => {
         fetchUserInfo();
     }, []);
 
+    useEffect(() => { loadCraneConfig(); }, [loadCraneConfig]);
+
     const handleSelectWareHouse = (kho) => {
+        if (kho.isCrane && !kho.craneConfigured) {
+            Alert.alert('Kho cầu trục chưa cấu hình', 'Cần ID kho và vị trí tạm trên DB thật trước khi sử dụng.');
+            return;
+        }
         AsyncStorage.setItem('selectedWarehouse', JSON.stringify(kho));
         navigation.navigate("WarehouseDetailScreen", { kho });
     };
@@ -167,7 +192,7 @@ const HomeScreen = () => {
                 <View style={styles.summaryCard}>
                     <View style={styles.summaryItem}>
                         <Text style={styles.summaryLabel}>Tổng số kho</Text>
-                        <Text style={styles.summaryValue}>4</Text>
+                        <Text style={styles.summaryValue}>{wareHouseList.length}</Text>
                     </View>
                     <View style={styles.summaryDivider} />
                     <View style={styles.summaryItem}>
@@ -181,7 +206,7 @@ const HomeScreen = () => {
             <View style={styles.content}>
                 <FlatList
                     data={wareHouseList}
-                    keyExtractor={(item) => item.id.toString()}
+                    keyExtractor={(item) => item.isCrane ? 'warehouse-crane' : item.id.toString()}
                     contentContainerStyle={styles.listContainer}
                     showsVerticalScrollIndicator={false}
                     renderItem={({ item }) => (
@@ -195,6 +220,9 @@ const HomeScreen = () => {
                                 totalShelves={item.totalShelves}
                                 percentage={item.percentage}
                                 icon={item.icon}
+                                isCrane={item.isCrane}
+                                demoMode={item.demoMode}
+                                craneConfigured={item.craneConfigured}
                             />
                         </TouchableOpacity>
                     )}

@@ -4,6 +4,7 @@ import {
     Alert,
     DeviceEventEmitter,
     FlatList,
+    RefreshControl,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -99,7 +100,7 @@ function NumberModal({ visible, title, label, max, initialValue = '', onClose, o
     );
 }
 
-function BtpDetailModal({ visible, material, detail, max, onClose, onConfirm }) {
+function BtpDetailModal({ visible, material, detail, max, requireWeekMark, onClose, onConfirm }) {
     const [quantity, setQuantity] = useState('');
     const [dauTuan, setDauTuan] = useState('');
 
@@ -116,6 +117,10 @@ function BtpDetailModal({ visible, material, detail, max, onClose, onConfirm }) 
             return;
         }
         const normalizedDauTuan = dauTuan.trim();
+        if (requireWeekMark && !normalizedDauTuan) {
+            Toast.show({ type: 'error', text1: 'Kiện cầu trục cần có dấu tuần để gửi WMS' });
+            return;
+        }
         if (normalizedDauTuan.length > 50) {
             Toast.show({ type: 'error', text1: 'Dấu tuần tối đa 50 ký tự' });
             return;
@@ -196,9 +201,9 @@ function MaterialModal({ visible, materials, onClose, onSelect }) {
     );
 }
 
-function PackageCard({ item, selected, locked, onSelect, onAddMaterial, onEditDetail, onDeleteDetail, onQr, onLocation }) {
+function PackageCard({ item, selected, locked, isCrane, onSelect, onAddMaterial, onEditDetail, onDeleteDetail, onQr, onLocation }) {
     const details = getPackageDetails(item);
-    const ready = isImportPackageReady(item);
+    const ready = isImportPackageReady(item, isCrane);
     return (
         <View style={[styles.packageCard, selected && styles.packageSelected]}>
             <View style={styles.rowBetween}>
@@ -230,10 +235,15 @@ function PackageCard({ item, selected, locked, onSelect, onAddMaterial, onEditDe
                     <Text style={styles.infoLabel}>Mã QR</Text>
                     <Text style={styles.infoValue} numberOfLines={1}>{getPackageQr(item) || 'Chưa gán'}</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.infoBox} onPress={onLocation} disabled={locked}>
+                {isCrane ? locked && <View style={styles.infoBox}>
+                    <Text style={styles.infoLabel}>Vị trí WMS</Text>
+                    <Text style={styles.infoValue} numberOfLines={1}>
+                        {item.wmsLocationPending ? 'Chờ WMS cập nhật' : getPackageLocationCode(item) || 'Chờ WMS cập nhật'}
+                    </Text>
+                </View> : <TouchableOpacity style={styles.infoBox} onPress={onLocation} disabled={locked}>
                     <Text style={styles.infoLabel}>Vị trí</Text>
                     <Text style={styles.infoValue} numberOfLines={1}>{getPackageLocationCode(item) || 'Chưa có'}</Text>
-                </TouchableOpacity>
+                </TouchableOpacity>}
             </View>
             {!locked && <View style={styles.packageActions}>
                 <TouchableOpacity style={styles.smallAction} onPress={onAddMaterial}>
@@ -244,10 +254,10 @@ function PackageCard({ item, selected, locked, onSelect, onAddMaterial, onEditDe
                     <Ionicons name="qr-code-outline" size={18} color={COLORS.primary} />
                     <Text style={styles.smallActionText}>Gán QR</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.smallAction} onPress={onLocation}>
+                {!isCrane && <TouchableOpacity style={styles.smallAction} onPress={onLocation}>
                     <Ionicons name="location-outline" size={18} color={COLORS.primary} />
                     <Text style={styles.smallActionText}>Vị trí</Text>
-                </TouchableOpacity>
+                </TouchableOpacity>}
             </View>}
         </View>
     );
@@ -255,7 +265,7 @@ function PackageCard({ item, selected, locked, onSelect, onAddMaterial, onEditDe
 
 export default function KhoBTPImportDetailScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
-    const { id, importDoc } = route.params || {};
+    const { id, importDoc, kho } = route.params || {};
     const [detail, setDetail] = useState(importDoc || {});
     const [materials, setMaterials] = useState([]);
     const [packages, setPackages] = useState([]);
@@ -325,13 +335,16 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
     }, [fetchDetail, id]);
 
     const selectedPackages = useMemo(() => packages.filter((item) => selectedIds.includes(getPackageId(item))), [packages, selectedIds]);
-    const allReady = packages.length > 0 && packages.every(isImportPackageReady);
+    const allReady = packages.length > 0 && packages.every((item) => isImportPackageReady(item, Boolean(kho?.isCrane)));
     const quantityMismatches = useMemo(() => getImportQuantityMismatches(materials, packages), [materials, packages]);
     const canConfirm = allReady && materials.length > 0 && quantityMismatches.length === 0;
     const isConfirmed = readValue(detail, ['trangThai', 'TrangThai'], false) === true
         || Number(readValue(detail, ['trangThai', 'TrangThai'], 0)) === 1;
     const workingMaterialRemaining = useMemo(
-        () => getImportMaterialRemaining(materials, packages, workingMaterial, workingDetail),
+        () => Math.max(
+            getImportMaterialRemaining(materials, packages, workingMaterial, workingDetail),
+            workingDetail ? asNumber(readValue(workingDetail, ['soLuongTon', 'SoLuong', 'soLuong'], 0)) : 0,
+        ),
         [materials, packages, workingMaterial, workingDetail],
     );
 
@@ -341,6 +354,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
     };
 
     const openLocation = (targets) => {
+        if (kho?.isCrane) return;
         const packageIds = targets.map(getPackageId).filter(Boolean);
         if (!packageIds.length) {
             Toast.show({ type: 'info', text1: 'Chọn kiện cần gán vị trí' });
@@ -348,7 +362,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
         }
         navigation.navigate('SelectLocationScreen', {
             locationMode: 'btp',
-            idKho: 5,
+            idKho: kho?.id || 5,
             returnEvent: 'KhoBTPImportLocationSelected',
             returnPayload: { importId: id, packageIds },
         });
@@ -476,15 +490,15 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
             const refreshedPackage = (refreshed?.kiens || []).find((item) => String(getPackageId(item)) === String(editedPackageId));
             const refreshedDetails = getPackageDetails(refreshedPackage);
             const savedDetail = refreshedDetails.find((item) => String(readValue(item, ['idTheKhoKienBTPChiTiet', 'ID_TheKhoKienBTP_ChiTiet'], '')) === String(saved?.idDetail));
-            if (!savedDetail || asNumber(readValue(savedDetail, ['soLuongTon', 'SoLuong', 'soLuong'], 0)) !== asNumber(quantity)
-                || String(readValue(savedDetail, ['dauTuan', 'DauTuan'], '') || '').trim() !== String(dauTuan || '').trim()) {
-                throw new Error('Dữ liệu sau khi tải lại chưa khớp, vui lòng kiểm tra kiện');
-            }
+            const reloadMismatch = !savedDetail || asNumber(readValue(savedDetail, ['soLuongTon', 'SoLuong', 'soLuong'], 0)) !== asNumber(quantity)
+                || String(readValue(savedDetail, ['dauTuan', 'DauTuan'], '') || '').trim() !== String(dauTuan || '').trim();
             setQuantityVisible(false);
             setWorkingPackage(null);
             setWorkingMaterial(null);
             setWorkingDetail(null);
-            Toast.show({ type: 'success', text1: wasEditing ? 'Đã cập nhật dòng BTP' : 'Đã thêm BTP vào kiện' });
+            Toast.show(reloadMismatch
+                ? { type: 'info', text1: 'Đã lưu BTP, cần tải lại phiếu để đối chiếu' }
+                : { type: 'success', text1: wasEditing ? 'Đã cập nhật dòng BTP' : 'Đã thêm BTP vào kiện' });
         } catch (error) {
             Toast.show({ type: 'error', text1: 'Lưu BTP thất bại', text2: getApiErrorMessage(error) });
         } finally {
@@ -510,7 +524,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
 
     const confirmImport = () => {
         if (!allReady) {
-            Toast.show({ type: 'error', text1: 'Tất cả kiện phải có BTP, QR và vị trí' });
+            Toast.show({ type: 'error', text1: kho?.isCrane ? 'Tất cả kiện cần BTP, dấu tuần và QR' : 'Tất cả kiện phải có BTP, QR và vị trí' });
             return;
         }
         if (!materials.length || quantityMismatches.length) {
@@ -525,8 +539,15 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
         confirmAction('Xác nhận phiếu nhập', 'Phiếu sẽ được chuyển sang trạng thái phê duyệt trên ERP.', async () => {
             try {
                 setLoading(true);
-                await khoBtpApi.confirmImport({ idPhieuNhap: id, packages: packages.map(buildImportConfirmPackage) });
-                Toast.show({ type: 'success', text1: 'Xác nhận phiếu nhập thành công' });
+                const result = await khoBtpApi.confirmImport({
+                    idPhieuNhap: id,
+                    packages: packages.map(buildImportConfirmPackage),
+                    craneMode: Boolean(kho?.isCrane),
+                });
+                const dispatch = result?.wmsInbound;
+                Toast.show(dispatch && dispatch.DispatchStatus !== 'SENT'
+                    ? { type: 'error', text1: 'Đã lưu phiếu, chưa gửi được WMS', text2: dispatch.DispatchError || 'Cần gửi lại yêu cầu WMS' }
+                    : { type: 'success', text1: dispatch ? 'Đã xác nhận và gửi WMS' : 'Xác nhận phiếu nhập thành công' });
                 await fetchDetail();
             } catch (error) {
                 Toast.show({ type: 'error', text1: 'Xác nhận thất bại', text2: getApiErrorMessage(error) });
@@ -548,12 +569,16 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
             <FlatList
                 data={packages}
                 {...keyboardAwareScrollProps()}
+                refreshControl={Platform.OS === 'web' ? undefined : (
+                    <RefreshControl refreshing={loading} onRefresh={fetchDetail} colors={[COLORS.primary]} />
+                )}
                 keyExtractor={(item, index) => String(getPackageId(item) || index)}
                 renderItem={({ item }) => (
                     <PackageCard
                         item={item}
                         selected={selectedIds.includes(getPackageId(item))}
                         locked={isConfirmed}
+                        isCrane={Boolean(kho?.isCrane)}
                         onSelect={() => toggleSelected(item)}
                         onAddMaterial={() => {
                             setWorkingPackage(item);
@@ -583,7 +608,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                             <View style={styles.summaryStats}>
                                 <Text style={styles.stat}>BTP: {materials.length}</Text>
                                 <Text style={styles.stat}>Kiện: {packages.length}</Text>
-                                <Text style={styles.stat}>Sẵn sàng: {packages.filter(isImportPackageReady).length}</Text>
+                                <Text style={styles.stat}>Sẵn sàng: {packages.filter((item) => isImportPackageReady(item, Boolean(kho?.isCrane))).length}</Text>
                             </View>
                             {!isConfirmed && quantityMismatches.map((item) => (
                                 <Text key={item.itemCode} style={[styles.summarySub, { color: COLORS.danger }]}>
@@ -594,7 +619,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                         {!isConfirmed && <View style={styles.toolbar}>
                             <TouchableOpacity style={styles.toolBtn} onPress={() => setCreateVisible(true)}><Ionicons name="add" size={19} color={COLORS.primary} /><Text style={styles.toolText}>Tạo kiện</Text></TouchableOpacity>
                             <TouchableOpacity style={styles.toolBtn} onPress={deleteSelected}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /><Text style={[styles.toolText, { color: COLORS.danger }]}>Xóa</Text></TouchableOpacity>
-                            <TouchableOpacity style={styles.toolBtn} onPress={() => openLocation(selectedPackages)}><Ionicons name="location-outline" size={18} color={COLORS.primary} /><Text style={styles.toolText}>Gán vị trí</Text></TouchableOpacity>
+                            {!kho?.isCrane && <TouchableOpacity style={styles.toolBtn} onPress={() => openLocation(selectedPackages)}><Ionicons name="location-outline" size={18} color={COLORS.primary} /><Text style={styles.toolText}>Gán vị trí</Text></TouchableOpacity>}
                         </View>}
                         <Text style={styles.sectionTitle}>Danh sách kiện</Text>
                     </View>
@@ -625,6 +650,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                 material={workingMaterial}
                 detail={workingDetail}
                 max={workingMaterialRemaining}
+                requireWeekMark={Boolean(kho?.isCrane)}
                 onClose={() => setQuantityVisible(false)}
                 onConfirm={addMaterial}
             />
