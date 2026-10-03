@@ -340,6 +340,8 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
     const canConfirm = allReady && materials.length > 0 && quantityMismatches.length === 0;
     const isConfirmed = readValue(detail, ['trangThai', 'TrangThai'], false) === true
         || Number(readValue(detail, ['trangThai', 'TrangThai'], 0)) === 1;
+    const isTransferLocked = Boolean(readValue(detail, ['packagesLocked'], false));
+    const packageEditingLocked = isConfirmed || isTransferLocked;
     const workingMaterialRemaining = useMemo(
         () => Math.max(
             getImportMaterialRemaining(materials, packages, workingMaterial, workingDetail),
@@ -577,7 +579,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                     <PackageCard
                         item={item}
                         selected={selectedIds.includes(getPackageId(item))}
-                        locked={isConfirmed}
+                        locked={packageEditingLocked}
                         isCrane={Boolean(kho?.isCrane)}
                         onSelect={() => toggleSelected(item)}
                         onAddMaterial={() => {
@@ -601,6 +603,11 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                 ListHeaderComponent={
                     <View>
                         {isConfirmed && <Text style={styles.confirmedBanner}>Phiếu đã xác nhận — chỉ xem dữ liệu</Text>}
+                        {!isConfirmed && isTransferLocked && (
+                            <Text style={styles.confirmedBanner}>
+                                Kiện tự động từ phiếu xuất #{readValue(detail, ['sourceExportId'], '-')} — chỉ kiểm tra và xác nhận nhập
+                            </Text>
+                        )}
                         <View style={styles.summary}>
                             <Text style={styles.summaryTitle}>{readValue(detail, ['loaiPhieu'], '-')}</Text>
                             <Text style={styles.summarySub}>{readValue(detail, ['khoNhap'], '-')}</Text>
@@ -616,7 +623,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                                 </Text>
                             ))}
                         </View>
-                        {!isConfirmed && <View style={styles.toolbar}>
+                        {!packageEditingLocked && <View style={styles.toolbar}>
                             <TouchableOpacity style={styles.toolBtn} onPress={() => setCreateVisible(true)}><Ionicons name="add" size={19} color={COLORS.primary} /><Text style={styles.toolText}>Tạo kiện</Text></TouchableOpacity>
                             <TouchableOpacity style={styles.toolBtn} onPress={deleteSelected}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /><Text style={[styles.toolText, { color: COLORS.danger }]}>Xóa</Text></TouchableOpacity>
                             {!kho?.isCrane && <TouchableOpacity style={styles.toolBtn} onPress={() => openLocation(selectedPackages)}><Ionicons name="location-outline" size={18} color={COLORS.primary} /><Text style={styles.toolText}>Gán vị trí</Text></TouchableOpacity>}
@@ -624,7 +631,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                         <Text style={styles.sectionTitle}>Danh sách kiện</Text>
                     </View>
                 }
-                ListEmptyComponent={!loading && <Text style={styles.emptyText}>Chưa có kiện. Chọn “Tạo kiện” để bắt đầu.</Text>}
+                ListEmptyComponent={!loading && <Text style={styles.emptyText}>{isTransferLocked ? 'Phiếu chuyển kho chưa được tạo kiện tự động.' : 'Chưa có kiện. Chọn “Tạo kiện” để bắt đầu.'}</Text>}
             />
 
             <View style={styles.footer}>

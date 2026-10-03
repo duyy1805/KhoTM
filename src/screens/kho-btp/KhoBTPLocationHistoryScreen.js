@@ -48,7 +48,9 @@ export default function KhoBTPLocationHistoryScreen({ route, navigation }) {
         setError('');
         failedPage.current = nextPage;
         try {
-            const result = await khoBtpApi.getPackageLocationHistory(idPackage, nextPage);
+            const result = qrCode
+                ? await khoBtpApi.getPackageLocationHistoryByQr(qrCode, nextPage)
+                : await khoBtpApi.getPackageLocationHistory(idPackage, nextPage);
             if (version !== requestVersion.current) return;
             setItems((current) => {
                 const rows = nextPage === 0 ? result.items : [...current, ...result.items];
@@ -64,7 +66,7 @@ export default function KhoBTPLocationHistoryScreen({ route, navigation }) {
                 setLoading(false);
             }
         }
-    }, [idPackage]);
+    }, [idPackage, qrCode]);
 
     useFocusEffect(useCallback(() => {
         load(0);
@@ -90,8 +92,13 @@ export default function KhoBTPLocationHistoryScreen({ route, navigation }) {
                     <HistoryLocation item={item} side="Moi" />
                     <Text style={styles.meta}>QR kiện: {item.QRCodeKien || '—'}</Text>
                     <Text style={styles.meta}>Tài khoản: {item.ID_TaiKhoan ? `#${item.ID_TaiKhoan}` : 'Không xác định'}</Text>
-                    <Text style={styles.type}>{item.LoaiThaoTac === 'GAN_VI_TRI_NHAP' ? 'Gán vị trí nhập kho' : 'Điều chuyển'}</Text>
-                    {item.hasPackageSnapshot ? <TouchableOpacity accessibilityRole="button" style={[styles.button, { marginTop: 12 }]} onPress={() => navigation.navigate('KhoBTPLocationHistoryDetail', { idPackage, idHistory: item.ID_LichSu })}>
+                    {item.LoaiThaoTac === 'CHUYEN_KHO_THUE' && <Text style={styles.meta}>
+                        {item.So_PhieuXuatBTP || `Phiếu xuất #${item.ID_PhieuXuatBTP || '-'}`} • {item.KhoXuat || 'Kho nguồn'} → {item.KhoNhap || 'Kho đích'}
+                    </Text>}
+                    <Text style={styles.type}>{item.LoaiThaoTac === 'GAN_VI_TRI_NHAP'
+                        ? 'Gán vị trí nhập kho'
+                        : item.LoaiThaoTac === 'CHUYEN_KHO_THUE' ? 'Chuyển kho thuê' : 'Điều chuyển'}</Text>
+                    {item.hasPackageSnapshot ? <TouchableOpacity accessibilityRole="button" style={[styles.button, { marginTop: 12 }]} onPress={() => navigation.navigate('KhoBTPLocationHistoryDetail', { idPackage: item.ID_TheKhoKienBTP, idHistory: item.ID_LichSu })}>
                         <Text style={styles.buttonText}>Nội dung kiện lúc điều chuyển</Text>
                     </TouchableOpacity> : <Text style={styles.catalogNote}>Lần điều chuyển này chưa lưu nội dung kiện</Text>}
                 </View>}

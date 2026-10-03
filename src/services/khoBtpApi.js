@@ -243,12 +243,14 @@ export const khoBtpApi = {
 
     async confirmExport({ idPhieuXuat, picks }) {
         if (!Array.isArray(picks) || !picks.length) throw new Error('Chưa có kiện xuất');
+        const userId = await getCurrentUserId({ required: true });
         return apiRequest({
             method: 'PUT',
             baseURL: KHO_TM_API_BASE_URL,
             url: '/btp/phieuxuat/xac-nhan',
             data: {
                 IdPhieuXuat: positiveInt(idPhieuXuat, 'Phiếu xuất'),
+                IdTaiKhoanDangNhap: userId,
                 Kiens: picks,
             },
         });
@@ -375,6 +377,13 @@ export const khoBtpApi = {
         return apiRequest({
             method: 'GET', baseURL: KHO_TM_API_BASE_URL,
             url: `/btp/kien/${positiveInt(idPackage, 'Kiện')}/lich-su-vi-tri?pageIndex=${pageIndex}&pageSize=${pageSize}`,
+        });
+    },
+
+    async getPackageLocationHistoryByQr(qrCode, pageIndex = 0, pageSize = 20) {
+        return apiRequest({
+            method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/kien/qr/${encode(qrCode)}/lich-su-vi-tri?pageIndex=${pageIndex}&pageSize=${pageSize}`,
         });
     },
 

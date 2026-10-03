@@ -37,9 +37,18 @@ function harness(file, failure, snapshotRows) {
         tagpoolPromise: Promise.resolve({ request: () => new Request() }),
         toIntOrNull: (v) => v == null ? null : Number.isInteger(Number(v)) ? Number(v) : null,
         ensureImportEditable: async () => {},
+        isRentalTransfer: () => false,
     };
-    for (const route of ["router.post('/btp/phieunhap/gan-vi-tri'", "router.post('/btp/vitri/cap-nhat-kien'", "router.get('/btp/kien/:idKien/lich-su-vi-tri'", "router.get('/btp/kien/:idKien/lich-su-vi-tri/:idLichSu'"]) {
-        const start = source.indexOf(route);
+    const lineageHelperStart = source.indexOf('const loadPackageLineageHistory');
+    if (lineageHelperStart >= 0) {
+        const lineageHelperEnd = source.indexOf('router.get("/btp/kien/qr/:qrcode/lich-su-vi-tri"', lineageHelperStart);
+        assert.ok(lineageHelperEnd > lineageHelperStart);
+        vm.runInNewContext(source.slice(lineageHelperStart, lineageHelperEnd), context);
+    }
+    for (const [method, url] of [['post', '/btp/phieunhap/gan-vi-tri'], ['post', '/btp/vitri/cap-nhat-kien'], ['get', '/btp/kien/:idKien/lich-su-vi-tri'], ['get', '/btp/kien/:idKien/lich-su-vi-tri/:idLichSu']]) {
+        const single = `router.${method}('${url}'`;
+        const double = `router.${method}("${url}"`;
+        const start = Math.max(source.indexOf(single), source.indexOf(double));
         assert.ok(start >= 0);
         const end = source.indexOf('\n});', start) + 4;
         vm.runInNewContext(source.slice(start, end), context);
@@ -88,9 +97,10 @@ for (const file of [path.resolve(__dirname, '../khotm.js'), path.resolve(__dirna
         const h = harness(file);
         const res = await h.invoke('/btp/vitri/cap-nhat-kien', { body: { ID_TheKhoKienBTP: 1, ID_ViTriKho: 2 } });
         assert.equal(res.code, 200);
-        assert.equal(h.calls[0].name, 'dbo.App_BTP_CapNhatViTriKien');
-        assert.equal(h.calls[0].params.ID_TaiKhoan, null);
-        assert.equal(h.calls[0].params.LoaiThaoTac, 'DIEU_CHUYEN');
+        const write = h.calls.find((call) => call.name === 'dbo.App_BTP_CapNhatViTriKien');
+        assert.ok(write);
+        assert.equal(write.params.ID_TaiKhoan, null);
+        assert.equal(write.params.LoaiThaoTac, 'DIEU_CHUYEN');
     });
     test(`${file}: maps SQL validation errors`, async () => {
         for (const [error, status] of [[51041, 404], [51042, 400], [51043, 400], [50000, 500]]) {
@@ -121,6 +131,10 @@ for (const file of [path.resolve(__dirname, '../khotm.js'), path.resolve(__dirna
         assert.equal(res.body.total, 1);
         assert.equal(h.calls[0].params.Offset, 200);
         assert.match(h.calls[0].query, /AS hasPackageSnapshot/);
+        if (file.includes('QLHD')) {
+            assert.match(h.calls[0].query, /ID_TheKhoKienBTP_Xuat/);
+            assert.match(h.calls[0].query, /@Lineage/);
+        }
         assert.doesNotMatch(h.calls[0].query, /SELECT\s+(?:\w+\.)?\*|SnapshotVersion,\s*ThongTinKien,\s*ChiTietKien/);
         for (const query of [{ pageIndex: '-1' }, { pageIndex: '0.5' }, { pageSize: '0' }, { pageIndex: '2147483647' }]) {
             assert.equal((await h.invoke(url, { params: { idKien: '1' }, query })).code, 400);

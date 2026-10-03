@@ -650,7 +650,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                 packages={suggestionPackages}
                 selectedDetailIds={selectedSuggestionDetailIds}
                 scannedQrCodes={activeScannedQrCodes}
-                allowDirectSelect={Boolean(kho?.isCrane)}
+                allowDirectSelect
                 bottomInset={insets.bottom}
                 onClose={() => {
                     setSuggestionVisible(false);
@@ -658,10 +658,6 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                 }}
                 onScan={() => scanQr('suggestions')}
                 onSelect={async (suggestionDetail) => {
-                    if (!kho?.isCrane && !activeScannedQrCodes.has(normalizeQr(getPackageQr(suggestionDetail)))) {
-                        Toast.show({ type: 'info', text1: 'Vui lòng quét QR kiện trước' });
-                        return;
-                    }
                     setSuggestionVisible(false);
                     try {
                         let candidate = suggestionDetail;
