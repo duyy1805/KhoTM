@@ -100,7 +100,7 @@ function NumberModal({ visible, title, label, max, initialValue = '', onClose, o
     );
 }
 
-function BtpDetailModal({ visible, material, detail, max, requireWeekMark, onClose, onConfirm }) {
+function BtpDetailModal({ visible, material, detail, max, plannedQuantity, requireWeekMark, onClose, onConfirm }) {
     const [quantity, setQuantity] = useState('');
     const [dauTuan, setDauTuan] = useState('');
 
@@ -142,8 +142,12 @@ function BtpDetailModal({ visible, material, detail, max, requireWeekMark, onClo
                         <ScrollView {...keyboardAwareScrollProps()} contentContainerStyle={styles.dialogScrollContent}>
                             <Text style={styles.dialogTitle}>Thông tin BTP trong kiện</Text>
                             <Text style={styles.dialogLabel}>{readValue(material, ['itemCode', 'ItemCode'], 'Số lượng')}</Text>
+                            <View style={styles.quantityReference}>
+                                <Text style={styles.quantityReferenceLabel}>Số lượng dòng đang chọn</Text>
+                                <Text style={styles.quantityReferenceValue}>{asNumber(plannedQuantity).toLocaleString('vi-VN')}</Text>
+                            </View>
                             <TextInput style={styles.dialogInput} value={quantity} onChangeText={setQuantity} {...numericKeyboardProps()} autoFocus />
-                            {max != null && <Text style={styles.hint}>Tối đa: {max}</Text>}
+                            {max != null && <Text style={styles.hint}>Còn có thể phân bổ theo mã hàng: {asNumber(max).toLocaleString('vi-VN')}</Text>}
                             <Text style={[styles.dialogLabel, { marginTop: 14 }]}>Dấu tuần</Text>
                             <TextInput
                                 style={styles.dialogInput}
@@ -204,6 +208,10 @@ function MaterialModal({ visible, materials, onClose, onSelect }) {
 function PackageCard({ item, selected, locked, isCrane, onSelect, onAddMaterial, onEditDetail, onDeleteDetail, onQr, onLocation }) {
     const details = getPackageDetails(item);
     const ready = isImportPackageReady(item, isCrane);
+    const wmsStatus = readValue(item?.wmsInbound, ['DispatchStatus'], null);
+    const wmsStatusText = item?.wmsInbound?.LocationID
+        ? `Đã có vị trí ${getPackageLocationCode(item) || `#${item.wmsInbound.LocationID}`}`
+        : ({ PENDING: 'Chờ gửi WMS', SENDING: 'Đang gửi WMS', SENT: 'WMS đã nhận, chờ vị trí', FAILED: 'Gửi WMS lỗi' })[wmsStatus];
     return (
         <View style={[styles.packageCard, selected && styles.packageSelected]}>
             <View style={styles.rowBetween}>
@@ -245,6 +253,10 @@ function PackageCard({ item, selected, locked, isCrane, onSelect, onAddMaterial,
                     <Text style={styles.infoValue} numberOfLines={1}>{getPackageLocationCode(item) || 'Chưa có'}</Text>
                 </TouchableOpacity>}
             </View>
+            {isCrane && wmsStatusText && <Text style={[styles.packageSub,
+                { color: wmsStatus === 'FAILED' ? COLORS.danger : COLORS.primary, marginTop: 8, fontWeight: '700' }]}>
+                {wmsStatusText}{wmsStatus === 'FAILED' && item?.wmsInbound?.DispatchError ? `: ${item.wmsInbound.DispatchError}` : ''}
+            </Text>}
             {!locked && <View style={styles.packageActions}>
                 <TouchableOpacity style={styles.smallAction} onPress={onAddMaterial}>
                     <Ionicons name="add-circle-outline" size={18} color={COLORS.primary} />
@@ -338,6 +350,10 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
     const allReady = packages.length > 0 && packages.every((item) => isImportPackageReady(item, Boolean(kho?.isCrane)));
     const quantityMismatches = useMemo(() => getImportQuantityMismatches(materials, packages), [materials, packages]);
     const canConfirm = allReady && materials.length > 0 && quantityMismatches.length === 0;
+    const retryableWmsPackages = packages.filter((item) =>
+        ['PENDING', 'FAILED'].includes(readValue(item?.wmsInbound, ['DispatchStatus'], '')),
+    );
+    const finalizeFailed = Boolean(kho?.isCrane && readValue(detail, ['wmsFinalizeStatus'], '') === 'ERROR');
     const isConfirmed = readValue(detail, ['trangThai', 'TrangThai'], false) === true
         || Number(readValue(detail, ['trangThai', 'TrangThai'], 0)) === 1;
     const isTransferLocked = Boolean(readValue(detail, ['packagesLocked'], false));
@@ -386,6 +402,9 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
         if (scanned || !scanPackage) return;
         setScanned(true);
         const scannedQr = String(data || '').trim();
+        const packageId = getPackageId(scanPackage);
+        const isCrane = Boolean(kho?.isCrane);
+        let dispatchToken = null;
         const assignedPackage = packages.find(
             (item) => String(getPackageQr(item) || '').trim().toUpperCase() === scannedQr.toUpperCase(),
         );
@@ -400,15 +419,45 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
         }
         try {
             setLoading(true);
-            await khoBtpApi.assignPackageQr({ qrCode: scannedQr, idPackage: getPackageId(scanPackage) });
+            const assignment = await khoBtpApi.assignPackageQr({
+                qrCode: scannedQr,
+                idPackage: packageId,
+                craneMode: isCrane,
+                dispatchWms: !isCrane,
+            });
+            dispatchToken = assignment?.dispatchToken;
+            setSelectedIds((current) => current.filter((value) => String(value) !== String(packageId)));
             setScanPackage(null);
-            Toast.show({ type: 'success', text1: 'Đã gán QR cho kiện' });
-            await fetchDetail();
+            Toast.show({
+                type: 'success',
+                text1: isCrane ? 'Đã gán QR, đang gửi WMS' : 'Đã gán QR cho kiện',
+            });
         } catch (error) {
             Toast.show({ type: 'error', text1: 'Gán QR thất bại', text2: getApiErrorMessage(error) });
             setTimeout(() => setScanned(false), 800);
+            return;
         } finally {
             setLoading(false);
+        }
+
+        // Để React Native đóng camera trước khi bắt đầu request WMS có thể mất nhiều giây.
+        await new Promise((resolve) => requestAnimationFrame(resolve));
+        await fetchDetail();
+        if (!isCrane) return;
+
+        try {
+            setLoading(true);
+            const result = await khoBtpApi.dispatchInboundPackage({ idPhieuNhap: id, idPackage: packageId, dispatchToken });
+            const wmsPackage = result?.wmsPackage;
+            const dispatchFailed = wmsPackage?.DispatchStatus === 'FAILED';
+            Toast.show(dispatchFailed
+                ? { type: 'error', text1: 'Đã gán QR nhưng gửi WMS lỗi', text2: wmsPackage.DispatchError || 'Có thể gửi lại ở đầu phiếu' }
+                : { type: 'success', text1: 'WMS đã tiếp nhận kiện' });
+        } catch (error) {
+            Toast.show({ type: 'error', text1: 'Đã gán QR nhưng gửi WMS lỗi', text2: getApiErrorMessage(error) });
+        } finally {
+            setLoading(false);
+            await fetchDetail();
         }
     };
 
@@ -524,6 +573,23 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
         });
     };
 
+    const retryFailedWms = async () => {
+        try {
+            setLoading(true);
+            const result = await khoBtpApi.retryFailedInboundPackages(id);
+            const rows = result?.packages || [];
+            const failed = rows.filter((item) => item?.DispatchStatus === 'FAILED');
+            Toast.show(failed.length
+                ? { type: 'error', text1: `Còn ${failed.length} kiện gửi lỗi`, text2: failed[0]?.DispatchError }
+                : { type: 'success', text1: 'Đã gửi lại các kiện lỗi' });
+            await fetchDetail();
+        } catch (error) {
+            Toast.show({ type: 'error', text1: 'Gửi lại WMS thất bại', text2: getApiErrorMessage(error) });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const confirmImport = () => {
         if (!allReady) {
             Toast.show({ type: 'error', text1: kho?.isCrane ? 'Tất cả kiện cần BTP, dấu tuần và QR' : 'Tất cả kiện phải có BTP, QR và vị trí' });
@@ -579,7 +645,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                     <PackageCard
                         item={item}
                         selected={selectedIds.includes(getPackageId(item))}
-                        locked={packageEditingLocked}
+                        locked={packageEditingLocked || Boolean(item.wmsLocked)}
                         isCrane={Boolean(kho?.isCrane)}
                         onSelect={() => toggleSelected(item)}
                         onAddMaterial={() => {
@@ -622,7 +688,19 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                                     {item.itemCode || 'BTP'}: đã gán QR {item.scanned}/{item.requested}
                                 </Text>
                             ))}
+                            {kho?.isCrane && !isConfirmed && <Text style={styles.summarySub}>
+                                Phiếu sẽ tự lưu khi đủ số lượng và tất cả kiện có vị trí WMS.
+                            </Text>}
+                            {finalizeFailed && <Text style={[styles.summarySub, { color: COLORS.danger }]}>
+                                Đủ điều kiện nhưng chưa lưu ERP: {readValue(detail, ['wmsFinalizeError'], 'Vui lòng xác nhận lại')}
+                            </Text>}
                         </View>
+                        {kho?.isCrane && retryableWmsPackages.length > 0 && !isConfirmed && <View style={styles.toolbar}>
+                            <TouchableOpacity style={styles.toolBtn} onPress={retryFailedWms} disabled={loading}>
+                                <Ionicons name="refresh" size={18} color={COLORS.danger} />
+                                <Text style={[styles.toolText, { color: COLORS.danger }]}>Gửi lại {retryableWmsPackages.length} kiện chờ/lỗi</Text>
+                            </TouchableOpacity>
+                        </View>}
                         {!packageEditingLocked && <View style={styles.toolbar}>
                             <TouchableOpacity style={styles.toolBtn} onPress={() => setCreateVisible(true)}><Ionicons name="add" size={19} color={COLORS.primary} /><Text style={styles.toolText}>Tạo kiện</Text></TouchableOpacity>
                             <TouchableOpacity style={styles.toolBtn} onPress={deleteSelected}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /><Text style={[styles.toolText, { color: COLORS.danger }]}>Xóa</Text></TouchableOpacity>
@@ -635,8 +713,11 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
             />
 
             <View style={styles.footer}>
-                <TouchableOpacity style={[styles.confirmBtn, (!canConfirm || isConfirmed) && styles.disabled]} onPress={confirmImport} disabled={!canConfirm || isConfirmed || loading}>
-                    {loading ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="save-outline" size={20} color={COLORS.white} /><Text style={styles.confirmText}>Lưu / Xác nhận phiếu</Text></>}
+                <TouchableOpacity style={[styles.confirmBtn, ((!canConfirm || isConfirmed) || (kho?.isCrane && !finalizeFailed)) && styles.disabled]}
+                    onPress={confirmImport} disabled={!canConfirm || isConfirmed || loading || (Boolean(kho?.isCrane) && !finalizeFailed)}>
+                    {loading ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="save-outline" size={20} color={COLORS.white} /><Text style={styles.confirmText}>
+                        {kho?.isCrane ? (finalizeFailed ? 'Xác nhận lại phiếu' : 'Chờ WMS hoàn tất vị trí') : 'Lưu / Xác nhận phiếu'}
+                    </Text></>}
                 </TouchableOpacity>
             </View>
 
@@ -657,6 +738,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                 material={workingMaterial}
                 detail={workingDetail}
                 max={workingMaterialRemaining}
+                plannedQuantity={readValue(workingMaterial, ['soLuong', 'SoLuong'], 0)}
                 requireWeekMark={Boolean(kho?.isCrane)}
                 onClose={() => setQuantityVisible(false)}
                 onConfirm={addMaterial}
@@ -725,6 +807,9 @@ const styles = StyleSheet.create({
     dialogTitle: { fontSize: 18, fontWeight: '800', color: COLORS.textPrimary, marginBottom: 12 },
     dialogLabel: { fontSize: 12, color: COLORS.textSecondary, marginBottom: 7 },
     dialogInput: { height: 50, borderWidth: 1, borderColor: COLORS.border, borderRadius: 14, paddingHorizontal: 14, fontSize: 16, color: COLORS.textPrimary },
+    quantityReference: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.primaryLight, borderRadius: 12, paddingHorizontal: 12, paddingVertical: 10, marginBottom: 10 },
+    quantityReferenceLabel: { fontSize: 12, fontWeight: '700', color: COLORS.textSecondary },
+    quantityReferenceValue: { fontSize: 18, fontWeight: '900', color: COLORS.primary },
     dialogActions: { flexDirection: 'row', gap: 10, marginTop: 18 },
     secondaryBtn: { flex: 1, height: 48, borderRadius: 14, backgroundColor: COLORS.background, alignItems: 'center', justifyContent: 'center' },
     primaryBtn: { flex: 1, height: 48, borderRadius: 14, backgroundColor: COLORS.primary, alignItems: 'center', justifyContent: 'center' },

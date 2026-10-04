@@ -4,7 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // export const CORE_API_BASE_URL = 'http://125.212.207.52:5010';
 export const CORE_API_BASE_URL = 'https://apilayoutkho.z76.vn';
 // Chọn DB cho các API KhoTM bằng đúng hậu tố URL: /khotmtest hoặc /khotm.
-export const KHO_TM_API_BASE_URL = 'http://192.168.89.194:5000/khotmtest';
+export const KHO_TM_API_BASE_URL = 'http://localhost:5000/khotmtest';
 export const IS_KHO_TM_TEST = /\/khotmtest\/?$/.test(KHO_TM_API_BASE_URL);
 export const LEGACY_BTP_API_BASE_URL = 'https://apipccc.z76.vn/api/TAG_QTKD';
 
@@ -75,7 +75,10 @@ export async function apiRequest(config, didRetry = false) {
         });
         return response.data;
     } catch (error) {
-        if (!didRetry && error?.response?.status === 401) {
+        const responseMessage = String(error?.response?.data?.message || '').toLowerCase();
+        const shouldRefresh = error?.response?.status === 401
+            || (error?.response?.status === 403 && responseMessage.includes('invalid token'));
+        if (!didRetry && shouldRefresh) {
             const nextToken = await refreshAccessToken();
             if (nextToken) return apiRequest(config, true);
         }

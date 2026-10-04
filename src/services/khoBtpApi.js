@@ -136,7 +136,7 @@ export const khoBtpApi = {
         });
     },
 
-    async assignPackageQr({ qrCode, idPackage }) {
+    async assignPackageQr({ qrCode, idPackage, craneMode = false, dispatchWms = true }) {
         if (!String(qrCode || '').trim()) throw new Error('QR không hợp lệ');
         return apiRequest({
             method: 'POST',
@@ -145,8 +145,26 @@ export const khoBtpApi = {
             data: {
                 qrCode: String(qrCode).trim(),
                 idKien: positiveInt(idPackage, 'Kiện'),
+                craneMode: Boolean(craneMode),
+                dispatchWms: Boolean(dispatchWms),
             },
         });
+    },
+
+    async dispatchInboundPackage({ idPhieuNhap, idPackage, dispatchToken }) {
+        if (!String(dispatchToken || '').trim()) throw new Error('Thiếu token gửi WMS của kiện');
+        return apiRequest({
+            method: 'POST',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/phieunhap/${positiveInt(idPhieuNhap, 'Phiếu nhập')}/kien/${positiveInt(idPackage, 'Kiện')}/gui-wms`,
+            data: { dispatchToken: String(dispatchToken).trim() },
+            timeout: 120000,
+        });
+    },
+
+    async retryFailedInboundPackages(idPhieuNhap) {
+        return apiRequest({ method: 'POST', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/phieunhap/${positiveInt(idPhieuNhap, 'Phiếu nhập')}/gui-lai-kien-loi`, timeout: 120000 });
     },
 
     async assignPackageLocations(items) {
