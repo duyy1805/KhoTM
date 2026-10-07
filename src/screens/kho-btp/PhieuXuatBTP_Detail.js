@@ -47,6 +47,19 @@ function stockQuantity(item) {
     return asNumber(readValue(item, ['stockQuantity', 'StockQuantity', 'soLuongTon', 'SoLuongTon', 'soLuongTonTong', 'SoLuongTonTong', 'conLai', 'ConLai', 'soLuong', 'SoLuong'], 0));
 }
 
+function matchesExportLine(item, line) {
+    if (!item || !line) return false;
+    const matches = (itemKeys, lineKeys) => {
+        const itemValue = readValue(item, itemKeys, 0);
+        const lineValue = readValue(line, lineKeys, 0);
+        return !itemValue || !lineValue || String(itemValue) === String(lineValue);
+    };
+    return matches(['idDonHang', 'ID_DonHang'], ['idDonHang', 'ID_DonHang'])
+        && matches(['idDonHangSanPham', 'ID_DonHang_SanPham'], ['idDonHangSanPham', 'ID_DonHang_SanPham'])
+        && matches(['idDonHangLoSanXuat', 'ID_DonHang_LoSanXuat'], ['idDonHangLoSanXuat', 'ID_DonHang_LoSanXuat'])
+        && matches(['idQuyTrinhSanXuat', 'ID_QuyTrinhSanXuat'], ['idQuyTrinhSanXuat', 'ID_QuyTrinhSanXuat']);
+}
+
 function normalizeQr(value) {
     return String(value || '').trim().toUpperCase();
 }
@@ -314,8 +327,12 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
 
     const addPackageCandidate = (raw) => {
         if (!activeLine) return false;
-        const rows = asList(raw, ['bTPs', 'kiens', 'items', 'rows']);
-        const item = rows.find((candidate) => stockQuantity(candidate) > 0) || rows[0] || raw?.data || raw;
+        const rows = asList(raw, ['details', 'bTPs', 'kiens', 'items', 'rows']);
+        const item = rows.find((candidate) => stockQuantity(candidate) > 0 && matchesExportLine(candidate, activeLine))
+            || rows.find((candidate) => stockQuantity(candidate) > 0)
+            || rows[0]
+            || raw?.data
+            || raw;
         if (!item || typeof item !== 'object') {
             Toast.show({ type: 'error', text1: 'Không tìm thấy chi tiết kiện' });
             return false;
@@ -388,16 +405,25 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
             return;
         }
         try {
-            const response = await khoBtpApi.getExportPackageByQr({
-                qrCode: data,
+            const suggestionResponse = await khoBtpApi.getSuggestedPackages({
                 idPhieuXuat: id,
                 idDonHangLoSanXuat: readValue(activeLine, ['idDonHangLoSanXuat'], 0),
+                idDonHangSanPham: readValue(activeLine, ['idDonHangSanPham'], 0),
+                idDonHang: readValue(activeLine, ['idDonHang'], 0),
+                idQuyTrinhSanXuat: readValue(activeLine, ['idQuyTrinhSanXuat', 'ID_QuyTrinhSanXuat'], 0),
             });
-            const verifiedDetails = asList(response, ['bTPs', 'kiens', 'items', 'rows']);
+            const response = asList(suggestionResponse, ['items', 'kiens', 'rows'])
+                .find((item) => normalizeQr(getPackageQr(item)) === scannedQr);
+            if (!response) {
+                throw new Error('Không tìm thấy kiện còn tồn phù hợp với dòng phiếu');
+            }
+            const verifiedDetails = asList(response, ['details', 'bTPs', 'kiens', 'items', 'rows']);
             if (!verifiedDetails.some((item) => stockQuantity(item) > 0)) {
                 throw new Error('Kiện đã hết tồn');
             }
             const verifiedQr = normalizeQr(getPackageQr(response) || data);
+            const matchingDetails = verifiedDetails.filter((item) =>
+                stockQuantity(item) > 0 && matchesExportLine(item, activeLine));
             markPackageScanned(verifiedQr);
             setScanMode(false);
             setScanned(false);
@@ -407,8 +433,19 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                 Toast.show({ type: 'success', text1: 'Đã quét đúng kiện', text2: 'Bạn có thể chọn các dòng dấu tuần của kiện' });
                 return;
             }
+            if (matchingDetails.length > 1) {
+                setSuggestionPackages([response]);
+                setSuggestionVisible(true);
+                setReturnToSuggestions(false);
+                Toast.show({
+                    type: 'info',
+                    text1: `Kiện có ${matchingDetails.length} chi tiết`,
+                    text2: 'Chọn từng dòng dấu tuần cần xuất',
+                });
+                return;
+            }
             setReturnToSuggestions(false);
-            addPackageCandidate(response);
+            addPackageCandidate(matchingDetails[0] || response);
         } catch (error) {
             Toast.show({ type: 'error', text1: 'QR không phù hợp', text2: getApiErrorMessage(error) });
             setTimeout(() => setScanned(false), 800);
@@ -421,14 +458,26 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
         (async () => {
             try {
                 setLoading(true);
-                const response = await khoBtpApi.getExportPackageByQr({
-                    qrCode: initialQr,
+                const suggestionResponse = await khoBtpApi.getSuggestedPackages({
                     idPhieuXuat: id,
                     idDonHangLoSanXuat: readValue(activeLine, ['idDonHangLoSanXuat'], 0),
+                    idDonHangSanPham: readValue(activeLine, ['idDonHangSanPham'], 0),
+                    idDonHang: readValue(activeLine, ['idDonHang'], 0),
+                    idQuyTrinhSanXuat: readValue(activeLine, ['idQuyTrinhSanXuat', 'ID_QuyTrinhSanXuat'], 0),
                 });
+                const response = asList(suggestionResponse, ['items', 'kiens', 'rows'])
+                    .find((item) => normalizeQr(getPackageQr(item)) === normalizeQr(initialQr));
+                if (!response) throw new Error('Không tìm thấy kiện còn tồn phù hợp với dòng phiếu');
                 if (mounted) {
                     markPackageScanned(getPackageQr(response) || initialQr);
-                    addPackageCandidate(response);
+                    const rows = asList(response, ['details', 'bTPs', 'kiens', 'items', 'rows'])
+                        .filter((item) => stockQuantity(item) > 0 && matchesExportLine(item, activeLine));
+                    if (rows.length > 1) {
+                        setSuggestionPackages([response]);
+                        setSuggestionVisible(true);
+                    } else {
+                        addPackageCandidate(rows[0] || response);
+                    }
                 }
             } catch (error) {
                 if (mounted) Toast.show({ type: 'error', text1: 'Kiện quét trước không khớp phiếu', text2: getApiErrorMessage(error) });
