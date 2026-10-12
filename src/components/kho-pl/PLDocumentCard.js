@@ -22,7 +22,15 @@ export default function PLDocumentCard({ item, type = 'inspection', onPress, cou
     const date = getValue(item, ['Ngay_GiamDinh', 'ngayGiamDinh', 'Ngay_Xuat', 'ngayXuat', 'Ngay_XuatVT', 'ngayXuatVT', 'NgayTao', 'ngayTao', 'createdAt'], '');
     const rawStatus = getValue(item, ['TenTrangThai', 'tenTrangThai', 'TrangThai', 'trangThai', 'Status', 'status'], '');
     const status = formatStatus(rawStatus, type);
-    const partner = getValue(item, ['Ten_DonVi', 'tenDonVi', 'TenNhaCungCap', 'tenNhaCungCap', 'nhaCungCap', 'TenKhachHang', 'tenKhachHang', 'khachHang', 'DienGiai', 'dienGiai', 'GhiChu', 'ghiChu'], '');
+    // API của từng kho chưa thống nhất tên trường. Ưu tiên đơn vị sản xuất để
+    // người dùng biết phiếu được nhập từ/xuất đến đơn vị nào.
+    const productionUnit = getValue(item, [
+        'Ten_DonViSanXuat', 'tenDonViSanXuat', 'TenDonViSanXuat',
+        'Ten_DonViSX', 'tenDonViSX', 'DonViSanXuat', 'donViSanXuat',
+        'Ten_PhanXuong', 'tenPhanXuong', 'PhanXuong', 'phanXuong',
+        'Ten_DonVi', 'tenDonVi', 'TenDonVi',
+    ], '');
+    const partner = getValue(item, ['TenNhaCungCap', 'tenNhaCungCap', 'nhaCungCap', 'TenKhachHang', 'tenKhachHang', 'khachHang', 'DienGiai', 'dienGiai', 'GhiChu', 'ghiChu'], '');
     const order = getValue(item, ['maDonHang', 'MaDonHang', 'Ma_DonHang'], '');
     const count = getValue(item, ['soCuon', 'SoCuon', 'soKien', 'SoKien', 'tongSoLuong', 'TongSoLuong'], '');
     const countText = count !== ''
@@ -43,6 +51,7 @@ export default function PLDocumentCard({ item, type = 'inspection', onPress, cou
                         </View>
                     )}
                 </View>
+                {!!productionUnit && <Text style={styles.meta} numberOfLines={1}>Đơn vị SX: {productionUnit}</Text>}
                 {!!partner && <Text style={styles.meta} numberOfLines={1}>{partner}</Text>}
                 <View style={styles.footerRow}>
                     {!!id && <Text style={styles.footerText}>#{id}</Text>}

@@ -60,11 +60,16 @@ function ExportCard({ item, onPress, qrMode = false, isCrane = false }) {
     const documentType = readValue(item, ['loaiPhieu', 'LoaiPhieu'], '');
     const warehouse = readValue(item, ['khoXuat', 'KhoXuat'], '');
     const orderCode = readValue(item, ['maDonHang', 'MaDonHang'], '');
-    const unit = readValue(item, ['tenDonVi', 'Ten_DonVi'], '');
+    const departmentName = readValue(item, ['tenBoPhan', 'Ten_BoPhan', 'TenBoPhan'], '');
+    const unit = readValue(item, [
+        'tenDonViSanXuat', 'Ten_DonViSanXuat', 'TenDonViSanXuat',
+        'tenDonViSX', 'Ten_DonViSX', 'donViSanXuat', 'DonViSanXuat',
+        'tenPhanXuong', 'Ten_PhanXuong', 'phanXuong', 'PhanXuong',
+        'tenDonVi', 'Ten_DonVi', 'TenDonVi',
+    ], '');
     const requestedQuantity = readValue(item, ['soLuongTongDongPhieu', 'SoLuongTong_DongPhieu'], null);
     const remainingQuantity = readValue(item, ['conLai', 'ConLai'], null);
     const pickedQuantity = readValue(item, ['tongPick', 'TongPick'], null);
-    const primaryInfo = documentType || unit || 'Phiếu xuất BTP';
     const secondaryInfo = warehouse || orderCode
         ? [warehouse, orderCode].filter(Boolean).join(' • ')
         : requestedQuantity != null
@@ -87,7 +92,9 @@ function ExportCard({ item, onPress, qrMode = false, isCrane = false }) {
                         </View>
                     )}
                 </View>
-                <Text style={styles.cardSub}>{primaryInfo}</Text>
+                <Text style={styles.cardSub}>{documentType || 'Phiếu xuất BTP'}</Text>
+                {!!departmentName && <Text style={styles.cardSub} numberOfLines={1}>Bộ phận: {departmentName}</Text>}
+                {!departmentName && !!unit && <Text style={styles.cardSub} numberOfLines={1}>Đơn vị SX: {unit}</Text>}
                 <Text style={styles.cardSub} numberOfLines={1}>{secondaryInfo}</Text>
                 <View style={styles.cardFooter}>
                     <Text style={styles.meta}>{formatDate(readValue(item, ['ngayXuat', 'Ngay_XuatBTP'], ''))}</Text>
@@ -149,7 +156,9 @@ export default function PhieuXuatBTP({ navigation, route }) {
             }
             const response = await khoBtpApi.searchExports({
                 craneMode: Boolean(kho?.isCrane),
-                idKho: kho?.isCrane ? [kho.id] : [],
+                // Luôn giới hạn theo kho đang mở. Nếu gửi mảng rỗng, API trả cả
+                // phiếu kho cầu trục và luồng BTP thường sẽ cố xác nhận nhầm.
+                idKho: kho?.id ? [kho.id] : [],
                 loaiPhieu: selectedType ? readValue(selectedType, ['idHinhThucXuatBTP', 'id'], null) : null,
                 soPhieu: searchText,
                 pageIndex,

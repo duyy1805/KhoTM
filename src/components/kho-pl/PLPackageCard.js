@@ -20,8 +20,8 @@ export default function PLPackageCard({
     const location = getValue(item, ['TenViTriKho', 'MaViTriKho', 'maViTriKho', 'QrCodeViTri'], 'Chưa có vị trí');
     const packageMaterials = Array.isArray(item?.vatTus) ? item.vatTus : [];
     const firstMaterial = packageMaterials.length ? packageMaterials[0] : null;
-    const materialCode = getValue(firstMaterial, ['Ma_VatTu', 'MaVatTu', 'maVatTu', 'ItemCode'], '');
-    const materialName = getValue(firstMaterial || item, ['QuyCach', 'quyCach', 'Ten_VatTu', 'TenVatTu', 'TenHang', 'tenVatTu'], '');
+    const materialCode = getValue(firstMaterial, ['Ma_VatTu', 'MaVatTu', 'maVatTu', 'ItemCode', 'itemCode'], '');
+    const materialName = getValue(firstMaterial || item, ['QuyCach', 'quyCach', 'Ten_VatTu', 'TenVatTu', 'TenHang', 'tenVatTu', 'Ten_SanPham', 'TenSanPham', 'tenSanPham', 'ProductName', 'productName'], '');
     const material = packageMaterials.length > 1
         ? `Có ${packageMaterials.length} vật tư trong kiện`
         : materialCode || materialName

@@ -229,7 +229,7 @@ function PackageCard({ item, selected, locked, isCrane, onSelect, onAddMaterial,
             {details.map((detail, index) => (
                 <View key={String(readValue(detail, ['idTheKhoKienBTPChiTiet', 'ID_TheKhoKienBTP_ChiTiet'], index))} style={styles.detailLine}>
                     <View style={{ flex: 1 }}>
-                        <Text style={styles.detailCode}>{readValue(detail, ['itemCode', 'ItemCode'], '-')} • SL {readValue(detail, ['soLuongTon', 'SoLuong', 'soLuong'], 0)}</Text>
+                        <Text style={styles.detailCode}>{readValue(detail, ['itemCode', 'ItemCode'], '-')} • {readValue(detail, ['tenSanPham', 'Ten_SanPham', 'TenSanPham', 'productName', 'ProductName'], 'Chưa có tên sản phẩm')} • SL {readValue(detail, ['soLuongTon', 'SoLuong', 'soLuong'], 0)}</Text>
                         <Text style={styles.packageSub}>Dấu tuần: {readValue(detail, ['dauTuan', 'DauTuan'], '-')}</Text>
                     </View>
                     {!locked && <>
@@ -347,6 +347,16 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
     }, [fetchDetail, id]);
 
     const selectedPackages = useMemo(() => packages.filter((item) => selectedIds.includes(getPackageId(item))), [packages, selectedIds]);
+    const summaryProducts = useMemo(() => {
+        const products = new Map();
+        materials.forEach((material) => {
+            const itemCode = String(readValue(material, ['itemCode', 'ItemCode'], '')).trim();
+            const productName = String(readValue(material, ['tenSanPham', 'Ten_SanPham', 'TenSanPham', 'productName', 'ProductName'], '')).trim();
+            if (!itemCode && !productName) return;
+            products.set(`${itemCode}|${productName}`, { itemCode, productName });
+        });
+        return Array.from(products.values());
+    }, [materials]);
     const allReady = packages.length > 0 && packages.every((item) => isImportPackageReady(item, Boolean(kho?.isCrane)));
     const quantityMismatches = useMemo(() => getImportQuantityMismatches(materials, packages), [materials, packages]);
     const canConfirm = allReady && materials.length > 0 && quantityMismatches.length === 0;
@@ -678,6 +688,13 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                             <Text style={styles.summaryTitle}>{readValue(detail, ['loaiPhieu'], '-')}</Text>
                             <Text style={styles.summarySub}>{readValue(detail, ['khoNhap'], '-')}</Text>
                             <Text style={styles.summarySub}>Đơn hàng: {readValue(detail, ['maDonHang'], readValue(materials[0], ['maDonHang'], '-'))}</Text>
+                            {summaryProducts.map((product, index) => (
+                                <View key={`${product.itemCode}|${product.productName}`} style={styles.summaryProduct}>
+                                    {summaryProducts.length > 1 && <Text style={styles.summaryProductTitle}>Sản phẩm {index + 1}</Text>}
+                                    <Text style={styles.summarySub}>ItemCode: {product.itemCode || '-'}</Text>
+                                    <Text style={styles.summarySub}>Tên sản phẩm: {product.productName || '-'}</Text>
+                                </View>
+                            ))}
                             <View style={styles.summaryStats}>
                                 <Text style={styles.stat}>BTP: {materials.length}</Text>
                                 <Text style={styles.stat}>Kiện: {packages.length}</Text>
@@ -768,6 +785,8 @@ const styles = StyleSheet.create({
     summary: { padding: 16, borderRadius: 18, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, marginBottom: 14 },
     summaryTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary },
     summarySub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 5 },
+    summaryProduct: { marginTop: 7 },
+    summaryProductTitle: { fontSize: 12, fontWeight: '700', color: COLORS.textPrimary, marginTop: 3 },
     summaryStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
     stat: { fontSize: 11, fontWeight: '800', color: COLORS.primary, backgroundColor: COLORS.primaryLight, borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5 },
     confirmedBanner: { padding: 12, borderRadius: 13, backgroundColor: '#D1FAE5', color: '#047857', fontSize: 12, fontWeight: '800', marginBottom: 12, textAlign: 'center' },

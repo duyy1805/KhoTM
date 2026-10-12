@@ -36,6 +36,13 @@ function FilterChip({ label, selected, onPress }) {
 
 function ImportCard({ item, onPress }) {
     const status = readValue(item, ['trangThai', 'TrangThai'], false);
+    const departmentName = readValue(item, ['tenBoPhan', 'Ten_BoPhan', 'TenBoPhan'], '');
+    const productionUnit = readValue(item, [
+        'tenDonViSanXuat', 'Ten_DonViSanXuat', 'TenDonViSanXuat',
+        'tenDonViSX', 'Ten_DonViSX', 'donViSanXuat', 'DonViSanXuat',
+        'tenPhanXuong', 'Ten_PhanXuong', 'phanXuong', 'PhanXuong',
+        'tenDonVi', 'Ten_DonVi', 'TenDonVi',
+    ], '');
     return (
         <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.82}>
             <View style={styles.cardIcon}>
@@ -50,6 +57,8 @@ function ImportCard({ item, onPress }) {
                 </View>
                 <Text style={styles.cardSub} numberOfLines={1}>{readValue(item, ['loaiPhieu', 'LoaiPhieu'], '-')}</Text>
                 <Text style={styles.cardSub} numberOfLines={1}>{readValue(item, ['khoNhap', 'KhoNhap'], '-')} • {readValue(item, ['maDonHang', 'MaDonHang'], '-')}</Text>
+                {!!departmentName && <Text style={styles.cardSub} numberOfLines={1}>Bộ phận: {departmentName}</Text>}
+                {!departmentName && !!productionUnit && <Text style={styles.cardSub} numberOfLines={1}>Đơn vị SX: {productionUnit}</Text>}
                 <View style={styles.cardFooter}>
                     <Text style={styles.meta}>{formatDate(readValue(item, ['ngayNhap', 'NgayNhap'], ''))}</Text>
                     <Text style={styles.meta}>#{getDocumentId(item)}</Text>
@@ -84,7 +93,8 @@ export default function KhoBTPImportListScreen({ navigation, route }) {
         try {
             setLoading(true);
             const response = await khoBtpApi.searchImports({
-                idKho: kho?.isCrane ? [kho.id] : [],
+                // Không để danh sách BTP thường lẫn phiếu của kho cầu trục.
+                idKho: kho?.id ? [kho.id] : [],
                 loaiPhieu: selectedType ? readValue(selectedType, ['idHinhThucNhapBTP', 'id'], null) : null,
                 soPhieu: searchText,
                 pageIndex,

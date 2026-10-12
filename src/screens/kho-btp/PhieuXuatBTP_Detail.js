@@ -211,8 +211,8 @@ function LineCard({ item, selected, pendingQuantity, onPress }) {
                 <Ionicons name={selected ? 'checkmark' : 'cube-outline'} size={20} color={selected ? COLORS.white : COLORS.primary} />
             </View>
             <View style={{ flex: 1 }}>
-                <Text style={styles.lineCode}>{readValue(item, ['itemCode', 'ItemCode'], '-')}</Text>
-                <Text style={styles.lineName} numberOfLines={2}>{readValue(item, ['tenSanPham', 'Ten_SanPham'], '-')}</Text>
+                <Text style={styles.lineCode}>ItemCode: {readValue(item, ['itemCode', 'ItemCode'], '-')}</Text>
+                <Text style={styles.lineName} numberOfLines={2}>Tên sản phẩm: {readValue(item, ['tenSanPham', 'Ten_SanPham', 'TenSanPham', 'productName', 'ProductName'], '-')}</Text>
                 <Text style={styles.lineMeta}>Đơn hàng: {readValue(item, ['maDonHang', 'Ma_DonHang'], '-')} • Lô: {readValue(item, ['soLoSanXuat'], '-')}</Text>
             </View>
             <View style={styles.lineQty}>
@@ -229,7 +229,8 @@ function PickCard({ item, onEdit, onRemove }) {
         <View style={styles.pickCard}>
             <View style={{ flex: 1 }}>
                 <Text style={styles.pickQr}>{item.qrCode}</Text>
-                <Text style={styles.lineName}>{item.itemCode || '-'}</Text>
+                <Text style={styles.lineCode} numberOfLines={1}>ItemCode: {readValue(item, ['itemCode', 'ItemCode'], '-')}</Text>
+                <Text style={styles.lineName} numberOfLines={2}>Tên sản phẩm: {readValue(item, ['tenSanPham', 'Ten_SanPham', 'TenSanPham', 'productName', 'ProductName'], 'Chưa có tên sản phẩm')}</Text>
                 <Text style={styles.lineMeta}>Dấu tuần: {item.weekMark || 'Chưa có dấu tuần'}{item.weekMarkSource === 'package' ? ' • dữ liệu cũ' : ''}</Text>
                 <Text style={styles.lineMeta}>Tồn chi tiết: {item.stock}</Text>
             </View>
@@ -266,6 +267,16 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
 
     const activeLine = lines[activeLineIndex] || null;
     const activeKey = activeLine ? lineKey(activeLine, activeLineIndex) : '';
+    const summaryProducts = useMemo(() => {
+        const products = new Map();
+        lines.forEach((line) => {
+            const itemCode = String(readValue(line, ['itemCode', 'ItemCode'], '')).trim();
+            const productName = String(readValue(line, ['tenSanPham', 'Ten_SanPham', 'TenSanPham', 'productName', 'ProductName'], '')).trim();
+            if (!itemCode && !productName) return;
+            products.set(`${itemCode}|${productName}`, { itemCode, productName });
+        });
+        return Array.from(products.values());
+    }, [lines]);
     const isConfirmed = readValue(detail, ['trangThai', 'TrangThai'], false) === true
         || Number(readValue(detail, ['trangThai', 'TrangThai'], 0)) === 1;
 
@@ -614,6 +625,13 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                             <Text style={styles.summaryTitle}>{readValue(detail, ['loaiPhieu'], '-')}</Text>
                             <Text style={styles.summarySub}>Ngày xuất: {String(readValue(detail, ['ngayXuat'], '-')).slice(0, 10)}</Text>
                             <Text style={styles.summarySub}>Đơn hàng: {readValue(detail, ['maDonHang'], readValue(lines[0], ['maDonHang'], '-'))}</Text>
+                            {summaryProducts.map((product, index) => (
+                                <View key={`${product.itemCode}|${product.productName}`} style={styles.summaryProduct}>
+                                    {summaryProducts.length > 1 && <Text style={styles.summaryProductTitle}>Sản phẩm {index + 1}</Text>}
+                                    <Text style={styles.summarySub}>ItemCode: {product.itemCode || '-'}</Text>
+                                    <Text style={styles.summarySub}>Tên sản phẩm: {product.productName || '-'}</Text>
+                                </View>
+                            ))}
                             <View style={styles.summaryStats}>
                                 <Text style={styles.stat}>Dòng BTP: {lines.length}</Text>
                                 <Text style={styles.stat}>Đã lưu: {savedPackages.length}</Text>
@@ -777,6 +795,8 @@ const styles = StyleSheet.create({
     summary: { padding: 16, borderRadius: 18, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
     summaryTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary },
     summarySub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 5 },
+    summaryProduct: { marginTop: 7 },
+    summaryProductTitle: { fontSize: 12, fontWeight: '700', color: COLORS.textPrimary, marginTop: 3 },
     summaryStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
     savedPalletCard: { marginTop: 10, padding: 12, borderRadius: 12, backgroundColor: COLORS.background, borderWidth: 1, borderColor: COLORS.border },
     savedPalletTitle: { fontSize: 14, fontWeight: '800', color: COLORS.textPrimary },

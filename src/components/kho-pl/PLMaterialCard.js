@@ -4,8 +4,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { COLORS, getValue } from './styles';
 
 export default function PLMaterialCard({ item, selected = false, onPress, rightLabel }) {
-    const code = getValue(item, ['Ma_VatTu', 'MaVatTu', 'maVatTu', 'ItemCode', 'maVatTu'], '');
-    const name = getValue(item, ['QuyCach', 'quyCach', 'Ten_VatTu', 'TenVatTu', 'TenHang', 'tenVatTu'], 'Chưa có quy cách');
+    const code = getValue(item, ['Ma_VatTu', 'MaVatTu', 'maVatTu', 'ItemCode', 'itemCode'], '');
+    const name = getValue(item, ['QuyCach', 'quyCach', 'Ten_VatTu', 'TenVatTu', 'TenHang', 'tenVatTu', 'Ten_SanPham', 'TenSanPham', 'tenSanPham', 'ProductName', 'productName'], 'Chưa có tên sản phẩm');
     const qty = getValue(item, ['SoLuong', 'soLuong', 'SoLuong_GiamDinh', 'SoLuongTong', 'SoLuong_Xuat', 'soLuongChungTuQuyDoi', 'soLuongConLaiQuyDoi'], 0);
     const unit = getValue(item, ['DVT', 'DonViTinh', 'Ten_DonViTinh', 'unit'], '');
 
