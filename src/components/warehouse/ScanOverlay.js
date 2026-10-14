@@ -1,65 +1,61 @@
-import React from "react";
-import { Dimensions } from "react-native";
+import React, { useState } from "react";
+import { View } from "react-native";
 import Svg, { Rect, Mask, Defs } from "react-native-svg";
 
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 const SCAN_SIZE = 250;
 const BORDER_RADIUS = 20;
-const scanTop = (SCREEN_HEIGHT - SCAN_SIZE) / 2;
-const scanLeft = (SCREEN_WIDTH - SCAN_SIZE) / 2;
 
 export default function ScanOverlay() {
+    const [layout, setLayout] = useState({ width: 0, height: 0 });
+    const scanSize = Math.min(SCAN_SIZE, layout.width, layout.height);
+    const scanTop = (layout.height - scanSize) / 2;
+    const scanLeft = (layout.width - scanSize) / 2;
+
     return (
-        <Svg
-            width={SCREEN_WIDTH}
-            height={SCREEN_HEIGHT}
-            style={{ position: "absolute", top: 0, left: 0 }}
+        <View
+            pointerEvents="none"
+            style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }}
+            onLayout={({ nativeEvent: { layout: nextLayout } }) => setLayout(nextLayout)}
         >
-            <Defs>
-                <Mask id="mask">
-                    {/* Vẽ nền trắng toàn màn hình (cho phép nhìn thấy vùng này) */}
+            {layout.width > 0 && layout.height > 0 && (
+                <Svg width={layout.width} height={layout.height}>
+                    <Defs>
+                        <Mask id="mask">
+                            <Rect x="0" y="0" width={layout.width} height={layout.height} fill="white" />
+                            <Rect
+                                x={scanLeft}
+                                y={scanTop}
+                                width={scanSize}
+                                height={scanSize}
+                                rx={BORDER_RADIUS}
+                                ry={BORDER_RADIUS}
+                                fill="black"
+                            />
+                        </Mask>
+                    </Defs>
+
                     <Rect
                         x="0"
                         y="0"
-                        width={SCREEN_WIDTH}
-                        height={SCREEN_HEIGHT}
-                        fill="white"
+                        width={layout.width}
+                        height={layout.height}
+                        fill="rgba(0,0,0,0.6)"
+                        mask="url(#mask)"
                     />
-                    {/* Vẽ lỗ bo cong (vùng quét) màu đen => bị đục lỗ */}
+
                     <Rect
                         x={scanLeft}
                         y={scanTop}
-                        width={SCAN_SIZE}
-                        height={SCAN_SIZE}
+                        width={scanSize}
+                        height={scanSize}
                         rx={BORDER_RADIUS}
                         ry={BORDER_RADIUS}
-                        fill="black"
+                        stroke="white"
+                        strokeWidth="2"
+                        fill="transparent"
                     />
-                </Mask>
-            </Defs>
-
-            {/* Lớp phủ tối dùng mask để đục lỗ */}
-            <Rect
-                x="0"
-                y="0"
-                width={SCREEN_WIDTH}
-                height={SCREEN_HEIGHT}
-                fill="rgba(0,0,0,0.6)"
-                mask="url(#mask)"
-            />
-
-            {/* Viền vùng sáng */}
-            <Rect
-                x={scanLeft}
-                y={scanTop}
-                width={SCAN_SIZE}
-                height={SCAN_SIZE}
-                rx={BORDER_RADIUS}
-                ry={BORDER_RADIUS}
-                stroke="white"
-                strokeWidth="2"
-                fill="transparent"
-            />
-        </Svg>
+                </Svg>
+            )}
+        </View>
     );
 }

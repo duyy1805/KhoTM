@@ -762,14 +762,26 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
             />
             {loading && <View style={styles.loadingOverlay}><ActivityIndicator size="large" color={COLORS.primary} /></View>}
             {scanPackage && (
-                <View style={styles.scanner}>
-                    <CameraView style={StyleSheet.absoluteFill} onBarcodeScanned={scanned ? undefined : handleQrScanned} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} />
-                    <ScanOverlay />
-                    <TouchableOpacity style={[styles.scanClose, { top: insets.top + 18 }]} onPress={() => setScanPackage(null)}>
-                        <Ionicons name="close" size={28} color={COLORS.white} />
-                    </TouchableOpacity>
-                    <Text style={styles.scanHint}>Quét QR gán cho kiện #{getPackageId(scanPackage)}</Text>
-                </View>
+                <Modal
+                    visible
+                    animationType="fade"
+                    statusBarTranslucent
+                    onRequestClose={() => setScanPackage(null)}
+                >
+                    <View style={styles.scanner}>
+                        <CameraView
+                            style={StyleSheet.absoluteFill}
+                            facing="back"
+                            onBarcodeScanned={scanned ? undefined : handleQrScanned}
+                            barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                        />
+                        <ScanOverlay />
+                        <TouchableOpacity style={[styles.scanClose, { top: insets.top + 18 }]} onPress={() => setScanPackage(null)}>
+                            <Ionicons name="close" size={28} color={COLORS.white} />
+                        </TouchableOpacity>
+                        <Text style={styles.scanHint}>Quét QR gán cho kiện #{getPackageId(scanPackage)}</Text>
+                    </View>
+                </Modal>
             )}
             <Toast />
         </View>
@@ -843,7 +855,7 @@ const styles = StyleSheet.create({
     materialName: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
     materialQty: { fontSize: 16, fontWeight: '800', color: COLORS.primary, marginLeft: 8 },
     emptyText: { textAlign: 'center', color: COLORS.textSecondary, marginTop: 45 },
-    scanner: { ...StyleSheet.absoluteFillObject, zIndex: 10, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
+    scanner: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
     scanClose: { position: 'absolute', left: 18, zIndex: 3, padding: 10, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.45)' },
     scanHint: { position: 'absolute', bottom: 70, color: COLORS.white, fontSize: 14, fontWeight: '700', backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 18, paddingVertical: 10, borderRadius: 20 },
     loadingOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,0.45)', alignItems: 'center', justifyContent: 'center' },
