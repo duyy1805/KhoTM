@@ -10,6 +10,7 @@ import { keyboardAwareScrollProps, webInputFocusProps } from '../../components/K
 import { khoBtpApi } from '../../services/khoBtpApi';
 import { getApiErrorMessage } from '../../services/coreApiClient';
 import { asList, BTP_COLORS as COLORS, getLocationId, readValue } from './btpScreenUtils';
+import CraneWmsReportPanel from './CraneWmsReportPanel';
 
 const idOf = (item, keys) => readValue(item, keys, null);
 const locationCode = (item) => readValue(item, ['maViTriKho', 'MaViTriKho', 'qrCode', 'QRCode', 'TenViTriKho'], '-');
@@ -58,14 +59,22 @@ export default function KhoBTPReportScreen({ navigation, route }) {
     const [loading, setLoading] = useState(false);
     const [scanning, setScanning] = useState(false);
     const [scanned, setScanned] = useState(false);
+    const [craneTab, setCraneTab] = useState('overview');
     const hasStockFilters = Boolean(appliedItemCode || appliedWeekMark);
 
     const loadHouses = useCallback(async () => {
         try {
             setLoading(true);
+            if (reportWarehouse.isCrane) {
+                const [rows, summaryData] = await Promise.all([
+                    khoBtpApi.getCraneInventoryAisles(),
+                    reportWarehouse.demoMode ? Promise.resolve(null) : khoBtpApi.getCraneSummary(),
+                ]);
+                setHouses([]); setHouse(null); setAisles(asList(rows)); setAisle(null); setLocations([]); setCraneSummary(summaryData);
+                return;
+            }
             const rows = asList(await khoBtpApi.getLocationWarehouses(reportWarehouse.id));
             setHouses(rows); setHouse(null); setAisles([]); setAisle(null);
-            if (reportWarehouse.isCrane && !reportWarehouse.demoMode) setCraneSummary(await khoBtpApi.getCraneSummary());
         } catch (error) { Toast.show({ type: 'error', text1: 'Không tải được nhà kho', text2: getApiErrorMessage(error) }); }
         finally { setLoading(false); }
     }, [reportWarehouse.id]);
@@ -77,23 +86,29 @@ export default function KhoBTPReportScreen({ navigation, route }) {
     }, [house]);
 
     const loadLocations = useCallback(async () => {
-        if (!hasStockFilters && (!house || !aisle)) {
+        if (!reportWarehouse.isCrane && !hasStockFilters && (!house || !aisle)) {
             setLocations([]);
             return;
         }
         try {
             setLoading(true);
-            setLocations(asList(await khoBtpApi.searchReportLocations({
-                idKho: reportWarehouse.id,
-                maNha: hasStockFilters ? '' : readValue(house, ['MaNha', 'maNha'], ''),
-                maDay: hasStockFilters ? '' : readValue(aisle, ['MaDay', 'maDay'], ''),
-                itemCode: appliedItemCode,
-                dauTuan: appliedWeekMark,
-            })));
+            if (reportWarehouse.isCrane) {
+                setLocations(asList(await khoBtpApi.getCraneInventory({
+                    aisle: readValue(aisle, ['MaDay', 'maDay'], ''), itemCode: appliedItemCode, lot: appliedWeekMark,
+                })));
+            } else {
+                setLocations(asList(await khoBtpApi.searchReportLocations({
+                    idKho: reportWarehouse.id,
+                    maNha: hasStockFilters ? '' : readValue(house, ['MaNha', 'maNha'], ''),
+                    maDay: hasStockFilters ? '' : readValue(aisle, ['MaDay', 'maDay'], ''),
+                    itemCode: appliedItemCode,
+                    dauTuan: appliedWeekMark,
+                })));
+            }
         }
         catch (error) { Toast.show({ type: 'error', text1: 'Không tải được vị trí', text2: getApiErrorMessage(error) }); }
         finally { setLoading(false); }
-    }, [aisle, appliedItemCode, appliedWeekMark, hasStockFilters, house]);
+    }, [aisle, appliedItemCode, appliedWeekMark, hasStockFilters, house, reportWarehouse.id, reportWarehouse.isCrane]);
     useFocusEffect(useCallback(() => { loadLocations(); }, [loadLocations]));
 
     const filtered = useMemo(() => { const q = locationSearch.trim().toLowerCase(); return !q ? locations : locations.filter((item) => [locationCode(item), readValue(item, ['TenViTriKho'], ''), readValue(item, ['TenNha'], ''), readValue(item, ['TenDay'], '')].join(' ').toLowerCase().includes(q)); }, [locationSearch, locations]);
@@ -113,30 +128,37 @@ export default function KhoBTPReportScreen({ navigation, route }) {
         setWeekMark('');
         setAppliedItemCode('');
         setAppliedWeekMark('');
+        if (reportWarehouse.isCrane) setAisle(null);
     };
     const openLocation = (location) => navigation.navigate('KhoBTPReportLocation', { location, warehouse: reportWarehouse });
     const openScanner = async () => { if (!permission?.granted) { const result = await requestPermission(); if (!result.granted) return; } setScanned(false); setScanning(true); };
-    const onScanned = async ({ data }) => { if (scanned) return; setScanned(true); try { const location = await khoBtpApi.getReportLocationByQr(data); setScanning(false); openLocation(location); } catch (error) { Toast.show({ type: 'error', text1: 'Không tìm thấy vị trí được phép', text2: getApiErrorMessage(error) }); setTimeout(() => setScanned(false), 900); } };
+    const onScanned = async ({ data }) => { if (scanned) return; setScanned(true); try { const location = reportWarehouse.isCrane ? await khoBtpApi.getCraneInventoryLocation(data) : await khoBtpApi.getReportLocationByQr(data); setScanning(false); openLocation(location); } catch (error) { Toast.show({ type: 'error', text1: 'Không tìm thấy vị trí được phép', text2: getApiErrorMessage(error) }); setTimeout(() => setScanned(false), 900); } };
 
     if (scanning) return <View style={styles.scanner}><CameraView style={StyleSheet.absoluteFill} onBarcodeScanned={scanned ? undefined : onScanned} barcodeScannerSettings={{ barcodeTypes: ['qr'] }} /><ScanOverlay /><TouchableOpacity style={[styles.scanClose, { top: insets.top + 18 }]} onPress={() => setScanning(false)}><Ionicons name="close" size={28} color="#fff" /></TouchableOpacity><Text style={styles.scanHint}>Quét QR vị trí BTP</Text><Toast /></View>;
 
-    const modalConfig = modal === 'house' ? { title: 'Chọn nhà kho', items: houses, selected: house, labels: ['TenNha', 'MaNha'], ids: ['MaNha'], select: setHouse } : { title: 'Chọn dãy', items: aisles, selected: aisle, labels: ['TenDay', 'MaDay'], ids: ['MaDay'], select: setAisle };
+    const modalConfig = modal === 'house' ? { title: 'Chọn nhà kho', items: houses, selected: house, labels: ['TenNha', 'tenNha', 'MaNha', 'maNha'], ids: ['MaNha', 'maNha'], select: setHouse } : { title: 'Chọn dãy', items: aisles, selected: aisle, labels: ['TenDay', 'tenDay', 'MaDay', 'maDay'], ids: ['MaDay', 'maDay'], select: setAisle };
+    const header = <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}><TouchableOpacity onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={24} color="#fff" /></TouchableOpacity><Text style={styles.headerTitle}>{reportWarehouse.isCrane ? 'Báo cáo kho cầu trục' : 'Báo cáo tồn kho BTP'}</Text>{craneTab === 'inventory' || !reportWarehouse.isCrane ? <TouchableOpacity onPress={loadLocations}><Ionicons name="refresh" size={22} color="#fff" /></TouchableOpacity> : <View style={{ width: 22 }} />}</View>;
+    const craneTabs = [['overview', 'Tổng quan'], ['inventory', 'Tồn kho'], ['inbound', 'Nhập WMS'], ['outbound', 'Xuất WMS'], ['alerts', 'Cảnh báo']];
+    const tabBar = reportWarehouse.isCrane ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll} contentContainerStyle={styles.tabBar}>{craneTabs.map(([key, title]) => <TouchableOpacity key={key} style={[styles.tab, craneTab === key && styles.tabActive]} onPress={() => setCraneTab(key)}><Text style={[styles.tabText, craneTab === key && styles.tabTextActive]}>{title}</Text></TouchableOpacity>)}</ScrollView> : null;
+
+    if (reportWarehouse.isCrane && craneTab !== 'inventory') return <View style={styles.container}><StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />{header}{tabBar}<CraneWmsReportPanel key={craneTab} mode={craneTab} /><Toast /></View>;
+
     return <View style={styles.container}><StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
-        <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}><TouchableOpacity onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={24} color="#fff" /></TouchableOpacity><Text style={styles.headerTitle}>{reportWarehouse.isCrane ? 'Báo cáo kho cầu trục' : 'Báo cáo tồn kho BTP'}</Text><TouchableOpacity onPress={loadLocations}><Ionicons name="refresh" size={22} color="#fff" /></TouchableOpacity></View>
+        {header}{tabBar}
         <View style={styles.controls}>
             {reportWarehouse.isCrane && reportWarehouse.demoMode && <Text style={{ color: COLORS.primary, fontWeight: '800', marginBottom: 10 }}>Đang hiển thị dữ liệu kho BTP để thử nghiệm.</Text>}
             {reportWarehouse.isCrane && craneSummary && <View style={{ backgroundColor: '#FFF7ED', padding: 12, borderRadius: 12, marginBottom: 12 }}><Text style={{ fontWeight: '800' }}>Chờ WMS: {craneSummary.waitingWms} pallet • {craneSummary.waitingWmsQuantity} đã ghi xuất chờ xác nhận</Text><Text style={{ fontWeight: '800' }}>Chờ nhập lại: {craneSummary.waitingReturn} pallet • {craneSummary.waitingReturnQuantity} sản phẩm</Text><Text>Số chờ nhập lại không khả dụng để xuất.</Text></View>}
             <View style={styles.search}><Ionicons name="search" size={20} color={COLORS.textSecondary} /><TextInput style={{ flex: 1 }} value={locationSearch} onChangeText={setLocationSearch} placeholder="Lọc mã hoặc QR vị trí" {...webInputFocusProps()} /></View>
-            <View style={styles.filters}>{[['house', house, ['TenNha', 'MaNha']], ['aisle', aisle, ['TenDay', 'MaDay']]].map(([key, value, keys]) => <TouchableOpacity key={key} style={styles.filter} onPress={() => setModal(key)}><Text numberOfLines={1} style={styles.filterText}>{readValue(value, keys, 'Chọn')}</Text><Ionicons name="chevron-down" size={16} /></TouchableOpacity>)}</View>
+            <View style={styles.filters}>{(reportWarehouse.isCrane ? [['aisle', aisle, ['TenDay', 'tenDay', 'MaDay', 'maDay']]] : [['house', house, ['TenNha', 'MaNha']], ['aisle', aisle, ['TenDay', 'MaDay']]]).map(([key, value, keys]) => <TouchableOpacity key={key} style={styles.filter} onPress={() => setModal(key)}><Text numberOfLines={1} style={styles.filterText}>{readValue(value, keys, key === 'aisle' ? 'Tất cả dãy' : 'Chọn')}</Text><Ionicons name="chevron-down" size={16} /></TouchableOpacity>)}</View>
             <View style={styles.stockFilterInputs}>
                 <View style={styles.stockFilterInput}><Ionicons name="cube-outline" size={18} color={COLORS.textSecondary} /><TextInput style={{ flex: 1 }} value={itemCode} onChangeText={(value) => setItemCode(value.slice(0, 255))} placeholder="ItemCode" returnKeyType="search" onSubmitEditing={applyStockFilters} {...webInputFocusProps()} /></View>
                 <View style={styles.stockFilterInput}><Ionicons name="calendar-outline" size={18} color={COLORS.textSecondary} /><TextInput style={{ flex: 1 }} value={weekMark} onChangeText={(value) => setWeekMark(value.slice(0, 50))} placeholder="Dấu tuần" returnKeyType="search" onSubmitEditing={applyStockFilters} {...webInputFocusProps()} /></View>
             </View>
             <View style={styles.stockFilterActions}>
                 <TouchableOpacity style={styles.stockFilterButton} onPress={applyStockFilters}><Ionicons name="search" size={19} color="#fff" /><Text style={styles.stockFilterButtonText}>Tìm tồn kho</Text></TouchableOpacity>
-                {(hasStockFilters || itemCode || weekMark) && <TouchableOpacity style={styles.clearFilterButton} onPress={clearStockFilters}><Ionicons name="close" size={19} color={COLORS.textSecondary} /><Text style={styles.clearFilterText}>Xóa lọc</Text></TouchableOpacity>}
+                {(hasStockFilters || itemCode || weekMark || (reportWarehouse.isCrane && aisle)) && <TouchableOpacity style={styles.clearFilterButton} onPress={clearStockFilters}><Ionicons name="close" size={19} color={COLORS.textSecondary} /><Text style={styles.clearFilterText}>Xóa lọc</Text></TouchableOpacity>}
             </View>
-            {hasStockFilters && <Text style={styles.appliedFilterText}>Tất cả nhà kho và dãy • {appliedItemCode ? `ItemCode ${appliedItemCode}` : ''}{appliedItemCode && appliedWeekMark ? ' • ' : ''}{appliedWeekMark ? `Dấu tuần ${appliedWeekMark}` : ''} • Tồn {summary.stock}</Text>}
+            {(hasStockFilters || (reportWarehouse.isCrane && aisle)) && <Text style={styles.appliedFilterText}>{reportWarehouse.isCrane ? (readValue(aisle, ['TenDay', 'tenDay', 'MaDay', 'maDay'], 'Tất cả dãy')) : 'Tất cả nhà kho và dãy'} • {appliedItemCode ? `ItemCode ${appliedItemCode} • ` : ''}{appliedWeekMark ? `Dấu tuần ${appliedWeekMark} • ` : ''}Tồn {summary.stock}</Text>}
             <View style={styles.stats}><Stat label="Vị trí" value={summary.total} /><Stat label="Có hàng" value={summary.occupied} color={COLORS.success} /><Stat label="Trống" value={summary.empty} color={COLORS.warning} /><Stat label="Kiện" value={summary.packages} /></View>
             <TouchableOpacity style={styles.scanButton} onPress={openScanner}><Ionicons name="scan" size={21} color="#fff" /><Text style={styles.scanButtonText}>Quét QR vị trí</Text></TouchableOpacity>
             <Text style={styles.sectionTitle}>Danh sách vị trí</Text>
@@ -170,4 +192,5 @@ const styles = StyleSheet.create({
         }),
     },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 18, paddingBottom: 16, backgroundColor: COLORS.primary, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 }, headerTitle: { color: '#fff', fontSize: 18, fontWeight: '900' }, controls: { paddingHorizontal: 16, paddingTop: 16 }, content: { paddingHorizontal: 16, paddingBottom: 40 }, search: { height: 52, flexDirection: 'row', alignItems: 'center', gap: 9, paddingHorizontal: 14, borderRadius: 16, borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#fff', marginBottom: 12 }, filters: { flexDirection: 'row', gap: 7, marginBottom: 12 }, filter: { flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 3, padding: 10, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.border }, filterText: { flex: 1, fontSize: 11, fontWeight: '800', color: COLORS.textPrimary }, stockFilterInputs: { flexDirection: 'row', gap: 8 }, stockFilterInput: { flex: 1, minWidth: 0, height: 48, flexDirection: 'row', alignItems: 'center', gap: 7, paddingHorizontal: 11, borderRadius: 13, borderWidth: 1, borderColor: COLORS.border, backgroundColor: '#fff' }, stockFilterActions: { flexDirection: 'row', gap: 8, marginTop: 9, marginBottom: 10 }, stockFilterButton: { flex: 1, height: 46, borderRadius: 13, backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }, stockFilterButtonText: { color: '#fff', fontSize: 12, fontWeight: '900' }, clearFilterButton: { height: 46, paddingHorizontal: 13, borderRadius: 13, backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.border, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 }, clearFilterText: { color: COLORS.textSecondary, fontSize: 11, fontWeight: '800' }, appliedFilterText: { marginBottom: 10, color: COLORS.primary, fontSize: 10, fontWeight: '800' }, stats: { flexDirection: 'row', gap: 7, marginBottom: 12 }, stat: { flex: 1, alignItems: 'center', backgroundColor: '#fff', borderRadius: 13, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.border }, statValue: { fontSize: 17, fontWeight: '900' }, statLabel: { marginTop: 2, fontSize: 9, color: COLORS.textSecondary }, scanButton: { height: 48, borderRadius: 15, backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }, scanButtonText: { color: '#fff', fontWeight: '900' }, sectionTitle: { fontSize: 17, fontWeight: '900', color: COLORS.textPrimary, marginTop: 15, marginBottom: 12 }, columns: { gap: 10 }, locationCard: { flex: 1, minWidth: 0, padding: 12, marginBottom: 10, borderRadius: 16, backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.border }, locationBadge: { alignSelf: 'flex-start', maxWidth: '100%', paddingHorizontal: 8, paddingVertical: 5, borderRadius: 9, backgroundColor: COLORS.primaryLight }, locationBadgeText: { fontSize: 11, fontWeight: '900', color: COLORS.primary }, locationTitle: { marginTop: 8, fontSize: 13, fontWeight: '900', color: COLORS.textPrimary }, locationMeta: { marginTop: 4, fontSize: 10, color: COLORS.textSecondary }, locationCount: { marginTop: 9, fontSize: 13, fontWeight: '900', color: COLORS.success }, empty: { textAlign: 'center', marginTop: 30, color: COLORS.textSecondary }, overlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(15,23,42,.45)' }, sheet: { maxHeight: '70%', padding: 18, paddingBottom: 30, backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24 }, indicator: { width: 42, height: 5, borderRadius: 3, backgroundColor: COLORS.border, alignSelf: 'center' }, sheetTitle: { marginVertical: 16, fontSize: 18, fontWeight: '900' }, sheetItem: { padding: 14, borderRadius: 12, marginBottom: 6 }, sheetItemActive: { backgroundColor: COLORS.primaryLight }, sheetText: { fontWeight: '700', color: COLORS.textPrimary }, sheetTextActive: { color: COLORS.primary }, loading: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(255,255,255,.45)', alignItems: 'center', justifyContent: 'center' }, scanner: { flex: 1, backgroundColor: '#000' }, scanClose: { position: 'absolute', left: 18, zIndex: 4, padding: 10, borderRadius: 24, backgroundColor: 'rgba(0,0,0,.5)' }, scanHint: { position: 'absolute', bottom: 70, alignSelf: 'center', color: '#fff', fontWeight: '800', backgroundColor: 'rgba(0,0,0,.55)', padding: 11, borderRadius: 18 }
+    ,tabScroll:{flexGrow:0,backgroundColor:COLORS.background},tabBar:{paddingHorizontal:12,paddingVertical:10,gap:7},tab:{paddingHorizontal:13,paddingVertical:8,borderRadius:17,backgroundColor:'#fff',borderWidth:1,borderColor:COLORS.border},tabActive:{backgroundColor:COLORS.primary,borderColor:COLORS.primary},tabText:{fontSize:11,fontWeight:'900',color:COLORS.textSecondary},tabTextActive:{color:'#fff'}
 });

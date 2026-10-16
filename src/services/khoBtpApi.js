@@ -47,6 +47,39 @@ export const khoBtpApi = {
     async getCraneSummary() {
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/cau-truc/summary' });
     },
+    async getCraneReportOverview(params = {}) {
+        const query = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== null && value !== '') query.append(key, String(value)); });
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/cau-truc/reports/overview?${query.toString()}` });
+    },
+    async getCraneInboundReport(params = {}) {
+        const query = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== null && value !== '') query.append(key, String(value)); });
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/cau-truc/reports/inbound?${query.toString()}` });
+    },
+    async getCraneOutboundReport(params = {}) {
+        const query = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== null && value !== '') query.append(key, String(value)); });
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/cau-truc/reports/outbound?${query.toString()}` });
+    },
+    async getCraneAlertsReport(params = {}) {
+        const query = new URLSearchParams();
+        Object.entries(params).forEach(([key, value]) => { if (value !== undefined && value !== null && value !== '') query.append(key, String(value)); });
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/cau-truc/reports/alerts?${query.toString()}` });
+    },
+    async getCraneInventoryAisles() {
+        const response = await apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/cau-truc/reports/inventory/aisles' });
+        return response?.items || [];
+    },
+    async getCraneInventory({ aisle = '', itemCode = '', lot = '' } = {}) {
+        const query = new URLSearchParams({ aisle: String(aisle || '').trim(), itemCode: String(itemCode || '').trim(), lot: String(lot || '').trim() });
+        const response = await apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/cau-truc/reports/inventory?${query.toString()}` });
+        return response?.items || [];
+    },
+    async getCraneInventoryLocation(qrCode) {
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/reports/inventory/location?qrCode=${encode(qrCode)}` });
+    },
     async getImportTypes() {
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/phieunhap/types' });
     },
