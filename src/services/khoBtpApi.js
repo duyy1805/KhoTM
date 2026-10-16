@@ -30,6 +30,20 @@ export const khoBtpApi = {
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
             url: `/btp/cau-truc/orders/${positiveInt(idPhieuXuat, 'Phiếu xuất')}` });
     },
+    async getCraneDispatchStatus(idPhieuXuat) {
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/orders/${positiveInt(idPhieuXuat, 'Phiếu xuất')}/dispatch` });
+    },
+    async getCraneAvailableLots(idPhieuXuat) {
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/orders/${positiveInt(idPhieuXuat, 'Phiếu xuất')}/available-lots` });
+    },
+    async dispatchCraneExport(idPhieuXuat, skipLot) {
+        return apiRequest({ method: 'POST', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/orders/${positiveInt(idPhieuXuat, 'Phiếu xuất')}/dispatch`,
+            ...(skipLot === undefined ? {} : { data: { skipLot } }),
+        });
+    },
     async getCraneSummary() {
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/cau-truc/summary' });
     },
@@ -136,7 +150,7 @@ export const khoBtpApi = {
         });
     },
 
-    async assignPackageQr({ qrCode, idPackage, craneMode = false, dispatchWms = true }) {
+    async assignPackageQr({ qrCode, idPackage, craneMode = false, dispatchWms = true, deferWmsSelection = false }) {
         if (!String(qrCode || '').trim()) throw new Error('QR không hợp lệ');
         return apiRequest({
             method: 'POST',
@@ -147,7 +161,20 @@ export const khoBtpApi = {
                 idKien: positiveInt(idPackage, 'Kiện'),
                 craneMode: Boolean(craneMode),
                 dispatchWms: Boolean(dispatchWms),
+                deferWmsSelection: Boolean(deferWmsSelection),
             },
+        });
+    },
+
+    async dispatchSelectedInboundPackages({ idPhieuNhap, packageIds }) {
+        const ids = cleanIdList(packageIds);
+        if (!ids.length) throw new Error('Chưa chọn kiện cần gửi WMS');
+        return apiRequest({
+            method: 'POST',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/phieunhap/${positiveInt(idPhieuNhap, 'Phiếu nhập')}/gui-wms-kien`,
+            data: { packageIds: ids },
+            timeout: 120000,
         });
     },
 

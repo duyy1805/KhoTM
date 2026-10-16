@@ -35,6 +35,7 @@ import {
     buildImportConfirmPackage,
     getBtpMaterialPayload,
     getImportQuantityMismatches,
+    getImportQuantitySummary,
     getImportMaterialRemaining,
     getLocationCode,
     getLocationId,
@@ -56,6 +57,10 @@ function confirmAction(title, message, onConfirm) {
         { text: 'Hủy', style: 'cancel' },
         { text: 'Xác nhận', style: 'destructive', onPress: onConfirm },
     ]);
+}
+
+function formatQuantity(value) {
+    return asNumber(value).toLocaleString('vi-VN', { maximumFractionDigits: 2 });
 }
 
 function NumberModal({ visible, title, label, max, initialValue = '', onClose, onConfirm }) {
@@ -347,16 +352,10 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
     }, [fetchDetail, id]);
 
     const selectedPackages = useMemo(() => packages.filter((item) => selectedIds.includes(getPackageId(item))), [packages, selectedIds]);
-    const summaryProducts = useMemo(() => {
-        const products = new Map();
-        materials.forEach((material) => {
-            const itemCode = String(readValue(material, ['itemCode', 'ItemCode'], '')).trim();
-            const productName = String(readValue(material, ['tenSanPham', 'Ten_SanPham', 'TenSanPham', 'productName', 'ProductName'], '')).trim();
-            if (!itemCode && !productName) return;
-            products.set(`${itemCode}|${productName}`, { itemCode, productName });
-        });
-        return Array.from(products.values());
-    }, [materials]);
+    const summaryProducts = useMemo(
+        () => getImportQuantitySummary(materials, packages),
+        [materials, packages],
+    );
     const allReady = packages.length > 0 && packages.every((item) => isImportPackageReady(item, Boolean(kho?.isCrane)));
     const quantityMismatches = useMemo(() => getImportQuantityMismatches(materials, packages), [materials, packages]);
     const canConfirm = allReady && materials.length > 0 && quantityMismatches.length === 0;
@@ -414,7 +413,6 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
         const scannedQr = String(data || '').trim();
         const packageId = getPackageId(scanPackage);
         const isCrane = Boolean(kho?.isCrane);
-        let dispatchToken = null;
         const assignedPackage = packages.find(
             (item) => String(getPackageQr(item) || '').trim().toUpperCase() === scannedQr.toUpperCase(),
         );
@@ -429,18 +427,17 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
         }
         try {
             setLoading(true);
-            const assignment = await khoBtpApi.assignPackageQr({
+            await khoBtpApi.assignPackageQr({
                 qrCode: scannedQr,
                 idPackage: packageId,
                 craneMode: isCrane,
                 dispatchWms: !isCrane,
+                deferWmsSelection: isCrane,
             });
-            dispatchToken = assignment?.dispatchToken;
-            setSelectedIds((current) => current.filter((value) => String(value) !== String(packageId)));
             setScanPackage(null);
             Toast.show({
                 type: 'success',
-                text1: isCrane ? 'Đã gán QR, đang gửi WMS' : 'Đã gán QR cho kiện',
+                text1: isCrane ? 'Đã gán QR, chưa gửi WMS' : 'Đã gán QR cho kiện',
             });
         } catch (error) {
             Toast.show({ type: 'error', text1: 'Gán QR thất bại', text2: getApiErrorMessage(error) });
@@ -449,26 +446,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
         } finally {
             setLoading(false);
         }
-
-        // Để React Native đóng camera trước khi bắt đầu request WMS có thể mất nhiều giây.
-        await new Promise((resolve) => requestAnimationFrame(resolve));
         await fetchDetail();
-        if (!isCrane) return;
-
-        try {
-            setLoading(true);
-            const result = await khoBtpApi.dispatchInboundPackage({ idPhieuNhap: id, idPackage: packageId, dispatchToken });
-            const wmsPackage = result?.wmsPackage;
-            const dispatchFailed = wmsPackage?.DispatchStatus === 'FAILED';
-            Toast.show(dispatchFailed
-                ? { type: 'error', text1: 'Đã gán QR nhưng gửi WMS lỗi', text2: wmsPackage.DispatchError || 'Có thể gửi lại ở đầu phiếu' }
-                : { type: 'success', text1: 'WMS đã tiếp nhận kiện' });
-        } catch (error) {
-            Toast.show({ type: 'error', text1: 'Đã gán QR nhưng gửi WMS lỗi', text2: getApiErrorMessage(error) });
-        } finally {
-            setLoading(false);
-            await fetchDetail();
-        }
     };
 
     const createPackages = async (quantity) => {
@@ -600,6 +578,48 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
         }
     };
 
+    const sendSelectedToWms = async () => {
+        if (!selectedIds.length) {
+            Toast.show({ type: 'info', text1: 'Chọn kiện cần gửi WMS' });
+            return;
+        }
+        const locallyReady = selectedPackages.filter((item) => isImportPackageReady(item, true));
+        if (!locallyReady.length) {
+            Toast.show({ type: 'error', text1: 'Không có kiện đủ điều kiện gửi',
+                text2: 'Kiện cần có QR, BTP, dấu tuần và số lượng hợp lệ' });
+            return;
+        }
+        try {
+            setLoading(true);
+            const response = await khoBtpApi.dispatchSelectedInboundPackages({
+                idPhieuNhap: id,
+                packageIds: selectedIds,
+            });
+            const results = Array.isArray(response?.results) ? response.results : [];
+            const sent = results.filter((item) => item?.result === 'SENT');
+            const failed = results.filter((item) => item?.result === 'FAILED');
+            const skipped = results.filter((item) => item?.result === 'SKIPPED');
+            const refreshed = await fetchDetail();
+            const lockedIds = new Set((refreshed?.kiens || [])
+                .filter((item) => item?.wmsLocked)
+                .map((item) => String(getPackageId(item))));
+            setSelectedIds((current) => current.filter((packageId) => !lockedIds.has(String(packageId))));
+            const resultDetail = [
+                failed.length ? `Lỗi ${failed.length}: ${failed[0]?.message || 'Không gửi được WMS'}` : '',
+                skipped.length ? `Bỏ qua ${skipped.length}: ${skipped[0]?.message || 'Kiện chưa đủ thông tin'}` : '',
+            ].filter(Boolean).join(' • ');
+            Toast.show(failed.length
+                ? { type: 'error', text1: `Đã gửi ${sent.length}, lỗi ${failed.length} kiện`,
+                    text2: resultDetail }
+                : { type: sent.length ? 'success' : 'info', text1: `Đã gửi ${sent.length} kiện`,
+                    text2: resultDetail || undefined });
+        } catch (error) {
+            Toast.show({ type: 'error', text1: 'Gửi kiện WMS thất bại', text2: getApiErrorMessage(error) });
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const confirmImport = () => {
         if (!allReady) {
             Toast.show({ type: 'error', text1: kho?.isCrane ? 'Tất cả kiện cần BTP, dấu tuần và QR' : 'Tất cả kiện phải có BTP, QR và vị trí' });
@@ -693,6 +713,23 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                                     {summaryProducts.length > 1 && <Text style={styles.summaryProductTitle}>Sản phẩm {index + 1}</Text>}
                                     <Text style={styles.summarySub}>ItemCode: {product.itemCode || '-'}</Text>
                                     <Text style={styles.summarySub}>Tên sản phẩm: {product.productName || '-'}</Text>
+                                    <View style={styles.quantitySummary}>
+                                        <View style={styles.quantitySummaryItem}>
+                                            <Text style={styles.quantitySummaryLabel}>Số lượng phiếu</Text>
+                                            <Text style={styles.quantitySummaryValue}>{formatQuantity(product.requested)}</Text>
+                                        </View>
+                                        <View style={styles.quantitySummaryItem}>
+                                            <Text style={styles.quantitySummaryLabel}>Đã chia kiện</Text>
+                                            <Text style={styles.quantitySummaryValue}>{formatQuantity(product.allocated)}</Text>
+                                        </View>
+                                        <View style={styles.quantitySummaryItem}>
+                                            <Text style={styles.quantitySummaryLabel}>Còn lại</Text>
+                                            <Text style={[styles.quantitySummaryValue,
+                                                product.remaining !== 0 && styles.quantitySummaryRemaining]}>
+                                                {formatQuantity(product.remaining)}
+                                            </Text>
+                                        </View>
+                                    </View>
                                 </View>
                             ))}
                             <View style={styles.summaryStats}>
@@ -721,6 +758,10 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                         {!packageEditingLocked && <View style={styles.toolbar}>
                             <TouchableOpacity style={styles.toolBtn} onPress={() => setCreateVisible(true)}><Ionicons name="add" size={19} color={COLORS.primary} /><Text style={styles.toolText}>Tạo kiện</Text></TouchableOpacity>
                             <TouchableOpacity style={styles.toolBtn} onPress={deleteSelected}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /><Text style={[styles.toolText, { color: COLORS.danger }]}>Xóa</Text></TouchableOpacity>
+                            {kho?.isCrane && selectedIds.length > 0 && <TouchableOpacity style={styles.toolBtn} onPress={sendSelectedToWms} disabled={loading}>
+                                <Ionicons name="send-outline" size={18} color={COLORS.primary} />
+                                <Text style={styles.toolText}>Gửi {selectedIds.length} kiện đã chọn</Text>
+                            </TouchableOpacity>}
                             {!kho?.isCrane && <TouchableOpacity style={styles.toolBtn} onPress={() => openLocation(selectedPackages)}><Ionicons name="location-outline" size={18} color={COLORS.primary} /><Text style={styles.toolText}>Gán vị trí</Text></TouchableOpacity>}
                         </View>}
                         <Text style={styles.sectionTitle}>Danh sách kiện</Text>
@@ -799,6 +840,11 @@ const styles = StyleSheet.create({
     summarySub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 5 },
     summaryProduct: { marginTop: 7 },
     summaryProductTitle: { fontSize: 12, fontWeight: '700', color: COLORS.textPrimary, marginTop: 3 },
+    quantitySummary: { flexDirection: 'row', gap: 7, marginTop: 10 },
+    quantitySummaryItem: { flex: 1, minWidth: 82, backgroundColor: COLORS.background, borderRadius: 11, paddingHorizontal: 9, paddingVertical: 8 },
+    quantitySummaryLabel: { fontSize: 9, color: COLORS.textSecondary, marginBottom: 3 },
+    quantitySummaryValue: { fontSize: 15, fontWeight: '900', color: COLORS.textPrimary },
+    quantitySummaryRemaining: { color: COLORS.warning },
     summaryStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
     stat: { fontSize: 11, fontWeight: '800', color: COLORS.primary, backgroundColor: COLORS.primaryLight, borderRadius: 9, paddingHorizontal: 9, paddingVertical: 5 },
     confirmedBanner: { padding: 12, borderRadius: 13, backgroundColor: '#D1FAE5', color: '#047857', fontSize: 12, fontWeight: '800', marginBottom: 12, textAlign: 'center' },

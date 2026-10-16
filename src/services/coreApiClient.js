@@ -4,7 +4,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // export const CORE_API_BASE_URL = 'http://125.212.207.52:5010';
 export const CORE_API_BASE_URL = 'https://apilayoutkho.z76.vn';
 // Chọn DB cho các API KhoTM bằng đúng hậu tố URL: /khotmtest hoặc /khotm.
-export const KHO_TM_API_BASE_URL = 'https://nodeapi.z76.vn/khotm';
+// export const KHO_TM_API_BASE_URL = 'https://nodeapi.z76.vn/khotmtest';
+export const KHO_TM_API_BASE_URL = 'http://192.168.88.13:5000/khotmtest';
 export const IS_KHO_TM_TEST = /\/khotmtest\/?$/.test(KHO_TM_API_BASE_URL);
 export const LEGACY_BTP_API_BASE_URL = 'https://apipccc.z76.vn/api/TAG_QTKD';
 
@@ -101,10 +102,11 @@ export async function getCurrentUserId({ required = false } = {}) {
 export function getApiErrorMessage(error, fallback = 'Thao tác thất bại') {
     const data = error?.response?.data;
     if (typeof data === 'string' && data.trim()) return data.trim();
-    return data?.message
+    const message = data?.message
         || data?.Message
         || data?.error
         || error?.message
         || fallback;
+    return data?.detail && data.detail !== message ? `${message}: ${data.detail}` : message;
 }
 

@@ -128,7 +128,11 @@ export function isImportPackageReady(item, isCrane = false) {
         && getPackageDetails(item).length > 0
         && getPackageDetails(item).every((detail) =>
             asNumber(readValue(detail, ['soLuongTon', 'SoLuong', 'soLuong'], 0)) > 0
-            && (!isCrane || String(readValue(detail, ['dauTuan', 'DauTuan'], '')).trim()))
+            && (!isCrane || (
+                String(readValue(detail, ['itemCode', 'ItemCode'], '')).trim()
+                && String(readValue(detail, ['tenSanPham', 'Ten_SanPham', 'TenSanPham'], '')).trim()
+                && String(readValue(detail, ['dauTuan', 'DauTuan'], '')).trim()
+            )))
     );
 }
 
@@ -148,6 +152,28 @@ export function getImportQuantityMismatches(materials, packages) {
     packages.filter(getPackageQr).forEach((item) => getPackageDetails(item).forEach((row) => addQuantity(row, 'scanned')));
 
     return [...totals.values()].filter(({ requested, scanned }) => requested !== scanned);
+}
+
+export function getImportQuantitySummary(materials, packages) {
+    const rows = new Map();
+    const add = (row, field) => {
+        const itemCode = String(readValue(row, ['itemCode', 'ItemCode'], '')).trim();
+        const productName = String(readValue(row,
+            ['tenSanPham', 'Ten_SanPham', 'TenSanPham', 'productName', 'ProductName'], '')).trim();
+        const key = itemCode.toUpperCase() || productName.toUpperCase();
+        if (!key) return;
+        const current = rows.get(key) || { itemCode, productName, requested: 0, allocated: 0 };
+        if (!current.itemCode && itemCode) current.itemCode = itemCode;
+        if (!current.productName && productName) current.productName = productName;
+        current[field] += asNumber(readValue(row, field === 'requested'
+            ? ['soLuong', 'SoLuong']
+            : ['soLuongTon', 'SoLuong', 'soLuong'], 0));
+        rows.set(key, current);
+    };
+    (Array.isArray(materials) ? materials : []).forEach((row) => add(row, 'requested'));
+    (Array.isArray(packages) ? packages : []).flatMap(getPackageDetails)
+        .forEach((row) => add(row, 'allocated'));
+    return [...rows.values()].map((row) => ({ ...row, remaining: row.requested - row.allocated }));
 }
 
 export function getImportMaterialRemaining(materials, packages, material, editedDetail = null) {

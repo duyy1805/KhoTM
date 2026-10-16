@@ -40,6 +40,17 @@ test('same ItemCode in two weeks contributes both quantities', async () => {
     assert.equal(isImportPackageReady(packageRow), false);
 });
 
+test('crane package readiness requires WMS item name and week mark', async () => {
+    const { isImportPackageReady } = await utils;
+    const packageRow = {
+        idTheKhoKienBTP: 18, qrCode: 'PKG-18',
+        bTPs: [{ itemCode: 'A', tenSanPham: 'Hàng A', soLuongTon: 2, dauTuan: 'T36' }],
+    };
+    assert.equal(isImportPackageReady(packageRow, true), true);
+    packageRow.bTPs[0].tenSanPham = '';
+    assert.equal(isImportPackageReady(packageRow, true), false);
+});
+
 test('material payload preserves the production plan and its own week mark', async () => {
     const { getBtpMaterialPayload } = await utils;
     assert.deepEqual(
@@ -60,4 +71,21 @@ test('editing one week only releases that detail quantity', async () => {
     const packages = [{ bTPs: [first, second] }];
     assert.equal(getImportMaterialRemaining(materials, packages, { itemCode: 'A' }), 2);
     assert.equal(getImportMaterialRemaining(materials, packages, second, second), 5);
+});
+
+test('import quantity summary shows requested, allocated and remaining by item', async () => {
+    const { getImportQuantitySummary } = await utils;
+    const materials = [
+        { itemCode: 'A', tenSanPham: 'Hàng A', soLuong: 300 },
+        { itemCode: 'A', tenSanPham: 'Hàng A', soLuong: 100 },
+        { itemCode: 'B', tenSanPham: 'Hàng B', soLuong: 50 },
+    ];
+    const packages = [
+        { bTPs: [{ itemCode: 'A', tenSanPham: 'Hàng A', soLuongTon: 125 }] },
+        { bTPs: [{ itemCode: 'A', tenSanPham: 'Hàng A', soLuongTon: 75 }] },
+    ];
+    assert.deepEqual(getImportQuantitySummary(materials, packages), [
+        { itemCode: 'A', productName: 'Hàng A', requested: 400, allocated: 200, remaining: 200 },
+        { itemCode: 'B', productName: 'Hàng B', requested: 50, allocated: 0, remaining: 50 },
+    ]);
 });

@@ -116,6 +116,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
     const [selectedType, setSelectedType] = useState(null);
     const [pageIndex, setPageIndex] = useState(0);
     const [loading, setLoading] = useState(false);
+    const [loadError, setLoadError] = useState('');
     const [refreshing, setRefreshing] = useState(false);
     const [qrMode, setQrMode] = useState(Boolean(qrCode));
     const [startDate, setStartDate] = useState(() => {
@@ -144,6 +145,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
     const fetchDocuments = useCallback(async () => {
         try {
             setLoading(true);
+            setLoadError('');
             if (qrMode && qrCode) {
                 const response = await khoBtpApi.findExportsByQr({
                     qrCode,
@@ -167,6 +169,8 @@ export default function PhieuXuatBTP({ navigation, route }) {
             setDocuments(asList(response, ['items', 'rows']));
             setPackageDetails([]);
         } catch (error) {
+            setDocuments([]);
+            setLoadError(getApiErrorMessage(error));
             Toast.show({ type: 'error', text1: 'Lỗi tải phiếu xuất BTP', text2: getApiErrorMessage(error) });
         } finally {
             setLoading(false);
@@ -375,7 +379,7 @@ export default function PhieuXuatBTP({ navigation, route }) {
                         <TouchableOpacity style={[styles.pageBtn, uniqueDocuments.length < 20 && styles.disabled]} disabled={uniqueDocuments.length < 20} onPress={() => setPageIndex((value) => value + 1)}><Text style={styles.pageText}>Sau</Text><Ionicons name="chevron-forward" size={18} color={COLORS.primary} /></TouchableOpacity>
                     </View>
                 ) : null}
-                ListEmptyComponent={!loading && <Text style={styles.emptyText}>{qrMode ? 'Không tìm thấy phiếu phù hợp với QR' : 'Không có phiếu xuất phù hợp'}</Text>}
+                ListEmptyComponent={!loading && <Text style={styles.emptyText}>{loadError ? `Lỗi tải danh sách: ${loadError}` : qrMode ? 'Không tìm thấy phiếu phù hợp với QR' : 'Không có phiếu xuất phù hợp'}</Text>}
             />
             <Toast />
         </View>

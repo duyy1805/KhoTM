@@ -248,6 +248,14 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
     const { id, exportDoc, initialQr, kho } = route.params || {};
     const [detail, setDetail] = useState(exportDoc || {});
     const [craneStatus, setCraneStatus] = useState(null);
+    const [dispatchStatus, setDispatchStatus] = useState(null);
+    const [sendingWms, setSendingWms] = useState(false);
+    const [dispatchStatusReady, setDispatchStatusReady] = useState(false);
+    const [craneAvailableLots, setCraneAvailableLots] = useState([]);
+    const [excludedLots, setExcludedLots] = useState({});
+    const [lotInputByCode, setLotInputByCode] = useState({});
+    const [loadingCraneLots, setLoadingCraneLots] = useState(false);
+    const [craneLotsLoadError, setCraneLotsLoadError] = useState(false);
     const [lines, setLines] = useState([]);
     const [savedPackages, setSavedPackages] = useState([]);
     const [activeLineIndex, setActiveLineIndex] = useState(0);
@@ -279,6 +287,53 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
     }, [lines]);
     const isConfirmed = readValue(detail, ['trangThai', 'TrangThai'], false) === true
         || Number(readValue(detail, ['trangThai', 'TrangThai'], 0)) === 1;
+    const craneLotLocked = isConfirmed || sendingWms ||
+        (Boolean(dispatchStatus) && !['REJECTED', 'FAILED'].includes(dispatchStatus.DispatchStatus));
+    const craneProducts = useMemo(() => Array.from(new Map(summaryProducts
+        .filter(product => product.itemCode)
+        .map(product => [product.itemCode, product])).values()), [summaryProducts]);
+    const fixedCraneLots = useMemo(() => {
+        const fixed = new Map();
+        lines.forEach(line => {
+            const code = String(readValue(line, ['itemCode', 'ItemCode'], '')).trim();
+            const mark = String(readValue(line, ['dauTuan', 'DauTuan', 'lot', 'Lot'], '') || '').trim();
+            if (code && mark) {
+                if (!fixed.has(code)) fixed.set(code, new Set());
+                fixed.get(code).add(mark);
+            }
+        });
+        return fixed;
+    }, [lines]);
+
+    const setCraneLot = (itemCode, value, shouldExclude) => {
+        if (craneLotLocked) return;
+        const lot = String(value ?? '').trim();
+        if (!lot || lot.length > 50) {
+            Toast.show({ type: 'error', text1: 'Dấu tuần phải có từ 1 đến 50 ký tự' });
+            return false;
+        }
+        if (!craneProducts.some(product => product.itemCode === itemCode)) return false;
+        if (shouldExclude && fixedCraneLots.get(itemCode)?.has(lot)) {
+            Toast.show({ type: 'error', text1: 'Dấu tuần này đã được chỉ định xuất trên phiếu' });
+            return false;
+        }
+        const current = excludedLots[itemCode] || [];
+        if (shouldExclude && !current.includes(lot) && current.length >= 100) {
+            Toast.show({ type: 'error', text1: 'Tối đa 100 dấu tuần cho mỗi mã hàng' });
+            return false;
+        }
+        setExcludedLots(previous => {
+            const values = previous[itemCode] || [];
+            const next = shouldExclude
+                ? [...new Set([...values, lot])]
+                : values.filter(item => item !== lot);
+            const updated = { ...previous };
+            if (next.length) updated[itemCode] = next;
+            else delete updated[itemCode];
+            return updated;
+        });
+        return true;
+    };
 
     const fetchDetail = useCallback(async () => {
         if (!id) return;
@@ -288,9 +343,23 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
             setDetail(response || {});
             setLines(Array.isArray(response?.chiTiets) ? response.chiTiets : []);
             setSavedPackages(Array.isArray(response?.kiens) ? response.kiens : []);
-            if (kho?.isCrane && response?.trangThai) {
+            if (kho?.isCrane) {
+                setDispatchStatusReady(false);
                 try { setCraneStatus(await khoBtpApi.getCraneOrderStatus(id)); }
                 catch (statusError) { setCraneStatus(null); }
+                try {
+                    const saved = (await khoBtpApi.getCraneDispatchStatus(id))?.dispatch || null;
+                    setDispatchStatus(saved);
+                    if (saved) setExcludedLots(saved.skipLot || {});
+                    setDispatchStatusReady(true);
+                } catch (statusError) { setDispatchStatusReady(false); }
+                setLoadingCraneLots(true);
+                try {
+                    const available = (await khoBtpApi.getCraneAvailableLots(id))?.lots;
+                    setCraneAvailableLots(Array.isArray(available) ? available : []);
+                    setCraneLotsLoadError(false);
+                } catch (lotError) { setCraneAvailableLots([]); setCraneLotsLoadError(true); }
+                finally { setLoadingCraneLots(false); }
             }
         } catch (error) {
             Toast.show({ type: 'error', text1: 'Lỗi tải chi tiết phiếu xuất', text2: getApiErrorMessage(error) });
@@ -544,6 +613,27 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
         setSaveConfirmVisible(true);
     };
 
+    const confirmCraneDispatch = async () => {
+        if (sendingWms || isConfirmed || !dispatchStatusReady || ['SENDING', 'SENT'].includes(dispatchStatus?.DispatchStatus)) return;
+        try {
+            setSendingWms(true);
+            const response = await khoBtpApi.dispatchCraneExport(id,
+                !dispatchStatus || ['REJECTED', 'FAILED'].includes(dispatchStatus.DispatchStatus) ? excludedLots : undefined);
+            if (response?.dispatch?.DispatchStatus !== 'SENT') throw new Error(response?.message || 'WMS chưa tiếp nhận phiếu');
+            Toast.show({ type: 'success', text1: 'WMS đã tiếp nhận yêu cầu xuất' });
+        } catch (error) {
+            Toast.show({ type: 'error', text1: 'Gửi WMS thất bại', text2: getApiErrorMessage(error) });
+        } finally {
+            try {
+                const saved = (await khoBtpApi.getCraneDispatchStatus(id))?.dispatch || null;
+                setDispatchStatus(saved);
+                if (saved) setExcludedLots(saved.skipLot || {});
+                setDispatchStatusReady(true);
+            } catch (_) { setDispatchStatusReady(false); }
+            setSendingWms(false);
+        }
+    };
+
     const confirmSavePicks = async () => {
         if (kho?.isCrane) return;
         if (loading || !pendingPicks.length) return;
@@ -615,7 +705,64 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                 contentContainerStyle={styles.content}
                 ListHeaderComponent={
                     <View>
-                        {isConfirmed && <Text style={styles.confirmedBanner}>Phiếu đã xác nhận — chỉ xem dữ liệu</Text>}
+                        {isConfirmed && <Text style={styles.confirmedBanner}>Phiếu đã xác nhận ERP — chỉ xem dữ liệu</Text>}
+                        {kho?.isCrane && <View style={styles.summary}>
+                            <Text style={styles.summaryTitle}>Gửi yêu cầu xuất sang WMS</Text>
+                            <Text style={styles.summarySub}>{({ SENT: 'Đã gửi, chờ WMS xử lý', SENDING: 'Đang gửi sang WMS', FAILED: 'Gửi WMS lỗi — có thể sửa dấu tuần và gửi lại', REJECTED: 'WMS từ chối do thiếu tồn — có thể sửa dấu tuần và gửi lại' })[dispatchStatus?.DispatchStatus] || 'Chưa gửi WMS'}</Text>
+                            {!!dispatchStatus?.DispatchError && <Text style={styles.summarySub}>{dispatchStatus.DispatchError}</Text>}
+                            <View style={styles.craneLotSection}>
+                                <Text style={styles.craneLotTitle}>Dấu tuần không được xuất</Text>
+                                <Text style={styles.summarySub}>Chọn dấu tuần theo từng ItemCode. Khi gửi phiếu, WMS sẽ nhận danh sách skipLot để bỏ qua các dấu tuần đã chọn.</Text>
+                                {loadingCraneLots && <ActivityIndicator style={styles.craneLotLoader} color={COLORS.primary} />}
+                                {craneLotsLoadError && <Text style={styles.craneLotWarning}>Không tải được dấu tuần tồn kho. Có thể nhập thủ công hoặc kéo xuống tải lại.</Text>}
+                                {!dispatchStatusReady && <Text style={styles.craneLotWarning}>Không tải được trạng thái gửi WMS. Bạn vẫn có thể chọn hoặc nhập dấu tuần; cần tải lại trạng thái trước khi gửi phiếu.</Text>}
+                                {Boolean(dispatchStatus) && !['REJECTED', 'FAILED'].includes(dispatchStatus.DispatchStatus) && <Text style={styles.craneLotWarning}>Đang chờ WMS xử lý. Có thể sửa sau khi WMS báo lỗi hoặc từ chối.</Text>}
+                                {craneProducts.map(product => {
+                                    const itemCode = product.itemCode;
+                                    const excluded = excludedLots[itemCode] || [];
+                                    const choices = [...new Set([
+                                        ...craneAvailableLots.filter(lot => String(lot.itemCode || '').trim() === itemCode)
+                                            .map(lot => String(lot.weekMark ?? '').trim()).filter(Boolean),
+                                        ...excluded,
+                                    ])];
+                                    return <View key={itemCode} style={styles.craneLotProduct}>
+                                        <Text style={styles.craneLotCode}>{itemCode}{product.productName ? ` • ${product.productName}` : ''}</Text>
+                                        <View style={styles.craneLotChips}>
+                                            {choices.map(lot => {
+                                                const selected = excluded.includes(lot);
+                                                const fixedLot = Boolean(fixedCraneLots.get(itemCode)?.has(lot));
+                                                return <TouchableOpacity key={lot}
+                                                    accessibilityRole="checkbox" accessibilityState={{ checked: selected, disabled: craneLotLocked || fixedLot }}
+                                                    disabled={craneLotLocked || fixedLot}
+                                                    style={[styles.craneLotChip, selected && styles.craneLotChipSelected, (craneLotLocked || fixedLot) && styles.craneLotChipLocked]}
+                                                    onPress={() => setCraneLot(itemCode, lot, !selected)}>
+                                                    <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={16} color={selected ? COLORS.white : COLORS.primary} />
+                                                    <Text style={[styles.craneLotChipText, selected && styles.craneLotChipTextSelected]}>{lot}{fixedLot ? ' (đã chỉ định xuất)' : ''}</Text>
+                                                </TouchableOpacity>;
+                                            })}
+                                            {!choices.length && <Text style={styles.summarySub}>Chưa có dấu tuần gợi ý. Có thể nhập thủ công bên dưới.</Text>}
+                                        </View>
+                                        {!craneLotLocked && <View style={styles.craneLotInputRow}>
+                                            <TextInput style={styles.craneLotInput} value={lotInputByCode[itemCode] || ''}
+                                                onChangeText={text => setLotInputByCode(current => ({ ...current, [itemCode]: text }))}
+                                                placeholder="Nhập dấu tuần cần bỏ qua" maxLength={50} autoCapitalize="none" />
+                                            <TouchableOpacity style={styles.craneLotAddBtn} onPress={() => {
+                                                const input = (lotInputByCode[itemCode] || '').trim();
+                                                if (!input) return;
+                                                if (setCraneLot(itemCode, input, true))
+                                                    setLotInputByCode(current => ({ ...current, [itemCode]: '' }));
+                                            }}><Text style={styles.craneLotAddText}>Thêm</Text></TouchableOpacity>
+                                        </View>}
+                                        {!!excluded.length && <Text style={styles.craneLotSelected}>Đã loại trừ ({excluded.length}): {excluded.join(', ')}</Text>}
+                                    </View>;
+                                })}
+                            </View>
+                            {!isConfirmed && !['SENT', 'SENDING'].includes(dispatchStatus?.DispatchStatus) && (
+                                <TouchableOpacity style={[styles.saveBtn, (sendingWms || !dispatchStatusReady) && styles.disabled]} disabled={sendingWms || !dispatchStatusReady} onPress={confirmCraneDispatch}>
+                                    {sendingWms ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="send-outline" size={20} color={COLORS.white} /><Text style={styles.saveText}>{dispatchStatus?.DispatchStatus === 'REJECTED' ? 'Gửi lại với dấu tuần đã sửa' : dispatchStatus?.DispatchStatus === 'FAILED' ? 'Gửi lại WMS' : 'Xác nhận xuất'}</Text></>}
+                                </TouchableOpacity>
+                            )}
+                        </View>}
                         {kho?.isCrane && craneStatus && <View style={styles.summary}>
                             <Text style={styles.summaryTitle}>{({ WAITING_WMS: 'CHỜ WMS', FAILED_RETRY: 'WMS BÁO LỖI – CHỜ THỬ LẠI', WAITING_RETURN: 'CHỜ NHẬP LẠI', COMPLETE: 'ĐÃ HOÀN TẤT' })[craneStatus.status] || craneStatus.status}</Text>
                             <Text style={styles.summarySub}>{craneStatus.dispatchStatus === 'WMS_CONFIRMED' ? 'ERP đã lưu phiếu từ kết quả WMS' : `Luồng cũ: ${craneStatus.dispatchStatus}`}</Text>
@@ -652,7 +799,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                         </View>}
                         {kho?.isCrane && !isConfirmed && <View style={styles.summary}>
                             <Text style={styles.summaryTitle}>CHỜ WMS XÁC NHẬN XUẤT</Text>
-                            <Text style={styles.summarySub}>WMS chọn kiện và gửi kết quả để ERP lưu phiếu. Kéo xuống để cập nhật.</Text>
+                            <Text style={styles.summarySub}>Nhấn Xác nhận xuất để gửi phiếu sang WMS. Sau khi WMS xử lý, kéo xuống để cập nhật kết quả.</Text>
                         </View>}
                         <Text style={styles.sectionTitle}>{kho?.isCrane ? 'BTP yêu cầu xuất' : 'Chọn BTP cần quét xuất'}</Text>
                     </View>
@@ -795,6 +942,23 @@ const styles = StyleSheet.create({
     summary: { padding: 16, borderRadius: 18, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, marginBottom: 16 },
     summaryTitle: { fontSize: 17, fontWeight: '800', color: COLORS.textPrimary },
     summarySub: { fontSize: 12, color: COLORS.textSecondary, marginTop: 5 },
+    craneLotSection: { marginTop: 15, borderTopWidth: 1, borderTopColor: COLORS.border, paddingTop: 13 },
+    craneLotTitle: { fontSize: 14, fontWeight: '800', color: COLORS.textPrimary },
+    craneLotWarning: { fontSize: 11, color: COLORS.warning, marginTop: 7, fontWeight: '700' },
+    craneLotLoader: { marginTop: 9 },
+    craneLotProduct: { marginTop: 12, padding: 11, borderRadius: 12, backgroundColor: COLORS.background },
+    craneLotCode: { fontSize: 12, fontWeight: '800', color: COLORS.textPrimary },
+    craneLotChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 9 },
+    craneLotChip: { flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, paddingHorizontal: 11, paddingVertical: 8, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.white },
+    craneLotChipSelected: { backgroundColor: COLORS.primary, borderColor: COLORS.primary },
+    craneLotChipLocked: { opacity: 0.8 },
+    craneLotChipText: { fontWeight: '700', fontSize: 12, color: COLORS.primary },
+    craneLotChipTextSelected: { color: COLORS.white },
+    craneLotInputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 },
+    craneLotInput: { flex: 1, minWidth: 0, height: 42, paddingHorizontal: 10, borderRadius: 10, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, color: COLORS.textPrimary, fontSize: 12 },
+    craneLotAddBtn: { height: 42, paddingHorizontal: 13, borderRadius: 10, backgroundColor: COLORS.primary, justifyContent: 'center' },
+    craneLotAddText: { color: COLORS.white, fontWeight: '800', fontSize: 12 },
+    craneLotSelected: { marginTop: 9, fontSize: 11, color: COLORS.primary, fontWeight: '700' },
     summaryProduct: { marginTop: 7 },
     summaryProductTitle: { fontSize: 12, fontWeight: '700', color: COLORS.textPrimary, marginTop: 3 },
     summaryStats: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 },
