@@ -158,15 +158,16 @@ export default function PhieuXuatBTP({ navigation, route }) {
             }
             const response = await khoBtpApi.searchExports({
                 craneMode: Boolean(kho?.isCrane),
-                // Luôn giới hạn theo kho đang mở. Nếu gửi mảng rỗng, API trả cả
-                // phiếu kho cầu trục và luồng BTP thường sẽ cố xác nhận nhầm.
-                idKho: kho?.id ? [kho.id] : [],
+                idKho: kho?.isCrane ? [40] : kho?.id ? [kho.id] : [],
                 loaiPhieu: selectedType ? readValue(selectedType, ['idHinhThucXuatBTP', 'id'], null) : null,
                 soPhieu: searchText,
                 pageIndex,
                 pageSize: 20,
             });
-            setDocuments(asList(response, ['items', 'rows']));
+            const rows = asList(response, ['items', 'rows']);
+            setDocuments(kho?.isCrane
+                ? rows.filter((item) => Number(readValue(item, ['idKhoXuat', 'ID_KhoXuat'], 0)) === 40)
+                : rows);
             setPackageDetails([]);
         } catch (error) {
             setDocuments([]);
