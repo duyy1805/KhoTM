@@ -13,6 +13,8 @@ import {
     Platform,
     ScrollView,
     Keyboard,
+    Modal,
+    Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -21,6 +23,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import { KHO_PL_BASE_URL } from '../../services/khoPhuLieuApi';
+import {
+    API_ENVIRONMENTS,
+    initializeApiEnvironment,
+    setApiEnvironment,
+} from '../../services/coreApiClient';
 import { keyboardAwareScrollProps, webInputFocusProps } from '../../components/KeyboardDoneAccessory';
 
 const { width, height } = Dimensions.get('window');
@@ -56,17 +63,22 @@ const LoginScreen = () => {
     const [passwordError, setPasswordError] = useState('');
     const [rememberMe, setRememberMe] = useState(true);
     const [loading, setLoading] = useState(false);
+    const [environmentLoading, setEnvironmentLoading] = useState(true);
+    const [apiEnvironment, setApiEnvironmentState] = useState(API_ENVIRONMENTS.PRODUCTION);
+    const [settingsVisible, setSettingsVisible] = useState(false);
     const [showPassword, setShowPassword] = useState(false);
     const passwordInputRef = useRef(null);
 
     useEffect(() => {
         (async () => {
             try {
-                const [savedRemember, savedUser, savedPass] = await Promise.all([
+                const [savedRemember, savedUser, savedPass, savedEnvironment] = await Promise.all([
                     AsyncStorage.getItem(STORAGE_KEYS.REMEMBER),
                     AsyncStorage.getItem(STORAGE_KEYS.USERNAME),
                     AsyncStorage.getItem(STORAGE_KEYS.PASSWORD),
+                    initializeApiEnvironment(),
                 ]);
+                setApiEnvironmentState(savedEnvironment);
                 const remember = savedRemember === 'true';
                 setRememberMe(remember);
                 if (remember) {
@@ -75,9 +87,34 @@ const LoginScreen = () => {
                 }
             } catch (e) {
                 // ignore
+            } finally {
+                setEnvironmentLoading(false);
             }
         })();
     }, []);
+
+    const handleEnvironmentChange = async (environment) => {
+        if (environmentLoading || loading) return;
+        if (environment === apiEnvironment) {
+            setSettingsVisible(false);
+            return;
+        }
+        setEnvironmentLoading(true);
+        try {
+            const selectedEnvironment = await setApiEnvironment(environment);
+            await AsyncStorage.multiRemove([STORAGE_KEYS.AUTH, STORAGE_KEYS.USER, 'selectedWarehouse']);
+            setApiEnvironmentState(selectedEnvironment);
+            setSettingsVisible(false);
+        } catch {
+            Toast.show({
+                type: 'error',
+                text1: 'Không thể đổi môi trường',
+                text2: 'Vui lòng thử lại.',
+            });
+        } finally {
+            setEnvironmentLoading(false);
+        }
+    };
 
     const validate = () => {
         let ok = true;
@@ -113,7 +150,7 @@ const LoginScreen = () => {
     };
 
     const handleLogin = async () => {
-        if (!validate()) return;
+        if (environmentLoading || !validate()) return;
         setLoading(true);
         try {
             const response = await axios.post(`${KHO_PL_BASE_URL}/login`, {
@@ -150,7 +187,7 @@ const LoginScreen = () => {
                     text2: `Xin chào, ${username}`,
                 });
                 setTimeout(() => {
-                    navigation.navigate('HomeScreen');
+                    navigation.reset({ index: 0, routes: [{ name: 'HomeScreen' }] });
                 }, 800);
             } else {
                 Toast.show({
@@ -174,6 +211,15 @@ const LoginScreen = () => {
     return (
         <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
             <StatusBar barStyle="dark-content" backgroundColor={COLORS.background} />
+            <TouchableOpacity
+                style={[styles.settingsButton, { top: insets.top + 12 }]}
+                onPress={() => setSettingsVisible(true)}
+                disabled={loading}
+                accessibilityRole="button"
+                accessibilityLabel="Cài đặt môi trường"
+            >
+                <Ionicons name="settings-outline" size={23} color={COLORS.primary} />
+            </TouchableOpacity>
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={{ flex: 1 }}
@@ -258,11 +304,11 @@ const LoginScreen = () => {
                         </View>
 
                         <TouchableOpacity
-                            style={[styles.loginButton, loading && { opacity: 0.8 }]}
+                            style={[styles.loginButton, (loading || environmentLoading) && { opacity: 0.8 }]}
                             onPress={handleLogin}
-                            disabled={loading}
+                            disabled={loading || environmentLoading}
                         >
-                            {loading ? (
+                            {loading || environmentLoading ? (
                                 <ActivityIndicator color="#fff" />
                             ) : (
                                 <Text style={styles.loginButtonText}>Đăng Nhập</Text>
@@ -280,6 +326,72 @@ const LoginScreen = () => {
                     </View>
                 </ScrollView>
             </KeyboardAvoidingView>
+            <Modal
+                visible={settingsVisible}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setSettingsVisible(false)}
+            >
+                <View style={styles.modalBackdrop}>
+                    <Pressable style={StyleSheet.absoluteFill} onPress={() => setSettingsVisible(false)} />
+                    <View style={styles.settingsModal}>
+                        <View style={styles.settingsModalHeader}>
+                            <View>
+                                <Text style={styles.settingsModalTitle}>Cài đặt</Text>
+                                <Text style={styles.settingsModalSubtitle}>Chọn môi trường sử dụng</Text>
+                            </View>
+                            <TouchableOpacity style={styles.modalCloseButton} onPress={() => setSettingsVisible(false)}>
+                                <Ionicons name="close" size={22} color={COLORS.textSecondary} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.environmentOptions}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.environmentOption,
+                                    apiEnvironment === API_ENVIRONMENTS.PRODUCTION && styles.environmentOptionProduction,
+                                ]}
+                                onPress={() => handleEnvironmentChange(API_ENVIRONMENTS.PRODUCTION)}
+                                disabled={environmentLoading || loading}
+                            >
+                                <Ionicons
+                                    name="server-outline"
+                                    size={18}
+                                    color={apiEnvironment === API_ENVIRONMENTS.PRODUCTION ? '#FFFFFF' : COLORS.textSecondary}
+                                />
+                                <Text style={[
+                                    styles.environmentOptionText,
+                                    apiEnvironment === API_ENVIRONMENTS.PRODUCTION && styles.environmentOptionTextSelected,
+                                ]}>Hệ thống thật</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[
+                                    styles.environmentOption,
+                                    apiEnvironment === API_ENVIRONMENTS.TEST && styles.environmentOptionTest,
+                                ]}
+                                onPress={() => handleEnvironmentChange(API_ENVIRONMENTS.TEST)}
+                                disabled={environmentLoading || loading}
+                            >
+                                <Ionicons
+                                    name="flask-outline"
+                                    size={18}
+                                    color={apiEnvironment === API_ENVIRONMENTS.TEST ? '#FFFFFF' : COLORS.textSecondary}
+                                />
+                                <Text style={[
+                                    styles.environmentOptionText,
+                                    apiEnvironment === API_ENVIRONMENTS.TEST && styles.environmentOptionTextSelected,
+                                ]}>Hệ thống test</Text>
+                            </TouchableOpacity>
+                        </View>
+                        {apiEnvironment === API_ENVIRONMENTS.TEST && (
+                            <View style={styles.testWarning}>
+                                <Ionicons name="warning-outline" size={16} color="#B45309" />
+                                <Text style={styles.testWarningText}>Đang sử dụng dữ liệu thử nghiệm</Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+            </Modal>
             <Toast />
         </View>
     );
@@ -289,6 +401,24 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: COLORS.background,
+    },
+    settingsButton: {
+        position: 'absolute',
+        right: 20,
+        zIndex: 10,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: COLORS.surface,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.08,
+        shadowRadius: 6,
+        elevation: 3,
     },
     scrollContent: {
         flexGrow: 1,
@@ -339,6 +469,94 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         color: COLORS.textPrimary,
         marginBottom: 24,
+    },
+    environmentOptions: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    environmentOption: {
+        flex: 1,
+        minHeight: 46,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+        backgroundColor: COLORS.inputBg,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 7,
+        paddingHorizontal: 10,
+    },
+    environmentOptionProduction: {
+        backgroundColor: COLORS.primary,
+        borderColor: COLORS.primary,
+    },
+    environmentOptionTest: {
+        backgroundColor: '#D97706',
+        borderColor: '#D97706',
+    },
+    environmentOptionText: {
+        color: COLORS.textSecondary,
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    environmentOptionTextSelected: {
+        color: '#FFFFFF',
+    },
+    testWarning: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginTop: 10,
+        paddingVertical: 8,
+        paddingHorizontal: 10,
+        borderRadius: 10,
+        backgroundColor: '#FEF3C7',
+    },
+    testWarningText: {
+        color: '#92400E',
+        fontSize: 12,
+        fontWeight: '600',
+    },
+    modalBackdrop: {
+        flex: 1,
+        backgroundColor: 'rgba(15, 23, 42, 0.45)',
+        justifyContent: 'center',
+        paddingHorizontal: 24,
+    },
+    settingsModal: {
+        backgroundColor: COLORS.surface,
+        borderRadius: 20,
+        padding: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.2,
+        shadowRadius: 24,
+        elevation: 10,
+    },
+    settingsModalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 20,
+    },
+    settingsModalTitle: {
+        color: COLORS.textPrimary,
+        fontSize: 20,
+        fontWeight: '700',
+    },
+    settingsModalSubtitle: {
+        color: COLORS.textSecondary,
+        fontSize: 13,
+        marginTop: 4,
+    },
+    modalCloseButton: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: COLORS.inputBg,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     inputWrapper: {
         marginBottom: 20,

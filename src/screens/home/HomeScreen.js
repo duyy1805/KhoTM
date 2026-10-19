@@ -91,7 +91,7 @@ const WarehouseItem = ({ title, pushedShelves, totalShelves, percentage, icon, i
     );
 };
 
-const INITIAL_DATA = [
+const createInitialData = () => [
     { title: "Kho nguyên liệu", pushedShelves: 5, totalShelves: 20, id: 1, icon: "leaf-outline" },
     { title: "Kho phụ liệu", pushedShelves: 10, totalShelves: 24, id: 3, icon: "construct-outline" },
     { title: "Kho thành phẩm", pushedShelves: 12, totalShelves: 24, id: 6, icon: "checkmark-done-circle-outline" },
@@ -107,7 +107,7 @@ const HomeScreen = () => {
     const insets = useSafeAreaInsets();
     const [userInfor, setUserInfor] = useState({});
     const [refreshing, setRefreshing] = useState(false);
-    const [wareHouseList, setWareHouseList] = useState(INITIAL_DATA);
+    const [wareHouseList, setWareHouseList] = useState(createInitialData);
 
     const loadCraneConfig = useCallback(async () => {
         if (IS_KHO_TM_TEST) return;

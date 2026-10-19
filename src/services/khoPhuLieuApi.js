@@ -6,7 +6,6 @@ import {
 } from './coreApiClient';
 
 export const KHO_PL_BASE_URL = CORE_API_BASE_URL;
-export const KHO_TM_TEST_BASE_URL = KHO_TM_API_BASE_URL;
 const request = apiRequest;
 
 function getList(data, keys = []) {
@@ -239,7 +238,7 @@ export const khoPhuLieuApi = {
     async scanExportPackagesBatch(qrCodes = []) {
         return request({
             method: 'POST',
-            baseURL: KHO_TM_TEST_BASE_URL,
+            baseURL: KHO_TM_API_BASE_URL,
             url: '/phieuxuat/phu-lieu/kien/scan-batch',
             data: { qrCodes },
         });
@@ -248,7 +247,7 @@ export const khoPhuLieuApi = {
     async findExportsByPackages(qrCodes = []) {
         return request({
             method: 'POST',
-            baseURL: KHO_TM_TEST_BASE_URL,
+            baseURL: KHO_TM_API_BASE_URL,
             url: '/phieuxuat/phu-lieu/tim-phieu-theo-kien',
             data: { qrCodes },
         });
@@ -257,7 +256,7 @@ export const khoPhuLieuApi = {
     async getExportBatchPackageDetails({ idPhieuXuat, qrCodes = [] }) {
         return request({
             method: 'POST',
-            baseURL: KHO_TM_TEST_BASE_URL,
+            baseURL: KHO_TM_API_BASE_URL,
             url: `/phieuxuat/phu-lieu/${idPhieuXuat}/kien/batch-chitiet`,
             data: { qrCodes },
         });

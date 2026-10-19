@@ -15,6 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import Toast from 'react-native-toast-message';
+import { KHO_TM_API_BASE_URL } from '../../services/coreApiClient';
 
 // Design Tokens
 const COLORS = {
@@ -67,7 +68,7 @@ const ScannedDetailNL = ({ route }) => {
         try {
             setRefreshing(true);
             const res = await axios.post(
-                'https://nodeapi.z76.vn/khonl/getcuontheovitri',
+                `${KHO_TM_API_BASE_URL}/khonl/getcuontheovitri`,
                 { QRCode: qrCode }
             );
             const next = res?.data?.data;

@@ -3,14 +3,50 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // export const CORE_API_BASE_URL = 'http://125.212.207.52:5010';
 export const CORE_API_BASE_URL = 'https://apilayoutkho.z76.vn';
-// Chọn DB cho các API KhoTM bằng đúng hậu tố URL: /khotmtest hoặc /khotm.
-export const KHO_TM_API_BASE_URL = 'https://nodeapi.z76.vn/khotmtest';
-// export const KHO_TM_API_BASE_URL = 'http://192.168.88.13:5000/khotmtest';
-export const IS_KHO_TM_TEST = /\/khotmtest\/?$/.test(KHO_TM_API_BASE_URL);
+export const API_ENVIRONMENTS = Object.freeze({
+    PRODUCTION: 'production',
+    TEST: 'test',
+});
+
+const API_ENVIRONMENT_KEY = 'khoTmApiEnvironment';
+const KHO_TM_API_URLS = Object.freeze({
+    [API_ENVIRONMENTS.PRODUCTION]: 'https://nodeapi.z76.vn/khotm',
+    [API_ENVIRONMENTS.TEST]: 'https://nodeapi.z76.vn/khotmtest',
+});
+
+let currentApiEnvironment = API_ENVIRONMENTS.PRODUCTION;
+export let KHO_TM_API_BASE_URL = KHO_TM_API_URLS[currentApiEnvironment];
+export let IS_KHO_TM_TEST = false;
 export const LEGACY_BTP_API_BASE_URL = 'https://apipccc.z76.vn/api/TAG_QTKD';
 
 const AUTH_KEY = 'authToken';
 const USER_KEY = 'userInfor';
+
+function applyApiEnvironment(environment) {
+    currentApiEnvironment = environment === API_ENVIRONMENTS.TEST
+        ? API_ENVIRONMENTS.TEST
+        : API_ENVIRONMENTS.PRODUCTION;
+    KHO_TM_API_BASE_URL = KHO_TM_API_URLS[currentApiEnvironment];
+    IS_KHO_TM_TEST = currentApiEnvironment === API_ENVIRONMENTS.TEST;
+    return currentApiEnvironment;
+}
+
+export function getApiEnvironment() {
+    return currentApiEnvironment;
+}
+
+export async function initializeApiEnvironment() {
+    const savedEnvironment = await AsyncStorage.getItem(API_ENVIRONMENT_KEY);
+    return applyApiEnvironment(savedEnvironment);
+}
+
+export async function setApiEnvironment(environment) {
+    const nextEnvironment = environment === API_ENVIRONMENTS.TEST
+        ? API_ENVIRONMENTS.TEST
+        : API_ENVIRONMENTS.PRODUCTION;
+    await AsyncStorage.setItem(API_ENVIRONMENT_KEY, nextEnvironment);
+    return applyApiEnvironment(nextEnvironment);
+}
 
 const api = axios.create({
     baseURL: CORE_API_BASE_URL,
