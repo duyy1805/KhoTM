@@ -20,6 +20,7 @@ import Toast from 'react-native-toast-message';
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
 import KeyboardDoneAccessory, { keyboardAwareScrollProps, numericKeyboardProps } from '../../components/KeyboardDoneAccessory';
 import { khoBtpApi } from '../../services/khoBtpApi';
+import CraneLotPicker, { getCraneLots } from './CraneLotPicker';
 import { getApiErrorMessage } from '../../services/coreApiClient';
 import {
     asList,
@@ -253,7 +254,8 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
     const [dispatchStatusReady, setDispatchStatusReady] = useState(false);
     const [craneAvailableLots, setCraneAvailableLots] = useState([]);
     const [excludedLots, setExcludedLots] = useState({});
-    const [lotInputByCode, setLotInputByCode] = useState({});
+    const [activeCraneLotCode, setActiveCraneLotCode] = useState(null);
+    const [craneDispatchConfirmVisible, setCraneDispatchConfirmVisible] = useState(false);
     const [loadingCraneLots, setLoadingCraneLots] = useState(false);
     const [craneLotsLoadError, setCraneLotsLoadError] = useState(false);
     const [lines, setLines] = useState([]);
@@ -720,45 +722,23 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                                 {craneProducts.map(product => {
                                     const itemCode = product.itemCode;
                                     const excluded = excludedLots[itemCode] || [];
-                                    const choices = [...new Set([
-                                        ...craneAvailableLots.filter(lot => String(lot.itemCode || '').trim() === itemCode)
-                                            .map(lot => String(lot.weekMark ?? '').trim()).filter(Boolean),
-                                        ...excluded,
-                                    ])];
+                                    const choices = getCraneLots(craneAvailableLots, itemCode, excluded);
+                                    const known = choices.filter(lot => lot.quantity !== null);
+                                    const stock = known.reduce((sum, lot) => sum + lot.quantity, 0);
                                     return <View key={itemCode} style={styles.craneLotProduct}>
                                         <Text style={styles.craneLotCode}>{itemCode}{product.productName ? ` • ${product.productName}` : ''}</Text>
-                                        <View style={styles.craneLotChips}>
-                                            {choices.map(lot => {
-                                                const selected = excluded.includes(lot);
-                                                const fixedLot = Boolean(fixedCraneLots.get(itemCode)?.has(lot));
-                                                return <TouchableOpacity key={lot}
-                                                    accessibilityRole="checkbox" accessibilityState={{ checked: selected, disabled: craneLotLocked || fixedLot }}
-                                                    disabled={craneLotLocked || fixedLot}
-                                                    style={[styles.craneLotChip, selected && styles.craneLotChipSelected, (craneLotLocked || fixedLot) && styles.craneLotChipLocked]}
-                                                    onPress={() => setCraneLot(itemCode, lot, !selected)}>
-                                                    <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={16} color={selected ? COLORS.white : COLORS.primary} />
-                                                    <Text style={[styles.craneLotChipText, selected && styles.craneLotChipTextSelected]}>{lot}{fixedLot ? ' (đã chỉ định xuất)' : ''}</Text>
-                                                </TouchableOpacity>;
-                                            })}
-                                            {!choices.length && <Text style={styles.summarySub}>Chưa có dấu tuần gợi ý. Có thể nhập thủ công bên dưới.</Text>}
-                                        </View>
-                                        {!craneLotLocked && <View style={styles.craneLotInputRow}>
-                                            <TextInput style={styles.craneLotInput} value={lotInputByCode[itemCode] || ''}
-                                                onChangeText={text => setLotInputByCode(current => ({ ...current, [itemCode]: text }))}
-                                                placeholder="Nhập dấu tuần cần bỏ qua" maxLength={50} autoCapitalize="none" />
-                                            <TouchableOpacity style={styles.craneLotAddBtn} onPress={() => {
-                                                const input = (lotInputByCode[itemCode] || '').trim();
-                                                if (!input) return;
-                                                if (setCraneLot(itemCode, input, true))
-                                                    setLotInputByCode(current => ({ ...current, [itemCode]: '' }));
-                                            }}><Text style={styles.craneLotAddText}>Thêm</Text></TouchableOpacity>
-                                        </View>}
-                                        {!!excluded.length && <Text style={styles.craneLotSelected}>Đã loại trừ ({excluded.length}): {excluded.join(', ')}</Text>}
+                                        <Text style={styles.summarySub}>Có tồn: {known.filter(lot => lot.quantity > 0).length} dấu tuần • Tổng tồn: {known.length ? stock.toLocaleString('vi-VN') : '—'}</Text>
+                                        <Text style={styles.summarySub}>Đã loại trừ: {excluded.length} dấu tuần</Text>
+                                        {!!excluded.length && <Text style={styles.craneLotSelected} numberOfLines={2}>{excluded.join(', ')}</Text>}
+                                        <TouchableOpacity style={styles.craneLotOpen} onPress={() => setActiveCraneLotCode(itemCode)}>
+                                            <Text style={styles.craneLotOpenText}>{craneLotLocked ? 'Xem dấu tuần' : 'Chọn / chỉnh sửa dấu tuần'}</Text>
+                                            <Ionicons name="chevron-forward" size={20} color={COLORS.primary} />
+                                        </TouchableOpacity>
                                     </View>;
                                 })}
                             </View>
                             {!isConfirmed && !['SENT', 'SENDING'].includes(dispatchStatus?.DispatchStatus) && (
-                                <TouchableOpacity style={[styles.saveBtn, (sendingWms || !dispatchStatusReady) && styles.disabled]} disabled={sendingWms || !dispatchStatusReady} onPress={confirmCraneDispatch}>
+                                <TouchableOpacity style={[styles.saveBtn, (sendingWms || !dispatchStatusReady) && styles.disabled]} disabled={sendingWms || !dispatchStatusReady} onPress={() => setCraneDispatchConfirmVisible(true)}>
                                     {sendingWms ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="send-outline" size={20} color={COLORS.white} /><Text style={styles.saveText}>{dispatchStatus?.DispatchStatus === 'REJECTED' ? 'Gửi lại với dấu tuần đã sửa' : dispatchStatus?.DispatchStatus === 'FAILED' ? 'Gửi lại WMS' : 'Xác nhận xuất'}</Text></>}
                                 </TouchableOpacity>
                             )}
@@ -912,6 +892,48 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                     }
                 }}
             />
+            <Modal visible={craneDispatchConfirmVisible} transparent animationType="fade" onRequestClose={() => setCraneDispatchConfirmVisible(false)}>
+                <View style={styles.wmsConfirmBackdrop}>
+                    <View style={styles.wmsConfirmCard}>
+                        <Text style={styles.summaryTitle}>Xác nhận gửi WMS</Text>
+                        <Text style={styles.summarySub}>Các dấu tuần dưới đây sẽ không được xuất:</Text>
+                        {craneProducts.map(product => {
+                            const marks = excludedLots[product.itemCode] || [];
+                            const rows = getCraneLots(craneAvailableLots, product.itemCode, marks);
+                            const known = rows.filter(row => marks.includes(row.mark) && row.quantity !== null);
+                            return <View key={product.itemCode} style={{ marginTop: 10 }}>
+                                <Text style={styles.craneLotCode}>{product.itemCode}: {marks.length ? marks.join(', ') : 'Không loại trừ'}</Text>
+                                <Text style={styles.summarySub}>Tồn loại trừ: {known.length ? known.reduce((sum, row) => sum + row.quantity, 0).toLocaleString('vi-VN') : '—'}</Text>
+                            </View>;
+                        })}
+                        <View style={styles.wmsConfirmActions}>
+                            <TouchableOpacity style={styles.wmsConfirmCancel} onPress={() => setCraneDispatchConfirmVisible(false)}><Text style={styles.craneLotOpenText}>Hủy</Text></TouchableOpacity>
+                            <TouchableOpacity style={styles.wmsConfirmSubmit} onPress={() => { setCraneDispatchConfirmVisible(false); confirmCraneDispatch(); }}><Text style={{ color: COLORS.white, fontWeight: '800' }}>Gửi WMS</Text></TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
+            <CraneLotPicker
+                visible={Boolean(activeCraneLotCode)}
+                itemCode={activeCraneLotCode || ''}
+                productName={craneProducts.find(product => product.itemCode === activeCraneLotCode)?.productName || ''}
+                rows={craneAvailableLots}
+                excluded={excludedLots[activeCraneLotCode] || []}
+                fixedLots={[...(fixedCraneLots.get(activeCraneLotCode) || [])]}
+                locked={craneLotLocked}
+                bottomInset={insets.bottom}
+                onClose={() => setActiveCraneLotCode(null)}
+                onApply={(values) => {
+                    if (craneLotLocked) return;
+                    setExcludedLots(previous => {
+                        const next = { ...previous };
+                        if (values.length) next[activeCraneLotCode] = values;
+                        else delete next[activeCraneLotCode];
+                        return next;
+                    });
+                    setActiveCraneLotCode(null);
+                }}
+            />
             <QuantityModal
                 visible={Boolean(quantityItem)}
                 item={quantityItem}
@@ -958,6 +980,13 @@ const styles = StyleSheet.create({
     craneLotInput: { flex: 1, minWidth: 0, height: 42, paddingHorizontal: 10, borderRadius: 10, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.border, color: COLORS.textPrimary, fontSize: 12 },
     craneLotAddBtn: { height: 42, paddingHorizontal: 13, borderRadius: 10, backgroundColor: COLORS.primary, justifyContent: 'center' },
     craneLotAddText: { color: COLORS.white, fontWeight: '800', fontSize: 12 },
+    wmsConfirmBackdrop: { flex: 1, backgroundColor: '#0007', justifyContent: 'center', padding: 20 },
+    wmsConfirmCard: { borderRadius: 18, padding: 18, backgroundColor: COLORS.surface, maxHeight: '80%' },
+    wmsConfirmActions: { flexDirection: 'row', marginTop: 20, gap: 10 },
+    wmsConfirmCancel: { flex: 1, padding: 13, alignItems: 'center', borderWidth: 1, borderColor: COLORS.border, borderRadius: 10 },
+    wmsConfirmSubmit: { flex: 1, padding: 13, alignItems: 'center', backgroundColor: COLORS.primary, borderRadius: 10 },
+    craneLotOpen: { marginTop: 12, padding: 12, backgroundColor: COLORS.white, borderRadius: 10, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderWidth: 1, borderColor: COLORS.border },
+    craneLotOpenText: { fontWeight: '700', color: COLORS.primary },
     craneLotSelected: { marginTop: 9, fontSize: 11, color: COLORS.primary, fontWeight: '700' },
     summaryProduct: { marginTop: 7 },
     summaryProductTitle: { fontSize: 12, fontWeight: '700', color: COLORS.textPrimary, marginTop: 3 },
