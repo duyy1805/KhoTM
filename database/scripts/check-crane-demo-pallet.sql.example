@@ -1,0 +1,44 @@
+-- Chi doc. Chay tren ket noi DB test, khong chay tren DB ERP chinh.
+-- Doi QRCode de kiem tra kien khac.
+DECLARE @QRCode nvarchar(255) = N'BP0000488679';
+
+SELECT
+    k.ID_TheKhoKienBTP,
+    k.QRCode,
+    k.TonTai AS KienTonTai,
+    k.ID_ViTriKho,
+    v.MaViTriKho,
+    v.TenViTriKho,
+    v.ID_Kho,
+    ton.SoLuongNhap,
+    ton.SoLuongDaXuat,
+    ton.SoLuongNhap - ton.SoLuongDaXuat AS SoLuongConLai,
+    w.ID_PhieuXuatBTP,
+    o.OrderCode,
+    o.Status AS TrangThaiPhieuWMS,
+    w.Status AS TrangThaiPalletWMS,
+    w.OriginalLocationID,
+    w.ReturnLocationID,
+    w.ReturnEventID
+FROM dbo.TheKhoKienBTP AS k
+LEFT JOIN dbo.DM_Kho_ViTri AS v ON v.ID_ViTriKho = k.ID_ViTriKho
+OUTER APPLY (
+    SELECT
+        SUM(d.SoLuong) AS SoLuongNhap,
+        SUM(ISNULL(x.SoLuongDaXuat, 0)) AS SoLuongDaXuat
+    FROM dbo.TheKhoKienBTP_ChiTiet AS d
+    OUTER APPLY (
+        SELECT SUM(e.SoLuong_XuatKho) AS SoLuongDaXuat
+        FROM dbo.PhieuXuatBTP_ChiTiet_TheKhoKien AS e
+        JOIN dbo.PhieuXuatBTP AS px ON px.ID_PhieuXuatBTP = e.ID_PhieuXuatBTP
+        WHERE e.ID_TheKhoKienBTP_ChiTiet = d.ID_TheKhoKienBTP_ChiTiet
+          AND px.TonTai = 1
+    ) AS x
+    WHERE d.ID_TheKhoKienBTP = k.ID_TheKhoKienBTP AND d.TonTai = 1
+) AS ton
+LEFT JOIN dbo.CraneWmsOutboundPallet AS w ON w.ID_TheKhoKienBTP = k.ID_TheKhoKienBTP
+LEFT JOIN dbo.CraneWmsOutbound AS o ON o.ID_PhieuXuatBTP = w.ID_PhieuXuatBTP
+WHERE k.QRCode = @QRCode AND k.TonTai = 1
+  AND (COALESCE(ton.SoLuongNhap, 0) - COALESCE(ton.SoLuongDaXuat, 0) > 0
+       OR w.ID_PhieuXuatBTP IS NOT NULL)
+ORDER BY w.ID_PhieuXuatBTP DESC;

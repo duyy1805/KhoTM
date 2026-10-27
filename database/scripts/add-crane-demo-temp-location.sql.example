@@ -1,0 +1,23 @@
+-- Run only on the isolated DB test used by /khotmtest and /erp-test.
+-- This location is a visible stand-in for the crane floor during callback testing.
+SET NOCOUNT ON;
+
+IF DB_NAME() <> N'TAG_QTKD'
+    THROW 51050, N'Wrong database for crane demo location', 1;
+
+IF NOT EXISTS (SELECT 1 FROM dbo.DM_Kho WHERE ID_Kho = 40)
+    THROW 51051, N'BTP test warehouse ID 40 is missing', 1;
+
+IF NOT EXISTS (SELECT 1 FROM dbo.DM_Kho_ViTri WHERE ID_Kho = 40 AND MaViTriKho = N'CT-TEMP-TEST')
+BEGIN
+    INSERT dbo.DM_Kho_ViTri
+        (ID_Kho, MaViTriKho, TenViTriKho, TenNha, MaNha, QRCode,
+         STT_ViTriKho, SuDung, TonTai)
+    VALUES
+        (40, N'CT-TEMP-TEST', N'Vị trí nền cầu trục thử nghiệm',
+         N'Khu cầu trục thử nghiệm', N'CT01', N'CT-TEMP-TEST',
+         0, 1, 1);
+END;
+
+SELECT ID_ViTriKho, MaViTriKho FROM dbo.DM_Kho_ViTri
+WHERE ID_Kho = 40 AND MaViTriKho = N'CT-TEMP-TEST';
