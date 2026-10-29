@@ -9,9 +9,13 @@ export const API_ENVIRONMENTS = Object.freeze({
 });
 
 const API_ENVIRONMENT_KEY = 'khoTmApiEnvironment';
+// Đổi địa chỉ này khi chạy trên điện thoại thật: dùng IP LAN của máy chạy Node,
+// ví dụ http://192.168.1.20:5000 thay vì localhost.
+// export const KHO_TM_TEST_ORIGIN = 'http://localhost:5000';
+export const KHO_TM_TEST_ORIGIN = 'https://nodeapi.z76.vn';
 const KHO_TM_API_URLS = Object.freeze({
     [API_ENVIRONMENTS.PRODUCTION]: 'https://nodeapi.z76.vn/khotm',
-    [API_ENVIRONMENTS.TEST]: 'https://nodeapi.z76.vn/khotmtest',
+    [API_ENVIRONMENTS.TEST]: `${KHO_TM_TEST_ORIGIN}/khotmtest`,
 });
 
 let currentApiEnvironment = API_ENVIRONMENTS.PRODUCTION;

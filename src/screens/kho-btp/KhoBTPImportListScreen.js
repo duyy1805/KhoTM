@@ -93,16 +93,15 @@ export default function KhoBTPImportListScreen({ navigation, route }) {
         try {
             setLoading(true);
             const response = await khoBtpApi.searchImports({
-                idKho: kho?.isCrane ? [40] : kho?.id ? [kho.id] : [],
+                craneMode: Boolean(kho?.isCrane),
+                idKho: kho?.isCrane ? [5] : kho?.id ? [kho.id] : [],
                 loaiPhieu: selectedType ? readValue(selectedType, ['idHinhThucNhapBTP', 'id'], null) : null,
                 soPhieu: searchText,
                 pageIndex,
                 pageSize: 20,
             });
             const rows = asList(response, ['items', 'rows']);
-            setDocuments(kho?.isCrane
-                ? rows.filter((item) => Number(readValue(item, ['idKhoNhap', 'ID_KhoNhap'], 0)) === 40)
-                : rows);
+            setDocuments(rows);
         } catch (error) {
             Toast.show({ type: 'error', text1: 'Lỗi tải phiếu nhập BTP', text2: getApiErrorMessage(error) });
         } finally {

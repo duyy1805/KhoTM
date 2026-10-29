@@ -96,7 +96,7 @@ const createInitialData = () => [
     { title: "Kho phụ liệu", pushedShelves: 10, totalShelves: 24, id: 3, icon: "construct-outline" },
     { title: "Kho thành phẩm", pushedShelves: 12, totalShelves: 24, id: 6, icon: "checkmark-done-circle-outline" },
     { title: "Kho bán thành phẩm", pushedShelves: 6, totalShelves: 24, id: 5, icon: "hammer-outline" },
-    { title: "Kho cầu trục", pushedShelves: 0, totalShelves: 0, id: IS_KHO_TM_TEST ? 40 : null, isCrane: true, demoMode: false, craneConfigured: IS_KHO_TM_TEST, icon: 'git-branch-outline' },
+    { title: "Kho cầu trục", pushedShelves: 0, totalShelves: 0, id: IS_KHO_TM_TEST ? 5 : null, isCrane: true, demoMode: false, craneConfigured: IS_KHO_TM_TEST, icon: 'git-branch-outline' },
 ].map(kho => ({
     ...kho,
     percentage: kho.totalShelves > 0 ? Number(((kho.pushedShelves / kho.totalShelves) * 100).toFixed(1)) : 0

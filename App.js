@@ -38,6 +38,8 @@ import KhoBTPTransferLocationScreen from "./src/screens/kho-btp/KhoBTPTransferLo
 import KhoBTPReportScreen from "./src/screens/kho-btp/KhoBTPReportScreen";
 import KhoBTPReportLocationScreen from "./src/screens/kho-btp/KhoBTPReportLocationScreen";
 import KhoBTPReportPackagesScreen from "./src/screens/kho-btp/KhoBTPReportPackagesScreen";
+import WmsOutboundRequestListScreen from "./src/screens/kho-btp/WmsOutboundRequestListScreen";
+import WmsOutboundRequestDetailScreen from "./src/screens/kho-btp/WmsOutboundRequestDetailScreen";
 
 import KhoBTPLocationHistoryScreen from "./src/screens/kho-btp/KhoBTPLocationHistoryScreen";
 import KhoBTPLocationHistoryDetailScreen from "./src/screens/kho-btp/KhoBTPLocationHistoryDetailScreen";
@@ -91,6 +93,8 @@ export default function App() {
             component={PhieuXuatBTP_Detail}
             options={{ headerShown: false, title: "Chi tiết phiếu xuất BTP" }}
           />
+          <Stack.Screen name="WmsOutboundRequestList" component={WmsOutboundRequestListScreen} options={{ headerShown: false, title: "Yêu cầu xuất" }} />
+          <Stack.Screen name="WmsOutboundRequestDetail" component={WmsOutboundRequestDetailScreen} options={{ headerShown: false, title: "Chi tiết yêu cầu xuất" }} />
           <Stack.Screen
             name="KhoBTPImportList"
             component={KhoBTPImportListScreen}

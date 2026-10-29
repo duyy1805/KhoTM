@@ -291,7 +291,7 @@ const WarehouseDetailScreen = ({ route }) => {
                     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                         {kho.isCrane && kho.demoMode && <View style={{ backgroundColor: '#EEF2FF', padding: 14, borderRadius: 14, marginBottom: 16 }}>
                             <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Chế độ thử nghiệm</Text>
-                            <Text style={{ color: COLORS.textSecondary, marginTop: 4 }}>Đang dùng phiếu kho BTP (ID 40) trên DB test. WMS chọn kiện và gửi kết quả để ERP xác nhận xuất; app theo dõi phiếu và vị trí kiện.</Text>
+                            <Text style={{ color: COLORS.textSecondary, marginTop: 4 }}>Đang dùng kho BTP (ID 5) trên DB test. Phiếu cầu trục được nhận diện qua ghi chú cautruc. WMS chọn kiện và gửi kết quả để ERP xác nhận xuất.</Text>
                         </View>}
                         <View style={styles.mainActions}>
                             <TouchableOpacity style={styles.mainButton} onPress={handleScanPress} activeOpacity={0.8}>
@@ -327,6 +327,12 @@ const WarehouseDetailScreen = ({ route }) => {
                                 iconName="upload"
                                 onPress={handleExportPress}
                             />
+                            {kho.isCrane && <OptionItem
+                                title="Yêu cầu xuất"
+                                description="Tạo yêu cầu và gửi trực tiếp sang WMS"
+                                iconName="send-outline"
+                                onPress={() => navigation.navigate('WmsOutboundRequestList', { kho })}
+                            />}
                             {showInspectionReport && (
                                 <OptionItem
                                     title="Biên bản giám định"

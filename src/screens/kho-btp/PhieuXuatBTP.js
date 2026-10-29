@@ -151,23 +151,41 @@ export default function PhieuXuatBTP({ navigation, route }) {
                     qrCode,
                     startDate: ymd(startDate),
                     endDate: ymd(endDate),
+                    craneMode: Boolean(kho?.isCrane),
                 });
-                setDocuments(asList(response?.data?.phieuSuggest || response?.data?.groupedSuggest || []));
+                // /find-by-qr does not classify documents; verify candidates with
+                // the classified search endpoint before allowing a QR pick.
+                const suggested = asList(response?.data?.phieuSuggest || response?.data?.groupedSuggest || []);
+                const numbers = [...new Set(suggested.map((item) =>
+                    String(readValue(item, ['soPhieu', 'So_PhieuXuatBTP'], '')).trim()
+                ).filter(Boolean))];
+                const verified = await Promise.all(numbers.map(async (soPhieu) => {
+                    const matches = await khoBtpApi.searchExports({
+                        craneMode: Boolean(kho?.isCrane),
+                        idKho: [5],
+                        soPhieu,
+                        pageIndex: 0,
+                        pageSize: 100,
+                    });
+                    return asList(matches, ['items', 'rows'])
+                        .filter((item) => String(readValue(item, ['soPhieu', 'So_PhieuXuatBTP'], '')).trim() === soPhieu)
+                        .map((item) => String(getDocumentId(item)));
+                }));
+                const allowedIds = new Set(verified.flat());
+                setDocuments(suggested.filter((item) => allowedIds.has(String(getDocumentId(item)))));
                 setPackageDetails(asList(response?.data?.chiTietKien || []));
                 return;
             }
             const response = await khoBtpApi.searchExports({
                 craneMode: Boolean(kho?.isCrane),
-                idKho: kho?.isCrane ? [40] : kho?.id ? [kho.id] : [],
+                idKho: kho?.isCrane ? [5] : kho?.id ? [kho.id] : [],
                 loaiPhieu: selectedType ? readValue(selectedType, ['idHinhThucXuatBTP', 'id'], null) : null,
                 soPhieu: searchText,
                 pageIndex,
                 pageSize: 20,
             });
             const rows = asList(response, ['items', 'rows']);
-            setDocuments(kho?.isCrane
-                ? rows.filter((item) => Number(readValue(item, ['idKhoXuat', 'ID_KhoXuat'], 0)) === 40)
-                : rows);
+            setDocuments(rows);
             setPackageDetails([]);
         } catch (error) {
             setDocuments([]);

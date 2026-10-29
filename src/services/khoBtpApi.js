@@ -23,6 +23,38 @@ function encode(value) {
 }
 
 export const khoBtpApi = {
+    async listWmsOutboundRequests({ search = '', page = 0, pageSize = 20 } = {}) {
+        const query = new URLSearchParams({ search: String(search || '').trim(), page: String(page), pageSize: String(pageSize) });
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/yeu-cau-xuat?${query.toString()}` });
+    },
+    async createWmsOutboundRequest() {
+        const userID = await getCurrentUserId();
+        return apiRequest({ method: 'POST', baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/cau-truc/yeu-cau-xuat', data: { userID } });
+    },
+    async listWmsOutboundStockItems({ search = '', itemCode = '' } = {}) {
+        const query = new URLSearchParams({ search: String(search || '').trim(), itemCode: String(itemCode || '').trim() });
+        const response = await apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/yeu-cau-xuat-hang-ton?${query.toString()}` });
+        return response?.items || [];
+    },
+    async getWmsOutboundRequest(id) {
+        return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/yeu-cau-xuat/${positiveInt(id, 'Yêu cầu xuất')}` });
+    },
+    async saveWmsOutboundRequest(id, { ghiChu = '', items = [] }) {
+        return apiRequest({ method: 'PUT', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/yeu-cau-xuat/${positiveInt(id, 'Yêu cầu xuất')}`, data: { ghiChu, items } });
+    },
+    async deleteWmsOutboundRequest(id) {
+        return apiRequest({ method: 'DELETE', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/yeu-cau-xuat/${positiveInt(id, 'Yêu cầu xuất')}` });
+    },
+    async sendWmsOutboundRequest(id) {
+        return apiRequest({ method: 'POST', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/yeu-cau-xuat/${positiveInt(id, 'Yêu cầu xuất')}/send` });
+    },
     async getCraneConfig() {
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/cau-truc/config' });
     },
@@ -86,6 +118,7 @@ export const khoBtpApi = {
 
     async searchImports({
         idKho = [],
+        craneMode = false,
         trangThai = null,
         soPhieu = '',
         loaiPhieu = null,
@@ -98,6 +131,7 @@ export const khoBtpApi = {
             baseURL: KHO_TM_API_BASE_URL,
             url: '/btp/phieunhap/tim-kiem',
             data: {
+                craneMode: Boolean(craneMode),
                 idKho: cleanIdList(idKho),
                 trangThai,
                 soPhieu: soPhieu.trim(),
@@ -498,12 +532,12 @@ export const khoBtpApi = {
         return apiRequest({ method: 'POST', baseURL: KHO_TM_API_BASE_URL, url: '/merge-kien', data: payload });
     },
 
-    async findExportsByQr({ qrCode, startDate, endDate }) {
+    async findExportsByQr({ qrCode, startDate, endDate, craneMode = false }) {
         return apiRequest({
             method: 'POST',
             baseURL: KHO_TM_API_BASE_URL,
             url: '/find-by-qr',
-            data: { qrcode: String(qrCode || '').trim(), startDate, endDate },
+            data: { qrcode: String(qrCode || '').trim(), startDate, endDate, craneMode: Boolean(craneMode) },
         });
     },
 
