@@ -29,10 +29,24 @@ function StockItemPicker({ visible, items, loading, search, onSearch, onClose, o
     </Modal>;
 }
 
+function CommonPicker({ visible, title, items, labelKey, onClose, onSelect }) {
+    return <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+        <Pressable style={styles.modalBackdrop} onPress={onClose}><Pressable style={[styles.modalSheet, { minHeight: '35%' }]} onPress={() => {}}>
+            <View style={styles.modalHandle} /><View style={styles.modalHeader}><Text style={styles.modalTitle}>{title}</Text><TouchableOpacity onPress={onClose}><Ionicons name="close" size={24} color={COLORS.textPrimary} /></TouchableOpacity></View>
+            <FlatList data={items} keyExtractor={(item, index) => String(item.idBoPhan ?? item.idDonVi ?? index)} contentContainerStyle={styles.stockList}
+                renderItem={({ item }) => <TouchableOpacity style={styles.stockRow} onPress={() => onSelect(item)}><Text style={styles.stockCode}>{item[labelKey]}</Text><Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} /></TouchableOpacity>}
+                ListEmptyComponent={<Text style={styles.stockEmpty}>Không có dữ liệu phù hợp.</Text>} />
+        </Pressable></Pressable>
+    </Modal>;
+}
+
 export default function WmsOutboundRequestDetailScreen({ navigation, route }) {
     const insets = useSafeAreaInsets();
     const [requestId, setRequestId] = useState(route.params?.id || null);
     const [data, setData] = useState(null), [items, setItems] = useState([]), [note, setNote] = useState('');
+    const [units, setUnits] = useState([]), [departments, setDepartments] = useState([]);
+    const [idDonVi, setIdDonVi] = useState(null), [idBoPhan, setIdBoPhan] = useState(null);
+    const [unitPicker, setUnitPicker] = useState(false), [departmentPicker, setDepartmentPicker] = useState(false);
     const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [sending, setSending] = useState(false);
     const [pickerLineKey, setPickerLineKey] = useState(null), [stockItems, setStockItems] = useState([]), [stockLoading, setStockLoading] = useState(false), [stockSearch, setStockSearch] = useState('');
     const [weekLineKey, setWeekLineKey] = useState(null), [weekChoices, setWeekChoices] = useState([]), [weekLoading, setWeekLoading] = useState(false);
@@ -42,13 +56,18 @@ export default function WmsOutboundRequestDetailScreen({ navigation, route }) {
             setLoading(false);
             return;
         }
-        try { setLoading(true); const result = await khoBtpApi.getWmsOutboundRequest(requestId); setData(result); setNote(result.ghiChu || ''); setItems((result.items || []).map(x => ({ ...x, key: String(x.id), quantity: String(x.quantity) }))); }
+        try { setLoading(true); const result = await khoBtpApi.getWmsOutboundRequest(requestId); setData(result); setNote(result.ghiChu || ''); setIdDonVi(result.idDonVi || null); setIdBoPhan(result.idBoPhan || null); setItems((result.items || []).map(x => ({ ...x, key: String(x.id), quantity: String(x.quantity) }))); }
         catch (error) { Toast.show({ type: 'error', text1: 'Không tải được yêu cầu xuất', text2: getApiErrorMessage(error) }); }
         finally { setLoading(false); }
     }, [requestId]);
     useEffect(() => { load(); }, [load]);
+    useEffect(() => { khoBtpApi.listWmsOutboundUnits().then(setUnits).catch(error => Toast.show({ type: 'error', text1: 'Không tải được đơn vị', text2: getApiErrorMessage(error) })); }, []);
+    useEffect(() => {
+        if (!idDonVi) { setDepartments([]); return; }
+        khoBtpApi.listWmsOutboundDepartments(idDonVi).then(setDepartments).catch(error => Toast.show({ type: 'error', text1: 'Không tải được bộ phận', text2: getApiErrorMessage(error) }));
+    }, [idDonVi]);
     const update = (key, field, value) => setItems(current => current.map(item => item.key === key ? { ...item, [field]: value } : item));
-    const payload = () => ({ ghiChu: note, items: items.map(item => ({ itemCode: item.itemCode.trim(), itemName: item.itemName.trim(), skipLot: item.skipLot || [], quantity: Number(item.quantity) })) });
+    const payload = () => ({ idDonVi, idBoPhan, ghiChu: note, items: items.map(item => ({ itemCode: item.itemCode.trim(), itemName: item.itemName.trim(), skipLot: item.skipLot || [], quantity: Number(item.quantity) })) });
     const loadStock = useCallback(async (search = '') => {
         try { setStockLoading(true); setStockItems(await khoBtpApi.listWmsOutboundStockItems({ search })); }
         catch (error) { Toast.show({ type: 'error', text1: 'Không tải được hàng tồn kho', text2: getApiErrorMessage(error) }); }
@@ -79,6 +98,8 @@ export default function WmsOutboundRequestDetailScreen({ navigation, route }) {
     };
     const save = async ({ quiet = false } = {}) => {
         try {
+            if (!idDonVi) throw new Error('Vui lòng chọn đơn vị nhận');
+            if (!idBoPhan) throw new Error('Vui lòng chọn bộ phận nhận');
             if (!items.length) throw new Error('Cần thêm ít nhất một dòng hàng');
             if (items.some(item => !String(item.itemCode || '').trim() || !String(item.itemName || '').trim())) throw new Error('Vui lòng chọn mã hàng từ danh sách tồn kho');
             setSaving(true); const id = await ensureRequest(); await khoBtpApi.saveWmsOutboundRequest(id, payload());
@@ -109,6 +130,9 @@ export default function WmsOutboundRequestDetailScreen({ navigation, route }) {
         <View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}><TouchableOpacity onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={24} color={COLORS.white} /></TouchableOpacity><View style={styles.headerText}><Text style={styles.headerTitle}>{data?.maYeuCau || 'Yêu cầu xuất mới'}</Text><Text style={styles.headerSub}>{statusLabel(data?.trangThai)}</Text></View>{data?.trangThai === 'DRAFT' ? <TouchableOpacity onPress={removeRequest}><Ionicons name="trash-outline" size={23} color={COLORS.white} /></TouchableOpacity> : <View style={{ width: 23 }} />}</View>
         <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + 110 }]} keyboardShouldPersistTaps="handled">
             {!!data?.dispatchError && <View style={styles.errorBox}><Ionicons name="warning-outline" size={20} color={COLORS.danger} /><Text style={styles.errorText}>{data.dispatchError}</Text></View>}
+            {!!data?.erpError && <View style={styles.errorBox}><Ionicons name="warning-outline" size={20} color={COLORS.danger} /><Text style={styles.errorText}>{data.erpError}</Text></View>}
+            <Text style={styles.label}>Đơn vị nhận</Text><TouchableOpacity style={[styles.input, styles.selectInput]} disabled={!editable} onPress={() => setUnitPicker(true)}><Text style={idDonVi ? styles.selectValue : styles.selectPlaceholder}>{units.find(x => Number(x.idDonVi) === Number(idDonVi))?.tenDonVi || data?.tenDonVi || 'Chọn đơn vị'}</Text><Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} /></TouchableOpacity>
+            <Text style={styles.label}>Bộ phận nhận</Text><TouchableOpacity style={[styles.input, styles.selectInput]} disabled={!editable || !idDonVi} onPress={() => setDepartmentPicker(true)}><Text style={idBoPhan ? styles.selectValue : styles.selectPlaceholder}>{departments.find(x => Number(x.idBoPhan) === Number(idBoPhan))?.tenBoPhan || data?.tenBoPhan || 'Chọn bộ phận'}</Text><Ionicons name="chevron-down" size={18} color={COLORS.textSecondary} /></TouchableOpacity>
             <Text style={styles.label}>Ghi chú</Text><TextInput style={styles.note} value={note} onChangeText={setNote} editable={editable} placeholder="Nội dung hoặc mục đích xuất..." multiline maxLength={500} />
             <View style={styles.sectionRow}><Text style={styles.sectionTitle}>Thông tin xuất</Text>{editable && <TouchableOpacity style={styles.addLine} onPress={() => setItems(current => [...current, emptyLine()])}><Ionicons name="add" size={19} color={COLORS.primary} /><Text style={styles.addText}>Thêm dòng</Text></TouchableOpacity>}</View>
             {items.map((item, index) => <View style={styles.line} key={item.key}>
@@ -121,9 +145,13 @@ export default function WmsOutboundRequestDetailScreen({ navigation, route }) {
             </View>)}
             {!items.length && <View style={styles.empty}><Text style={styles.emptyText}>Chưa có thông tin xuất. Hãy thêm dòng hàng.</Text></View>}
             {!!data?.pallets?.length && <View><Text style={styles.sectionTitle}>Kết quả WMS</Text>{data.pallets.map((p, index) => <View style={styles.result} key={`${p.palletID}-${index}`}><Text style={styles.resultTitle}>{p.itemCode} • {p.lot}</Text><Text style={styles.meta}>Pallet: {p.palletID} • SL: {p.quantity}</Text></View>)}</View>}
+            {!!data?.erpDocuments?.length && <View><Text style={styles.sectionTitle}>Chứng từ ERP</Text>{data.erpDocuments.map((doc, index) => <View style={styles.result} key={`${doc.idPhieuXuatBTP}-${index}`}><Text style={styles.resultTitle}>{doc.maDonHang} • {doc.soPhieuXuatBTP}</Text><Text style={styles.meta}>Lệnh xuất: {doc.soLenhXuatBTP} • Kế hoạch: {doc.idKeHoachSanXuat}</Text></View>)}</View>}
+            {data?.erpStatus === 'ERP_FAILED' && <TouchableOpacity style={styles.save} disabled={busy} onPress={async () => { try { setSaving(true); await khoBtpApi.retryWmsOutboundErp(requestId); await load(); } catch (error) { Toast.show({ type: 'error', text1: 'Không tạo lại được chứng từ ERP', text2: getApiErrorMessage(error) }); } finally { setSaving(false); } }}><Text style={styles.saveText}>Tạo lại chứng từ ERP</Text></TouchableOpacity>}
         </ScrollView>
         {editable && <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}><TouchableOpacity style={styles.save} disabled={busy} onPress={() => save()}><Text style={styles.saveText}>Lưu</Text></TouchableOpacity><TouchableOpacity style={styles.send} disabled={busy} onPress={send}>{sending ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="paper-plane" size={19} color={COLORS.white} /><Text style={styles.sendText}>Gửi WMS</Text></>}</TouchableOpacity></View>}
         <StockItemPicker visible={!!pickerLineKey} items={stockItems} loading={stockLoading} search={stockSearch} onSearch={(value) => { setStockSearch(value); loadStock(value); }} onClose={() => setPickerLineKey(null)} onSelect={selectStockItem} />
+        <CommonPicker visible={unitPicker} title="Chọn đơn vị nhận" items={units} labelKey="tenDonVi" onClose={() => setUnitPicker(false)} onSelect={item => { setIdDonVi(item.idDonVi); setIdBoPhan(null); setUnitPicker(false); }} />
+        <CommonPicker visible={departmentPicker} title="Chọn bộ phận nhận" items={departments} labelKey="tenBoPhan" onClose={() => setDepartmentPicker(false)} onSelect={item => { setIdBoPhan(item.idBoPhan); setDepartmentPicker(false); }} />
         <CraneLotPicker visible={!!weekLineKey && !weekLoading} itemCode={items.find(x => x.key === weekLineKey)?.itemCode || ''}
             productName={items.find(x => x.key === weekLineKey)?.itemName || ''} rows={weekChoices}
             excluded={items.find(x => x.key === weekLineKey)?.skipLot || []}

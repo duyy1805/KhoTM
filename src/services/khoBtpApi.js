@@ -33,6 +33,16 @@ export const khoBtpApi = {
         return apiRequest({ method: 'POST', baseURL: KHO_TM_API_BASE_URL,
             url: '/btp/cau-truc/yeu-cau-xuat', data: { userID } });
     },
+    async listWmsOutboundUnits() {
+        const response = await apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/cau-truc/yeu-cau-xuat/don-vi' });
+        return response?.items || [];
+    },
+    async listWmsOutboundDepartments(idDonVi) {
+        const response = await apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/yeu-cau-xuat/bo-phan?idDonVi=${positiveInt(idDonVi, 'Đơn vị')}` });
+        return response?.items || [];
+    },
     async listWmsOutboundStockItems({ search = '', itemCode = '' } = {}) {
         const query = new URLSearchParams({ search: String(search || '').trim(), itemCode: String(itemCode || '').trim() });
         const response = await apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
@@ -43,9 +53,10 @@ export const khoBtpApi = {
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
             url: `/btp/cau-truc/yeu-cau-xuat/${positiveInt(id, 'Yêu cầu xuất')}` });
     },
-    async saveWmsOutboundRequest(id, { ghiChu = '', items = [] }) {
+    async saveWmsOutboundRequest(id, { idDonVi, idBoPhan, ghiChu = '', items = [] }) {
         return apiRequest({ method: 'PUT', baseURL: KHO_TM_API_BASE_URL,
-            url: `/btp/cau-truc/yeu-cau-xuat/${positiveInt(id, 'Yêu cầu xuất')}`, data: { ghiChu, items } });
+            url: `/btp/cau-truc/yeu-cau-xuat/${positiveInt(id, 'Yêu cầu xuất')}`,
+            data: { idDonVi: positiveInt(idDonVi, 'Đơn vị'), idBoPhan: positiveInt(idBoPhan, 'Bộ phận'), ghiChu, items } });
     },
     async deleteWmsOutboundRequest(id) {
         return apiRequest({ method: 'DELETE', baseURL: KHO_TM_API_BASE_URL,
@@ -54,6 +65,10 @@ export const khoBtpApi = {
     async sendWmsOutboundRequest(id) {
         return apiRequest({ method: 'POST', baseURL: KHO_TM_API_BASE_URL,
             url: `/btp/cau-truc/yeu-cau-xuat/${positiveInt(id, 'Yêu cầu xuất')}/send` });
+    },
+    async retryWmsOutboundErp(id) {
+        return apiRequest({ method: 'POST', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/yeu-cau-xuat/${positiveInt(id, 'Yêu cầu xuất')}/retry-erp` });
     },
     async getCraneConfig() {
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/cau-truc/config' });
