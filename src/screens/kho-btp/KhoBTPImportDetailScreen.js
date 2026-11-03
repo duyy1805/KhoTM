@@ -221,7 +221,7 @@ function PackageCard({ item, selected, locked, isCrane, onSelect, onAddMaterial,
         <View style={[styles.packageCard, selected && styles.packageSelected]}>
             <View style={styles.rowBetween}>
                 <TouchableOpacity style={styles.packageTitleWrap} onPress={onSelect} disabled={locked}>
-                    <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={22} color={COLORS.primary} />
+                    {!locked && <Ionicons name={selected ? 'checkbox' : 'square-outline'} size={22} color={COLORS.primary} />}
                     <View style={{ flex: 1 }}>
                         <Text style={styles.packageTitle}>Kiện #{getPackageId(item) || '-'}</Text>
                         <Text style={styles.packageSub}>{details.length ? `${details.length} dòng BTP` : 'Kiện trống'}</Text>
@@ -367,6 +367,17 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
         || Number(readValue(detail, ['trangThai', 'TrangThai'], 0)) === 1;
     const isTransferLocked = Boolean(readValue(detail, ['packagesLocked'], false));
     const packageEditingLocked = isConfirmed || isTransferLocked;
+    const selectablePackageIds = useMemo(
+        () => packageEditingLocked
+            ? []
+            : packages
+                .filter((item) => !item?.wmsLocked)
+                .map(getPackageId)
+                .filter(Boolean),
+        [packageEditingLocked, packages],
+    );
+    const allSelectableSelected = selectablePackageIds.length > 0
+        && selectablePackageIds.every((packageId) => selectedIds.includes(packageId));
     const workingMaterialRemaining = useMemo(
         () => Math.max(
             getImportMaterialRemaining(materials, packages, workingMaterial, workingDetail),
@@ -379,6 +390,18 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
         const packageId = getPackageId(item);
         setSelectedIds((current) => current.includes(packageId) ? current.filter((value) => value !== packageId) : [...current, packageId]);
     };
+
+    const toggleSelectAll = () => {
+        setSelectedIds(allSelectableSelected ? [] : selectablePackageIds);
+    };
+
+    useEffect(() => {
+        const selectableSet = new Set(selectablePackageIds.map(String));
+        setSelectedIds((current) => {
+            const next = current.filter((packageId) => selectableSet.has(String(packageId)));
+            return next.length === current.length ? current : next;
+        });
+    }, [selectablePackageIds]);
 
     const openLocation = (targets) => {
         if (kho?.isCrane) return;
@@ -758,6 +781,10 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                         {!packageEditingLocked && <View style={styles.toolbar}>
                             <TouchableOpacity style={styles.toolBtn} onPress={() => setCreateVisible(true)}><Ionicons name="add" size={19} color={COLORS.primary} /><Text style={styles.toolText}>Tạo kiện</Text></TouchableOpacity>
                             <TouchableOpacity style={styles.toolBtn} onPress={deleteSelected}><Ionicons name="trash-outline" size={18} color={COLORS.danger} /><Text style={[styles.toolText, { color: COLORS.danger }]}>Xóa</Text></TouchableOpacity>
+                            {kho?.isCrane && selectablePackageIds.length > 0 && <TouchableOpacity style={styles.toolBtn} onPress={toggleSelectAll} disabled={loading}>
+                                <Ionicons name={allSelectableSelected ? 'checkbox' : 'square-outline'} size={18} color={COLORS.primary} />
+                                <Text style={styles.toolText}>{allSelectableSelected ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}</Text>
+                            </TouchableOpacity>}
                             {kho?.isCrane && selectedIds.length > 0 && <TouchableOpacity style={styles.toolBtn} onPress={sendSelectedToWms} disabled={loading}>
                                 <Ionicons name="send-outline" size={18} color={COLORS.primary} />
                                 <Text style={styles.toolText}>Gửi {selectedIds.length} kiện đã chọn</Text>
