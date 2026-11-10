@@ -139,6 +139,14 @@ export async function getCurrentUserId({ required = false } = {}) {
     return null;
 }
 
+export async function getCurrentUserRole() {
+    const [auth, user] = await Promise.all([
+        readStoredJson(AUTH_KEY),
+        readStoredJson(USER_KEY),
+    ]);
+    return String(auth?.role ?? user?.role ?? '').trim().toLowerCase();
+}
+
 export function getApiErrorMessage(error, fallback = 'Thao tác thất bại') {
     const data = error?.response?.data;
     if (typeof data === 'string' && data.trim()) return data.trim();

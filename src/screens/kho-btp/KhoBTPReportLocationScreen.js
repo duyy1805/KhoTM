@@ -35,7 +35,7 @@ export default function KhoBTPReportLocationScreen({ navigation, route }) {
     const [rows, setRows] = useState([]);
     const [search, setSearch] = useState('');
     const [loading, setLoading] = useState(false);
-    const load = useCallback(async () => { const id = getLocationId(location); if (!id) return; try { setLoading(true); setRows(await khoBtpApi.getLocationPackages(id)); } catch (error) { Toast.show({ type: 'error', text1: 'Không tải được tồn tại vị trí', text2: getApiErrorMessage(error) }); } finally { setLoading(false); } }, [location]);
+    const load = useCallback(async () => { const id = getLocationId(location); if (!id) return; try { setLoading(true); setRows(warehouse?.isCrane ? await khoBtpApi.getCraneInventoryLocationPackages(id) : await khoBtpApi.getLocationPackages(id)); } catch (error) { Toast.show({ type: 'error', text1: 'Không tải được tồn tại vị trí', text2: getApiErrorMessage(error) }); } finally { setLoading(false); } }, [location, warehouse?.isCrane]);
     useFocusEffect(useCallback(() => { load(); }, [load]));
     const groups = useMemo(() => groupProducts(rows), [rows]);
     const filtered = useMemo(() => { const q = search.trim().toLowerCase(); return !q ? groups : groups.filter((x) => `${x.itemCode} ${x.productName}`.toLowerCase().includes(q)); }, [groups, search]);

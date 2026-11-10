@@ -4,7 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import { khoBtpApi } from '../../services/khoBtpApi';
-import { getApiErrorMessage } from '../../services/coreApiClient';
+import { getApiErrorMessage, getCurrentUserId, getCurrentUserRole } from '../../services/coreApiClient';
 import { BTP_COLORS as COLORS } from './btpScreenUtils';
 import CraneLotPicker from './CraneLotPicker';
 
@@ -14,6 +14,7 @@ const quantityNumber = item => Number(item?.quantity);
 const hasKnownStock = item => Number.isFinite(Number(item?.stockQuantity));
 const hasInvalidQuantity = item => !Number.isInteger(quantityNumber(item)) || quantityNumber(item) <= 0;
 const exceedsStock = item => hasKnownStock(item) && !hasInvalidQuantity(item) && quantityNumber(item) > Number(item.stockQuantity);
+const WMS_OUTBOUND_USER_IDS = new Set([1074, 189]);
 
 function StockItemPicker({ visible, items, loading, search, onSearch, onClose, onSelect }) {
     return <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -52,6 +53,7 @@ export default function WmsOutboundRequestDetailScreen({ navigation, route }) {
     const [idDonVi, setIdDonVi] = useState(null), [idBoPhan, setIdBoPhan] = useState(null);
     const [unitPicker, setUnitPicker] = useState(false), [departmentPicker, setDepartmentPicker] = useState(false);
     const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false), [sending, setSending] = useState(false);
+    const [canSendWms, setCanSendWms] = useState(false);
     const [pickerLineKey, setPickerLineKey] = useState(null), [stockItems, setStockItems] = useState([]), [stockLoading, setStockLoading] = useState(false), [stockSearch, setStockSearch] = useState('');
     const [weekLineKey, setWeekLineKey] = useState(null), [weekChoices, setWeekChoices] = useState([]), [weekLoading, setWeekLoading] = useState(false);
     const skipNextAutoLoad = useRef(false);
@@ -61,8 +63,13 @@ export default function WmsOutboundRequestDetailScreen({ navigation, route }) {
         try {
             const rowsByCode = await Promise.all(codes.map(async itemCode => {
                 const rows = await khoBtpApi.listWmsOutboundStockItems({ itemCode });
-                const exact = (rows || []).find(x => String(x.itemCode || '').trim() === itemCode);
-                return [itemCode, exact ? Number(exact.stockQuantity || 0) : 0];
+                // A lookup by item code returns one row per week mark.  Sum those
+                // rows so validation uses the item's total available stock, not
+                // only the first week mark returned by the API.
+                const stockQuantity = (rows || [])
+                    .filter(x => String(x.itemCode || '').trim() === itemCode)
+                    .reduce((total, x) => total + (Number(x.stockQuantity) || 0), 0);
+                return [itemCode, stockQuantity];
             }));
             const stockMap = Object.fromEntries(rowsByCode);
             return lines.map(line => ({ ...line, stockQuantity: Object.prototype.hasOwnProperty.call(stockMap, String(line.itemCode || '').trim()) ? stockMap[String(line.itemCode || '').trim()] : null }));
@@ -81,6 +88,11 @@ export default function WmsOutboundRequestDetailScreen({ navigation, route }) {
         finally { setLoading(false); }
     }, [hydrateStock, requestId]);
     useEffect(() => { if (skipNextAutoLoad.current) { skipNextAutoLoad.current = false; return; } load(); }, [load]);
+    useEffect(() => {
+        Promise.all([getCurrentUserId(), getCurrentUserRole()])
+            .then(([userId, role]) => setCanSendWms(role === 'admin' || WMS_OUTBOUND_USER_IDS.has(Number(userId))))
+            .catch(() => setCanSendWms(false));
+    }, []);
     useEffect(() => { khoBtpApi.listWmsOutboundUnits().then(setUnits).catch(error => Toast.show({ type: 'error', text1: 'Không tải được đơn vị', text2: getApiErrorMessage(error) })); }, []);
     useEffect(() => {
         if (!idDonVi) { setDepartments([]); return; }
@@ -178,7 +190,7 @@ export default function WmsOutboundRequestDetailScreen({ navigation, route }) {
             {!!data?.erpDocuments?.length && <View><Text style={styles.sectionTitle}>Chứng từ ERP</Text>{data.erpDocuments.map((doc, index) => <View style={styles.result} key={`${doc.idPhieuXuatBTP}-${index}`}><Text style={styles.resultTitle}>{doc.maDonHang} • {doc.soPhieuXuatBTP}</Text><Text style={styles.meta}>Lệnh xuất: {doc.soLenhXuatBTP} • Kế hoạch: {doc.idKeHoachSanXuat}</Text></View>)}</View>}
             {data?.erpStatus === 'ERP_FAILED' && <TouchableOpacity style={styles.save} disabled={busy} onPress={async () => { try { setSaving(true); await khoBtpApi.retryWmsOutboundErp(requestId); await load(); } catch (error) { Toast.show({ type: 'error', text1: 'Không tạo lại được chứng từ ERP', text2: getApiErrorMessage(error) }); } finally { setSaving(false); } }}><Text style={styles.saveText}>Tạo lại chứng từ ERP</Text></TouchableOpacity>}
         </ScrollView>
-        {editable && <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}><TouchableOpacity style={styles.save} disabled={busy} onPress={() => save()}><Text style={styles.saveText}>Lưu</Text></TouchableOpacity><TouchableOpacity style={[styles.send, (busy || hasLineValidationError) && styles.disabledButton]} disabled={busy || hasLineValidationError} onPress={send}>{sending ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="paper-plane" size={19} color={COLORS.white} /><Text style={styles.sendText}>Gửi WMS</Text></>}</TouchableOpacity></View>}
+        {editable && <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 12) }]}><TouchableOpacity style={styles.save} disabled={busy} onPress={() => save()}><Text style={styles.saveText}>Lưu</Text></TouchableOpacity>{canSendWms && <TouchableOpacity style={[styles.send, (busy || hasLineValidationError) && styles.disabledButton]} disabled={busy || hasLineValidationError} onPress={send}>{sending ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="paper-plane" size={19} color={COLORS.white} /><Text style={styles.sendText}>Gửi WMS</Text></>}</TouchableOpacity>}</View>}
         <StockItemPicker visible={!!pickerLineKey} items={stockItems} loading={stockLoading} search={stockSearch} onSearch={(value) => { setStockSearch(value); loadStock(value); }} onClose={() => setPickerLineKey(null)} onSelect={selectStockItem} />
         <CommonPicker visible={unitPicker} title="Chọn đơn vị nhận" items={units} labelKey="tenDonVi" onClose={() => setUnitPicker(false)} onSelect={item => { setIdDonVi(item.idDonVi); setIdBoPhan(null); setUnitPicker(false); }} />
         <CommonPicker visible={departmentPicker} title="Chọn bộ phận nhận" items={departments} labelKey="tenBoPhan" onClose={() => setDepartmentPicker(false)} onSelect={item => { setIdBoPhan(item.idBoPhan); setDepartmentPicker(false); }} />

@@ -19,7 +19,9 @@ export default function KhoBTPReportPackagesScreen({ navigation, route }) {
         const loadPackages = async () => {
             try {
                 setLoading(true);
-                const rows = await khoBtpApi.getLocationPackages(idLocation);
+                const rows = warehouse?.isCrane
+                    ? await khoBtpApi.getCraneInventoryLocationPackages(idLocation)
+                    : await khoBtpApi.getLocationPackages(idLocation);
                 if (!active) return;
                 const byId = new Map();
                 rows.filter((item) => String(readValue(item, ['itemCode', 'ItemCode'], '')) === String(product?.itemCode || ''))
@@ -40,7 +42,7 @@ export default function KhoBTPReportPackagesScreen({ navigation, route }) {
         };
         loadPackages();
         return () => { active = false; };
-    }, [location, product?.itemCode]));
+    }, [location, product?.itemCode, warehouse?.isCrane]));
     const openPackage = async (item) => { const qrCode = readValue(item, ['qrCode', 'QRCode'], ''); if (!qrCode) return Toast.show({ type: 'error', text1: 'Kiện chưa có QR' }); try { setLoading(true); const response = await khoBtpApi.getPackageInfo(qrCode); navigation.navigate('ScannedDetail', { data: response?.data || [], qrCode, kho: warehouse, readOnly: true, allowMetadataEdit: true }); } catch (error) { Toast.show({ type: 'error', text1: 'Không tải được kiện', text2: getApiErrorMessage(error) }); } finally { setLoading(false); } };
     return <View style={styles.container}><StatusBar barStyle="light-content" backgroundColor={COLORS.primary} /><View style={[styles.header, { paddingTop: insets.top + (Platform.OS === 'android' ? 10 : 0) }]}><TouchableOpacity onPress={() => navigation.goBack()}><Ionicons name="arrow-back" size={24} color="#fff" /></TouchableOpacity><Text style={styles.headerTitle} numberOfLines={1}>{product?.itemCode || 'Danh sách kiện'}</Text><View style={{ width: 24 }} /></View>
         <FlatList data={packages} keyExtractor={(item, i) => String(readValue(item, ['idPackage', 'ID_TheKhoKienBTP'], i))} contentContainerStyle={styles.content} ListHeaderComponent={<View style={styles.summary}><Text style={styles.productName}>{product?.productName || 'Bán thành phẩm'}</Text><Text style={styles.summaryText}>{packages.length} kiện • Tổng tồn {packages.reduce((sum, item) => sum + (Number(item.stockQuantity) || 0), 0)}</Text></View>} renderItem={({ item }) => <TouchableOpacity style={styles.card} onPress={() => openPackage(item)}><View style={styles.qrIcon}><Ionicons name="qr-code-outline" size={25} color={COLORS.primary} /></View><View style={styles.body}><Text style={styles.qr} numberOfLines={1}>{readValue(item, ['qrCode', 'QRCode'], '-')}</Text><Text style={styles.meta}>ID kiện: #{readValue(item, ['idPackage', 'ID_TheKhoKienBTP'], '-')}</Text><Text style={styles.meta}>Đơn hàng: {readValue(item, ['maDonHang', 'Ma_DonHang', 'orderId', 'ID_DonHang'], '-')} • Lô: {readValue(item, ['soLoSanXuat', 'So_LoSanXuat', 'productionLotId', 'ID_DonHang_LoSanXuat'], '-')}</Text><Text style={styles.meta}>Dấu tuần: {readValue(item, ['weekMark', 'DauTuan'], '-')}</Text></View><View style={styles.qty}><Text style={styles.qtyValue}>{readValue(item, ['stockQuantity', 'SoLuongTonKien'], 0)}</Text><Text style={styles.qtyLabel}>Tồn</Text></View><Ionicons name="chevron-forward" size={18} color={COLORS.textSecondary} /></TouchableOpacity>} ListEmptyComponent={<Text style={styles.empty}>Không có kiện tồn</Text>} />

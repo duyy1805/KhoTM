@@ -127,6 +127,11 @@ export const khoBtpApi = {
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
             url: `/btp/cau-truc/reports/inventory/location?qrCode=${encode(qrCode)}` });
     },
+    async getCraneInventoryLocationPackages(idLocation) {
+        const response = await apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/reports/inventory/location/${positiveInt(idLocation, 'Vị trí')}/packages` });
+        return response?.items || [];
+    },
     async getImportTypes() {
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/phieunhap/types' });
     },
