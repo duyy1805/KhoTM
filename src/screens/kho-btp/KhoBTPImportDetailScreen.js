@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     DeviceEventEmitter,
     FlatList,
     RefreshControl,
@@ -27,6 +26,7 @@ import KeyboardDoneAccessory, {
     numericKeyboardProps,
     webInputFocusProps,
 } from '../../components/KeyboardDoneAccessory';
+import { showConfirm } from '../../components/ConfirmDialog';
 import { khoBtpApi } from '../../services/khoBtpApi';
 import { getApiErrorMessage } from '../../services/coreApiClient';
 import {
@@ -48,15 +48,7 @@ import {
 } from './btpScreenUtils';
 
 function confirmAction(title, message, onConfirm) {
-    if (Platform.OS === 'web') {
-        if (globalThis.confirm(`${title}\n\n${message}`)) onConfirm();
-        return;
-    }
-
-    Alert.alert(title, message, [
-        { text: 'Hủy', style: 'cancel' },
-        { text: 'Xác nhận', style: 'destructive', onPress: onConfirm },
-    ]);
+    showConfirm({ title, message, confirmText: 'Xác nhận', destructive: true, onConfirm });
 }
 
 function formatQuantity(value) {

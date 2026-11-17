@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     FlatList,
     Platform,
     RefreshControl,
@@ -20,6 +19,7 @@ import Toast from 'react-native-toast-message';
 import { khoBtpApi } from '../../services/khoBtpApi';
 import { getApiErrorMessage } from '../../services/coreApiClient';
 import { keyboardAwareScrollProps, webInputFocusProps } from '../../components/KeyboardDoneAccessory';
+import { showConfirm } from '../../components/ConfirmDialog';
 import {
     asList,
     BTP_COLORS as COLORS,
@@ -256,28 +256,23 @@ export default function PhieuXuatBTP({ navigation, route }) {
         }
         const id = getDocumentId(item) || readValue(item, ['ID_PhieuXuatBTP'], null);
         const documentNumber = readValue(item, ['soPhieu', 'So_PhieuXuatBTP'], `#${id}`);
-        Alert.alert(
-            'Xác nhận xuất',
-            `Bạn muốn xuất kiện QR "${qrCode}" cho phiếu ${documentNumber}?`,
-            [
-                { text: 'Hủy', style: 'cancel' },
-                {
-                    text: 'Đồng ý',
-                    onPress: async () => {
-                        try {+                            setLoading(true);
-                            const response = await khoBtpApi.insertExportPick({ idPhieuXuat: id, qrCode });
-                            if (response?.ok === false) throw new Error(response.message || 'Không xuất được kiện');
-                            Toast.show({ type: 'success', text1: 'Xuất thành công', text2: `${documentNumber} • ${qrCode}` });
-                            await fetchDocuments();
-                        } catch (error) {
-                            Toast.show({ type: 'error', text1: 'Lỗi khi xuất', text2: getApiErrorMessage(error) });
-                        } finally {
-                            setLoading(false);
-                        }
-                    },
-                },
-            ],
-        );
+        showConfirm({
+            title: 'Xác nhận xuất',
+            message: `Bạn muốn xuất kiện QR "${qrCode}" cho phiếu ${documentNumber}?`,
+            onConfirm: async () => {
+                try {
+                    setLoading(true);
+                    const response = await khoBtpApi.insertExportPick({ idPhieuXuat: id, qrCode });
+                    if (response?.ok === false) throw new Error(response.message || 'Không xuất được kiện');
+                    Toast.show({ type: 'success', text1: 'Xuất thành công', text2: `${documentNumber} • ${qrCode}` });
+                    await fetchDocuments();
+                } catch (error) {
+                    Toast.show({ type: 'error', text1: 'Lỗi khi xuất', text2: getApiErrorMessage(error) });
+                } finally {
+                    setLoading(false);
+                }
+            },
+        });
     };
 
     const onRefresh = async () => {

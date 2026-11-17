@@ -9,8 +9,7 @@ import {
     TextInput, 
     StatusBar, 
     Platform,
-    ActivityIndicator,
-    Alert
+    ActivityIndicator
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';

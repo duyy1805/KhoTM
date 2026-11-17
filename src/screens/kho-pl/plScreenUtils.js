@@ -1,5 +1,5 @@
-import { Alert } from 'react-native';
 import { getValue } from '../../components/kho-pl';
+import { showConfirm } from '../../components/ConfirmDialog';
 
 export function extractList(payload, preferredKeys = []) {
     if (Array.isArray(payload)) return payload;
@@ -133,8 +133,5 @@ export function groupInspectionPackages(rows = []) {
 }
 
 export function confirm(title, message, onConfirm) {
-    Alert.alert(title, message, [
-        { text: 'Hủy', style: 'cancel' },
-        { text: 'Đồng ý', onPress: onConfirm },
-    ]);
+    showConfirm({ title, message, onConfirm });
 }

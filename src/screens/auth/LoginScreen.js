@@ -6,7 +6,6 @@ import {
     TextInput,
     TouchableOpacity,
     Dimensions,
-    Alert,
     ActivityIndicator,
     StatusBar,
     KeyboardAvoidingView,
@@ -29,6 +28,7 @@ import {
     setApiEnvironment,
 } from '../../services/coreApiClient';
 import { keyboardAwareScrollProps, webInputFocusProps } from '../../components/KeyboardDoneAccessory';
+import { showAlert } from '../../components/ConfirmDialog';
 
 const { width, height } = Dimensions.get('window');
 
@@ -318,7 +318,7 @@ const LoginScreen = () => {
                         <View style={styles.footer}>
                             <Text style={styles.footerText}>Chưa có tài khoản? </Text>
                             <TouchableOpacity onPress={() =>
-                                Alert.alert("Thông báo", "Vui lòng liên hệ quản trị viên để cấp tài khoản.")
+                                showAlert({ title: 'Thông báo', message: 'Vui lòng liên hệ quản trị viên để cấp tài khoản.' })
                             }>
                                 <Text style={styles.registerLink}>Liên hệ</Text>
                             </TouchableOpacity>

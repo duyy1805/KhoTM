@@ -9,7 +9,6 @@ import {
     FlatList, 
     StatusBar,
     Platform,
-    Alert
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Svg, Circle } from 'react-native-svg';
@@ -18,6 +17,7 @@ import { useNavigation } from "@react-navigation/native";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { khoBtpApi } from '../../services/khoBtpApi';
 import { IS_KHO_TM_TEST } from '../../services/coreApiClient';
+import { showAlert, showConfirm } from '../../components/ConfirmDialog';
 
 const { width } = Dimensions.get('window');
 
@@ -149,7 +149,10 @@ const HomeScreen = () => {
 
     const handleSelectWareHouse = (kho) => {
         if (kho.isCrane && !kho.craneConfigured) {
-            Alert.alert('Kho cầu trục chưa cấu hình', 'Cần ID kho và vị trí tạm trên DB thật trước khi sử dụng.');
+            showAlert({
+                title: 'Kho cầu trục chưa cấu hình',
+                message: 'Cần ID kho và vị trí tạm trên DB thật trước khi sử dụng.',
+            });
             return;
         }
         AsyncStorage.setItem('selectedWarehouse', JSON.stringify(kho));
@@ -157,18 +160,13 @@ const HomeScreen = () => {
     };
 
     const handleLogout = () => {
-        Alert.alert(
-            "Đăng xuất",
-            "Bạn có chắc chắn muốn đăng xuất?",
-            [
-                { text: "Hủy", style: "cancel" },
-                { 
-                    text: "Đăng xuất", 
-                    style: "destructive",
-                    onPress: () => navigation.navigate("LoginScreen") 
-                }
-            ]
-        );
+        showConfirm({
+            title: 'Đăng xuất',
+            message: 'Bạn có chắc chắn muốn đăng xuất?',
+            confirmText: 'Đăng xuất',
+            destructive: true,
+            onConfirm: () => navigation.navigate('LoginScreen'),
+        });
     };
 
     return (

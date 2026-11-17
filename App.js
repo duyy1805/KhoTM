@@ -43,6 +43,7 @@ import WmsOutboundRequestDetailScreen from "./src/screens/kho-btp/WmsOutboundReq
 
 import KhoBTPLocationHistoryScreen from "./src/screens/kho-btp/KhoBTPLocationHistoryScreen";
 import KhoBTPLocationHistoryDetailScreen from "./src/screens/kho-btp/KhoBTPLocationHistoryDetailScreen";
+import ConfirmDialog from "./src/components/ConfirmDialog";
 
 const Stack = createStackNavigator();
 
@@ -238,6 +239,7 @@ export default function App() {
           />
         </Stack.Navigator>
       </NavigationContainer>
+      <ConfirmDialog />
     </SafeAreaProvider>
   );
 }

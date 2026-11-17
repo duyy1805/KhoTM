@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, StatusBar, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
@@ -7,6 +7,7 @@ import { khoBtpApi } from '../../services/khoBtpApi';
 import { getApiErrorMessage, getCurrentUserId, getCurrentUserRole } from '../../services/coreApiClient';
 import { BTP_COLORS as COLORS } from './btpScreenUtils';
 import CraneLotPicker from './CraneLotPicker';
+import { showConfirm } from '../../components/ConfirmDialog';
 
 const emptyLine = () => ({ key: `${Date.now()}-${Math.random()}`, itemCode: '', itemName: '', skipLot: [], quantity: '', stockQuantity: null });
 const statusLabel = value => ({ DRAFT: 'Bản nháp', SENDING: 'Đang gửi', SENT: 'Đã gửi, chờ WMS', FAILED: 'Gửi lỗi', REJECTED: 'WMS từ chối', COMPLETED: 'Đã hoàn tất', CANCELLED: 'Đã hủy' }[value] || value);
@@ -153,15 +154,26 @@ export default function WmsOutboundRequestDetailScreen({ navigation, route }) {
         }
         finally { setSaving(false); }
     };
-    const send = () => Alert.alert('Gửi yêu cầu sang WMS?', 'Sau khi gửi thành công, nội dung yêu cầu sẽ được khóa.', [{ text: 'Hủy', style: 'cancel' }, { text: 'Gửi WMS', onPress: async () => {
-        try { setSending(true); const id = await save({ quiet: true }); if (!id) return; await khoBtpApi.sendWmsOutboundRequest(id); Toast.show({ type: 'success', text1: 'Đã gửi yêu cầu sang WMS' }); await load(); }
-        catch (error) { Toast.show({ type: 'error', text1: 'Không gửi được WMS', text2: getApiErrorMessage(error) }); }
-        finally { setSending(false); }
-    } }]);
-    const removeRequest = () => Alert.alert('Xóa yêu cầu?', 'Bản nháp và các dòng hàng sẽ bị xóa.', [{ text: 'Hủy', style: 'cancel' }, { text: 'Xóa', style: 'destructive', onPress: async () => {
-        try { if (requestId) await khoBtpApi.deleteWmsOutboundRequest(requestId); navigation.goBack(); }
-        catch (error) { Toast.show({ type: 'error', text1: 'Không xóa được yêu cầu', text2: getApiErrorMessage(error) }); }
-    } }]);
+    const send = () => showConfirm({
+        title: 'Gửi yêu cầu sang WMS?',
+        message: 'Sau khi gửi thành công, nội dung yêu cầu sẽ được khóa.',
+        confirmText: 'Gửi WMS',
+        onConfirm: async () => {
+            try { setSending(true); const id = await save({ quiet: true }); if (!id) return; await khoBtpApi.sendWmsOutboundRequest(id); Toast.show({ type: 'success', text1: 'Đã gửi yêu cầu sang WMS' }); await load(); }
+            catch (error) { Toast.show({ type: 'error', text1: 'Không gửi được WMS', text2: getApiErrorMessage(error) }); }
+            finally { setSending(false); }
+        },
+    });
+    const removeRequest = () => showConfirm({
+        title: 'Xóa yêu cầu?',
+        message: 'Bản nháp và các dòng hàng sẽ bị xóa.',
+        confirmText: 'Xóa',
+        destructive: true,
+        onConfirm: async () => {
+            try { if (requestId) await khoBtpApi.deleteWmsOutboundRequest(requestId); navigation.goBack(); }
+            catch (error) { Toast.show({ type: 'error', text1: 'Không xóa được yêu cầu', text2: getApiErrorMessage(error) }); }
+        },
+    });
     if (loading && !data) return <View style={styles.center}><ActivityIndicator color={COLORS.primary} /></View>;
     const editable = Boolean(data?.editable), busy = saving || sending;
     const hasLineValidationError = items.some(item => item.itemCode && (hasInvalidQuantity(item) || !hasKnownStock(item) || exceedsStock(item)));

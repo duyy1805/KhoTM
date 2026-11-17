@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     DeviceEventEmitter,
     FlatList,
     Platform,
@@ -16,6 +15,7 @@ import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 import ScanOverlay from '../../components/warehouse/ScanOverlay';
+import { showConfirm } from '../../components/ConfirmDialog';
 import { khoBtpApi } from '../../services/khoBtpApi';
 import { getApiErrorMessage } from '../../services/coreApiClient';
 import {
@@ -148,14 +148,11 @@ export default function KhoBTPTransferLocationScreen({ navigation, route }) {
             Toast.show({ type: 'error', text1: 'Vị trí mới trùng vị trí hiện tại' });
             return;
         }
-        Alert.alert(
-            'Xác nhận điều chuyển',
-            `Chuyển ${getPackageQr(selectedPackage) || `kiện #${getPackageId(selectedPackage)}`} đến ${getLocationCode(destination)}?`,
-            [
-                { text: 'Hủy', style: 'cancel' },
-                {
-                    text: 'Điều chuyển',
-                    onPress: async () => {
+        showConfirm({
+            title: 'Xác nhận điều chuyển',
+            message: `Chuyển ${getPackageQr(selectedPackage) || `kiện #${getPackageId(selectedPackage)}`} đến ${getLocationCode(destination)}?`,
+            confirmText: 'Điều chuyển',
+            onConfirm: async () => {
                         try {
                             setLoading(true);
                             await khoBtpApi.updatePackageLocation({
@@ -180,10 +177,8 @@ export default function KhoBTPTransferLocationScreen({ navigation, route }) {
                         } finally {
                             setLoading(false);
                         }
-                    },
-                },
-            ],
-        );
+            },
+        });
     };
 
     if (scanTarget) {
