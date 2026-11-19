@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { khoBtpApi } from '../../services/khoBtpApi';
@@ -74,6 +74,7 @@ export default function KhoBTPLocationHistoryDetailScreen({ route }) {
 
     return <View style={[styles.container, { paddingBottom: insets.bottom }]}>
         <FlatList
+            style={styles.list}
             data={record?.hasPackageSnapshot ? record.ChiTietKien : []}
             keyExtractor={(item, index) => `${item.ID_TheKhoKienBTP_ChiTiet ?? 'row'}-${index}`}
             renderItem={({ item, index }) => <DetailRow detail={item} index={index} />}
@@ -106,7 +107,8 @@ export default function KhoBTPLocationHistoryDetailScreen({ route }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F8FAFC' },
+    container: { flex: 1, minHeight: 0, backgroundColor: '#F8FAFC', ...Platform.select({ web: { height: '100vh', maxHeight: '100vh', overflow: 'hidden' } }) },
+    list: { flex: 1, minHeight: 0, ...Platform.select({ web: { overflowY: 'auto', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } }) },
     content: { padding: 16, paddingBottom: 32 },
     card: { padding: 16, backgroundColor: '#FFFFFF', borderRadius: 14, marginBottom: 12, borderWidth: 1, borderColor: '#E2E8F0' },
     title: { fontSize: 16, fontWeight: '700', color: '#1E293B', marginBottom: 8 },

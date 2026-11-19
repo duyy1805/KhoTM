@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect } from '@react-navigation/native';
 import Toast from 'react-native-toast-message';
@@ -24,7 +24,7 @@ function Metric({ label, value, tone = 'primary', note }) {
 function Overview({ data }) {
     if (!data) return null;
     const { inventory = {}, inbound = {}, outbound = {}, alerts = {} } = data;
-    return <ScrollView contentContainerStyle={styles.overviewContent}>
+    return <ScrollView style={styles.scrollArea} contentContainerStyle={styles.overviewContent}>
         <Text style={styles.groupTitle}>Tồn kho hiện tại</Text>
         <View style={styles.metricGrid}>
             <Metric label="Tồn vật lý" value={inventory.physicalQuantity} />
@@ -121,7 +121,7 @@ export default function CraneWmsReportPanel({ mode }) {
 
     if (mode === 'overview') return <View style={styles.container}>{controls}<Overview data={data} />{loading && <ActivityIndicator style={styles.loader} color={COLORS.primary} />}</View>;
     const renderItem = mode === 'inbound' ? ({ item }) => <InboundRow item={item} /> : mode === 'outbound' ? ({ item }) => <OutboundRow item={item} /> : ({ item }) => <AlertRow item={item} />;
-    return <View style={styles.container}>{controls}<FlatList data={items} renderItem={renderItem} keyExtractor={(item, index) => `${item.flow || mode}-${item.orderID}-${item.packageID || item.palletID || index}`}
+    return <View style={styles.container}>{controls}<FlatList style={styles.scrollArea} data={items} renderItem={renderItem} keyExtractor={(item, index) => `${item.flow || mode}-${item.orderID}-${item.packageID || item.palletID || index}`}
         contentContainerStyle={styles.list} refreshing={loading && !items.length} onRefresh={() => load(0, false)}
         onEndReached={() => { if (canLoadMore && !loading) load(pageIndex + 1, true); }} onEndReachedThreshold={0.3}
         ListEmptyComponent={!loading ? <Text style={styles.empty}>Không có dữ liệu phù hợp</Text> : null}
@@ -130,6 +130,7 @@ export default function CraneWmsReportPanel({ mode }) {
 
 const styles = StyleSheet.create({
     container:{flex:1,minHeight:0},controls:{paddingHorizontal:16,paddingTop:12},periods:{flexDirection:'row',gap:8,marginBottom:10},period:{paddingHorizontal:14,paddingVertical:8,borderRadius:18,backgroundColor:'#fff',borderWidth:1,borderColor:COLORS.border},periodActive:{backgroundColor:COLORS.primary,borderColor:COLORS.primary},periodText:{fontSize:12,fontWeight:'800',color:COLORS.textSecondary},periodTextActive:{color:'#fff'},
+    scrollArea:{flex:1,minHeight:0,...Platform.select({web:{overflowY:'auto',touchAction:'pan-y',WebkitOverflowScrolling:'touch'}})},
     search:{height:46,flexDirection:'row',alignItems:'center',gap:8,paddingHorizontal:12,borderRadius:13,backgroundColor:'#fff',borderWidth:1,borderColor:COLORS.border,marginBottom:10},chips:{gap:7,paddingBottom:10},chip:{paddingHorizontal:12,paddingVertical:7,borderRadius:16,backgroundColor:'#fff',borderWidth:1,borderColor:COLORS.border},chipActive:{backgroundColor:COLORS.primaryLight,borderColor:COLORS.primary},chipText:{fontSize:11,fontWeight:'800',color:COLORS.textSecondary},chipTextActive:{color:COLORS.primary},
     overviewContent:{paddingHorizontal:16,paddingBottom:36},groupTitle:{fontSize:16,fontWeight:'900',color:COLORS.textPrimary,marginTop:8,marginBottom:9},metricGrid:{flexDirection:'row',flexWrap:'wrap',gap:9},metric:{width:'48%',minHeight:88,padding:12,borderRadius:15,backgroundColor:'#fff',borderWidth:1,borderColor:COLORS.border},metricValue:{fontSize:22,fontWeight:'900'},metricLabel:{marginTop:4,fontSize:11,fontWeight:'800',color:COLORS.textPrimary},metricNote:{marginTop:3,fontSize:10,color:COLORS.textSecondary},alertSummary:{marginTop:16,padding:14,borderRadius:15,backgroundColor:'#ECFDF5',flexDirection:'row',gap:10,alignItems:'center'},alertSummaryActive:{backgroundColor:'#FEF2F2'},alertSummaryTitle:{fontSize:13,fontWeight:'900',color:COLORS.textPrimary},generated:{textAlign:'center',marginTop:15,fontSize:10,color:COLORS.textSecondary},
     list:{paddingHorizontal:16,paddingBottom:36},rowCard:{padding:14,marginBottom:10,borderRadius:16,backgroundColor:'#fff',borderWidth:1,borderColor:COLORS.border},alertCard:{borderLeftWidth:4,borderLeftColor:'#F59E0B'},rowHead:{flexDirection:'row',alignItems:'flex-start',justifyContent:'space-between',gap:8},orderCode:{flex:1,fontSize:15,fontWeight:'900',color:COLORS.textPrimary},qr:{marginTop:7,fontSize:13,fontWeight:'800',color:COLORS.primary},rowLine:{marginTop:6,fontSize:11,color:COLORS.textSecondary},errorText:{marginTop:8,fontSize:11,fontWeight:'700',color:'#DC2626'},skipText:{marginTop:7,fontSize:10,color:'#D97706'},badge:{maxWidth:'48%',paddingHorizontal:8,paddingVertical:5,borderRadius:10},badgeSuccess:{backgroundColor:'#DCFCE7'},badgeWarning:{backgroundColor:'#FEF3C7'},badgeDanger:{backgroundColor:'#FEE2E2'},badgeText:{fontSize:9,fontWeight:'900'},badgeSuccessText:{color:'#15803D'},badgeWarningText:{color:'#B45309'},badgeDangerText:{color:'#B91C1C'},empty:{textAlign:'center',marginTop:40,color:COLORS.textSecondary},loader:{position:'absolute',top:15,right:18},

@@ -1,5 +1,5 @@
 import React, { useCallback, useRef, useState } from 'react';
-import { ActivityIndicator, FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { khoBtpApi } from '../../services/khoBtpApi';
@@ -76,6 +76,7 @@ export default function KhoBTPLocationHistoryScreen({ route, navigation }) {
     return (
         <View style={[styles.container, { paddingBottom: insets.bottom }]}>
             <FlatList
+                style={styles.list}
                 data={items}
                 keyExtractor={(item) => String(item.ID_LichSu)}
                 contentContainerStyle={styles.content}
@@ -114,7 +115,8 @@ export default function KhoBTPLocationHistoryScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: '#F8FAFC' },
+    container: { flex: 1, minHeight: 0, backgroundColor: '#F8FAFC', ...Platform.select({ web: { height: '100vh', maxHeight: '100vh', overflow: 'hidden' } }) },
+    list: { flex: 1, minHeight: 0, ...Platform.select({ web: { overflowY: 'auto', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } }) },
     content: { padding: 16, flexGrow: 1 },
     heading: { marginBottom: 18 },
     title: { fontSize: 19, fontWeight: '700', color: '#1E293B' },

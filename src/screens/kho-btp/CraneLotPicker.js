@@ -80,7 +80,7 @@ const styles = StyleSheet.create({
     code: { color: COLORS.textPrimary, fontWeight: '700', marginTop: 7 }, info: { color: COLORS.textSecondary, marginTop: 6, fontSize: 12 },
     search: { marginTop: 14, borderWidth: 1, borderColor: COLORS.border, borderRadius: 10, paddingHorizontal: 12, height: 43, color: COLORS.textPrimary },
     tableHeader: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-    label: { fontWeight: '700', color: COLORS.textSecondary, fontSize: 12 }, list: { flex: 1 },
+    label: { fontWeight: '700', color: COLORS.textSecondary, fontSize: 12 }, list: { flex: 1, minHeight: 0, ...Platform.select({ web: { overflowY: 'auto', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } }) },
     row: { flexDirection: 'row', alignItems: 'center', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: COLORS.border, gap: 9 },
     mark: { flex: 1, color: COLORS.textPrimary, fontWeight: '600' }, qty: { color: COLORS.textPrimary, fontWeight: '700' }, disabled: { opacity: 0.45 },
     empty: { textAlign: 'center', padding: 18, color: COLORS.textSecondary },

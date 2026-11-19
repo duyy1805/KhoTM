@@ -236,6 +236,7 @@ const ScannedDetail = ({ route }) => {
                 </TouchableOpacity>
             )}
             <FlatList
+                style={styles.list}
                 data={data}
                 keyExtractor={(item, index) => index.toString()}
                 contentContainerStyle={styles.scrollContent}
@@ -363,8 +364,11 @@ const ScannedDetail = ({ route }) => {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
+        minHeight: 0,
         backgroundColor: COLORS.background,
+        ...Platform.select({ web: { height: '100vh', maxHeight: '100vh', overflow: 'hidden' } }),
     },
+    list: { flex: 1, minHeight: 0, ...Platform.select({ web: { overflowY: 'auto', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } }) },
     header: {
         flexDirection: 'row',
         alignItems: 'center',

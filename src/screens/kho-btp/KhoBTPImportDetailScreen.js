@@ -680,6 +680,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
             </View>
 
             <FlatList
+                style={styles.list}
                 data={packages}
                 {...keyboardAwareScrollProps()}
                 refreshControl={Platform.OS === 'web' ? undefined : (
@@ -849,7 +850,8 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.background },
+    container: { flex: 1, minHeight: 0, backgroundColor: COLORS.background, ...Platform.select({ web: { height: '100vh', maxHeight: '100vh', overflow: 'hidden' } }) },
+    list: { flex: 1, minHeight: 0, ...Platform.select({ web: { overflowY: 'auto', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } }) },
     header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingBottom: 16, backgroundColor: COLORS.primary, borderBottomLeftRadius: 24, borderBottomRightRadius: 24 },
     backBtn: { width: 40, padding: 8 },
     headerTitle: { maxWidth: '72%', color: COLORS.white, fontSize: 17, fontWeight: '800' },

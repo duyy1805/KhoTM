@@ -50,7 +50,7 @@ export default function WmsOutboundRequestListScreen({ navigation, route }) {
             <Text style={styles.headerTitle}>Yêu cầu xuất</Text>
             <TouchableOpacity style={styles.addHeader} onPress={create}><Ionicons name="add" size={26} color={COLORS.white} /></TouchableOpacity>
         </View>
-        <FlatList data={items} keyExtractor={item => String(item.id)} contentContainerStyle={styles.content}
+        <FlatList style={styles.list} data={items} keyExtractor={item => String(item.id)} contentContainerStyle={styles.content}
             refreshControl={Platform.OS === 'web' ? undefined : <RefreshControl refreshing={refreshing} onRefresh={refresh} colors={[COLORS.primary]} />}
             ListHeaderComponent={<View style={styles.search}><Ionicons name="search" size={19} color={COLORS.textSecondary} /><TextInput style={styles.searchInput} placeholder="Tìm mã yêu cầu..." value={search} onChangeText={setSearch} returnKeyType="search" onSubmitEditing={load} /><TouchableOpacity onPress={load}>{loading ? <ActivityIndicator size="small" color={COLORS.primary} /> : <Ionicons name="arrow-forward-circle" size={26} color={COLORS.primary} />}</TouchableOpacity></View>}
             renderItem={({ item }) => <RequestCard item={item} onPress={() => navigation.navigate('WmsOutboundRequestDetail', { id: item.id, kho })} />}
@@ -59,7 +59,8 @@ export default function WmsOutboundRequestListScreen({ navigation, route }) {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: COLORS.background }, header: { backgroundColor: COLORS.primary, paddingHorizontal: 17, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    container: { flex: 1, minHeight: 0, backgroundColor: COLORS.background, ...Platform.select({ web: { height: '100vh', maxHeight: '100vh', overflow: 'hidden' } }) }, header: { backgroundColor: COLORS.primary, paddingHorizontal: 17, paddingBottom: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    list: { flex: 1, minHeight: 0, ...Platform.select({ web: { overflowY: 'auto', touchAction: 'pan-y', WebkitOverflowScrolling: 'touch' } }) },
     headerTitle: { color: COLORS.white, fontSize: 19, fontWeight: '800' }, addHeader: { width: 34, alignItems: 'flex-end' }, content: { padding: 16, gap: 11, flexGrow: 1 },
     search: { backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, borderRadius: 12, flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, marginBottom: 5 }, searchInput: { flex: 1, height: 46, paddingHorizontal: 9, color: COLORS.textPrimary },
     card: { backgroundColor: COLORS.surface, borderRadius: 14, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 11, borderWidth: 1, borderColor: COLORS.border }, icon: { width: 44, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center' }, cardBody: { flex: 1, gap: 5 },
