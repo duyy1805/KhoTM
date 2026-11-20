@@ -86,6 +86,9 @@ export default function KhoBTPReportScreen({ navigation, route }) {
     }, [house]);
 
     const loadLocations = useCallback(async () => {
+        if (reportWarehouse.isCrane && craneTab !== 'inventory') {
+            return;
+        }
         if (!reportWarehouse.isCrane && !hasStockFilters && (!house || !aisle)) {
             setLocations([]);
             return;
@@ -108,7 +111,7 @@ export default function KhoBTPReportScreen({ navigation, route }) {
         }
         catch (error) { Toast.show({ type: 'error', text1: 'Không tải được vị trí', text2: getApiErrorMessage(error) }); }
         finally { setLoading(false); }
-    }, [aisle, appliedItemCode, appliedWeekMark, hasStockFilters, house, reportWarehouse.id, reportWarehouse.isCrane]);
+    }, [aisle, appliedItemCode, appliedWeekMark, craneTab, hasStockFilters, house, reportWarehouse.id, reportWarehouse.isCrane]);
     useFocusEffect(useCallback(() => { loadLocations(); }, [loadLocations]));
 
     const filtered = useMemo(() => { const q = locationSearch.trim().toLowerCase(); return !q ? locations : locations.filter((item) => [locationCode(item), readValue(item, ['TenViTriKho'], ''), readValue(item, ['TenNha'], ''), readValue(item, ['TenDay'], '')].join(' ').toLowerCase().includes(q)); }, [locationSearch, locations]);

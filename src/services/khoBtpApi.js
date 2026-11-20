@@ -120,7 +120,12 @@ export const khoBtpApi = {
     },
     async getCraneInventory({ aisle = '', itemCode = '', lot = '' } = {}) {
         const query = new URLSearchParams({ aisle: String(aisle || '').trim(), itemCode: String(itemCode || '').trim(), lot: String(lot || '').trim() });
-        const response = await apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: `/btp/cau-truc/reports/inventory?${query.toString()}` });
+        const response = await apiRequest({
+            method: 'GET',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/cau-truc/reports/inventory?${query.toString()}`,
+            timeout: 60000,
+        });
         return response?.items || [];
     },
     async getCraneInventoryLocation(qrCode) {
