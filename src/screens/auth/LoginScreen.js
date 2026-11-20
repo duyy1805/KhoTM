@@ -23,6 +23,7 @@ import { useNavigation } from '@react-navigation/native';
 import axios from 'axios';
 import { KHO_PL_BASE_URL } from '../../services/khoPhuLieuApi';
 import {
+    ANDROID_RELEASE_AXIOS_ADAPTER,
     API_ENVIRONMENTS,
     initializeApiEnvironment,
     setApiEnvironment,
@@ -53,6 +54,44 @@ const STORAGE_KEYS = {
     AUTH: 'authToken',
     USER: 'userInfor',
 };
+
+const LOGIN_TIMEOUT_MS = 20000;
+
+function getLoginErrorDetails(error) {
+    const status = error?.response?.status;
+    const serverMessage = error?.response?.data?.message
+        || error?.response?.data?.error
+        || (typeof error?.response?.data === 'string' ? error.response.data : '');
+
+    if (status) {
+        if ([400, 401, 403, 404].includes(status)) {
+            return {
+                title: 'Đăng nhập thất bại',
+                message: serverMessage || 'Tên đăng nhập hoặc mật khẩu không đúng.',
+            };
+        }
+
+        return {
+            title: `Máy chủ báo lỗi ${status}`,
+            message: serverMessage || 'Máy chủ không thể xử lý yêu cầu đăng nhập.',
+        };
+    }
+
+    if (error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT') {
+        return {
+            title: 'Kết nối quá thời gian',
+            message: 'Máy chủ không phản hồi trong 20 giây. Vui lòng kiểm tra mạng và thử lại.',
+        };
+    }
+
+    const nativeMessage = error?.cause?.message || error?.request?._response;
+    return {
+        title: 'Lỗi kết nối',
+        message: nativeMessage
+            ? `Không thể kết nối đến máy chủ (${nativeMessage}).`
+            : `Không thể kết nối đến máy chủ (${error?.code || 'ERR_NETWORK'}).`,
+    };
+}
 
 const LoginScreen = () => {
     const navigation = useNavigation();
@@ -156,6 +195,13 @@ const LoginScreen = () => {
             const response = await axios.post(`${KHO_PL_BASE_URL}/login`, {
                 userName: username,
                 passWord: password,
+            }, {
+                adapter: ANDROID_RELEASE_AXIOS_ADAPTER,
+                timeout: LOGIN_TIMEOUT_MS,
+                headers: {
+                    Accept: 'application/json',
+                    'Content-Type': 'application/json',
+                },
             });
 
             const accessToken = response?.data?.token || response?.data?.accessToken || response?.data?.access_token;
@@ -197,11 +243,19 @@ const LoginScreen = () => {
                 });
             }
         } catch (error) {
-            console.error(error);
+            const details = getLoginErrorDetails(error);
+            console.error('Login request failed:', {
+                message: error?.message,
+                code: error?.code,
+                status: error?.response?.status,
+                data: error?.response?.data,
+                nativeMessage: error?.cause?.message || error?.request?._response,
+                url: `${KHO_PL_BASE_URL}/login`,
+            });
             Toast.show({
                 type: 'error',
-                text1: 'Lỗi kết nối',
-                text2: 'Không thể kết nối đến máy chủ. Vui lòng thử lại.',
+                text1: details.title,
+                text2: details.message,
             });
         } finally {
             setLoading(false);

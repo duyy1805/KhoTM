@@ -355,10 +355,11 @@ export const khoBtpApi = {
     },
 
     async getExportPackageByQr({ qrCode, idPhieuXuat, idDonHangLoSanXuat }) {
+        const lotId = Number(idDonHangLoSanXuat) || 0;
         return apiRequest({
             method: 'GET',
             baseURL: KHO_TM_API_BASE_URL,
-            url: `/btp/phieuxuat/kien/${encode(qrCode)}/${positiveInt(idPhieuXuat, 'Phiếu xuất')}/${positiveInt(idDonHangLoSanXuat, 'Lô sản xuất')}`,
+            url: `/btp/phieuxuat/kien/${encode(qrCode)}/${positiveInt(idPhieuXuat, 'Phiếu xuất')}/${lotId}`,
         });
     },
 

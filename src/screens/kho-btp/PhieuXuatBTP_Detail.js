@@ -487,18 +487,11 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
             return;
         }
         try {
-            const suggestionResponse = await khoBtpApi.getSuggestedPackages({
+            const response = await khoBtpApi.getExportPackageByQr({
+                qrCode: data,
                 idPhieuXuat: id,
                 idDonHangLoSanXuat: readValue(activeLine, ['idDonHangLoSanXuat'], 0),
-                idDonHangSanPham: readValue(activeLine, ['idDonHangSanPham'], 0),
-                idDonHang: readValue(activeLine, ['idDonHang'], 0),
-                idQuyTrinhSanXuat: readValue(activeLine, ['idQuyTrinhSanXuat', 'ID_QuyTrinhSanXuat'], 0),
             });
-            const response = asList(suggestionResponse, ['items', 'kiens', 'rows'])
-                .find((item) => normalizeQr(getPackageQr(item)) === scannedQr);
-            if (!response) {
-                throw new Error('Không tìm thấy kiện còn tồn phù hợp với dòng phiếu');
-            }
             const verifiedDetails = asList(response, ['details', 'bTPs', 'kiens', 'items', 'rows']);
             if (!verifiedDetails.some((item) => stockQuantity(item) > 0)) {
                 throw new Error('Kiện đã hết tồn');
@@ -540,16 +533,11 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
         (async () => {
             try {
                 setLoading(true);
-                const suggestionResponse = await khoBtpApi.getSuggestedPackages({
+                const response = await khoBtpApi.getExportPackageByQr({
+                    qrCode: initialQr,
                     idPhieuXuat: id,
                     idDonHangLoSanXuat: readValue(activeLine, ['idDonHangLoSanXuat'], 0),
-                    idDonHangSanPham: readValue(activeLine, ['idDonHangSanPham'], 0),
-                    idDonHang: readValue(activeLine, ['idDonHang'], 0),
-                    idQuyTrinhSanXuat: readValue(activeLine, ['idQuyTrinhSanXuat', 'ID_QuyTrinhSanXuat'], 0),
                 });
-                const response = asList(suggestionResponse, ['items', 'kiens', 'rows'])
-                    .find((item) => normalizeQr(getPackageQr(item)) === normalizeQr(initialQr));
-                if (!response) throw new Error('Không tìm thấy kiện còn tồn phù hợp với dòng phiếu');
                 if (mounted) {
                     markPackageScanned(getPackageQr(response) || initialQr);
                     const rows = asList(response, ['details', 'bTPs', 'kiens', 'items', 'rows'])

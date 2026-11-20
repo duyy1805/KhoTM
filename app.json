@@ -30,6 +30,7 @@
       }
     },
     "plugins": [
+      "./plugins/with-network-security-config",
       "@react-native-community/datetimepicker",
       [
         "expo-splash-screen",

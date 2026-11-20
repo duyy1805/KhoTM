@@ -1,5 +1,17 @@
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
+
+// Axios prefers XMLHttpRequest in React Native. The XHR adapter can fail with a
+// generic ERR_NETWORK in an optimized Android build even though the same API
+// works in Expo Go. Use the fetch adapter only for Android release builds.
+export const ANDROID_RELEASE_AXIOS_ADAPTER = Platform.OS === 'android' && !__DEV__
+    ? 'fetch'
+    : undefined;
+
+if (ANDROID_RELEASE_AXIOS_ADAPTER) {
+    axios.defaults.adapter = ANDROID_RELEASE_AXIOS_ADAPTER;
+}
 
 // export const CORE_API_BASE_URL = 'http://125.212.207.52:5010';
 export const CORE_API_BASE_URL = 'https://apilayoutkho.z76.vn';
@@ -55,6 +67,7 @@ export async function setApiEnvironment(environment) {
 const api = axios.create({
     baseURL: CORE_API_BASE_URL,
     timeout: 20000,
+    adapter: ANDROID_RELEASE_AXIOS_ADAPTER,
 });
 
 function readAccessToken(auth) {
