@@ -363,6 +363,31 @@ export const khoBtpApi = {
         });
     },
 
+    async scanExportPackageByQr({
+        qrCode,
+        idPhieuXuat,
+        idDonHangLoSanXuat = 0,
+        idDonHangSanPham = 0,
+        idDonHang = 0,
+        idQuyTrinhSanXuat = 0,
+    }) {
+        const userId = await getCurrentUserId({ required: true });
+        return apiRequest({
+            method: 'PUT',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/phieuxuat/quet-kien',
+            data: {
+                IdPhieuXuat: positiveInt(idPhieuXuat, 'Phiếu xuất'),
+                QrCode: String(qrCode || '').trim(),
+                IdDonHangLoSanXuat: Number(idDonHangLoSanXuat) || 0,
+                IdDonHangSanPham: Number(idDonHangSanPham) || 0,
+                IdDonHang: Number(idDonHang) || 0,
+                IdQuyTrinhSanXuat: Number(idQuyTrinhSanXuat) || 0,
+                IdTaiKhoanDangNhap: userId,
+            },
+        });
+    },
+
     async getSuggestedPackages({
         idPhieuXuat,
         idDonHangLoSanXuat = 0,

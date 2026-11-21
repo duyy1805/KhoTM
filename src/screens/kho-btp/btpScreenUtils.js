@@ -140,8 +140,14 @@ export function getImportQuantityMismatches(materials, packages) {
     const totals = new Map();
     const addQuantity = (row, field) => {
         const itemCode = String(readValue(row, ['itemCode', 'ItemCode'], '')).trim();
-        const key = itemCode.toUpperCase();
-        const total = totals.get(key) || { itemCode, requested: 0, scanned: 0 };
+        const key = getImportPlanKey(row);
+        const total = totals.get(key) || {
+            itemCode,
+            idKeHoachSanXuat: asNumber(readValue(row, ['idKeHoachSanXuat', 'ID_KeHoachSanXuat'], 0)),
+            idDonHangLoSanXuat: asNumber(readValue(row, ['idDonHangLoSanXuat', 'ID_DonHang_LoSanXuat'], 0)),
+            requested: 0,
+            scanned: 0,
+        };
         total[field] += asNumber(readValue(row, field === 'requested'
             ? ['soLuong', 'SoLuong']
             : ['soLuongTon', 'SoLuong', 'soLuong'], 0));
@@ -152,6 +158,42 @@ export function getImportQuantityMismatches(materials, packages) {
     packages.filter(getPackageQr).forEach((item) => getPackageDetails(item).forEach((row) => addQuantity(row, 'scanned')));
 
     return [...totals.values()].filter(({ requested, scanned }) => requested !== scanned);
+}
+
+function getImportPlanKey(row) {
+    return [
+        String(readValue(row, ['itemCode', 'ItemCode'], '')).trim().toUpperCase(),
+        asNumber(readValue(row, ['idKeHoachSanXuat', 'ID_KeHoachSanXuat'], 0)),
+        asNumber(readValue(row, ['idDonHangSanPham', 'ID_DonHang_SanPham'], 0)),
+        asNumber(readValue(row, ['idDonHang', 'ID_DonHang'], 0)),
+        asNumber(readValue(row, ['idDonHangLoSanXuat', 'ID_DonHang_LoSanXuat'], 0)),
+    ].join('|');
+}
+
+export function getImportPlanQuantityRows(materials, packages) {
+    const rows = new Map();
+    const ensure = (row) => {
+        const key = getImportPlanKey(row);
+        if (!rows.has(key)) rows.set(key, {
+            key,
+            material: row,
+            itemCode: String(readValue(row, ['itemCode', 'ItemCode'], '')).trim(),
+            productName: String(readValue(row, ['tenSanPham', 'Ten_SanPham'], '')).trim(),
+            idKeHoachSanXuat: asNumber(readValue(row, ['idKeHoachSanXuat', 'ID_KeHoachSanXuat'], 0)),
+            idDonHangLoSanXuat: asNumber(readValue(row, ['idDonHangLoSanXuat', 'ID_DonHang_LoSanXuat'], 0)),
+            soLoSanXuat: String(readValue(row, ['soLoSanXuat', 'So_LoSanXuat', 'SoLoSanXuat'], '') || '').trim(),
+            requested: 0,
+            allocated: 0,
+        });
+        return rows.get(key);
+    };
+    (Array.isArray(materials) ? materials : []).forEach((material) => {
+        ensure(material).requested += asNumber(readValue(material, ['soLuong', 'SoLuong'], 0));
+    });
+    (Array.isArray(packages) ? packages : []).flatMap(getPackageDetails).forEach((detail) => {
+        ensure(detail).allocated += asNumber(readValue(detail, ['soLuongTon', 'SoLuong', 'soLuong'], 0));
+    });
+    return [...rows.values()].map((row) => ({ ...row, remaining: row.requested - row.allocated }));
 }
 
 export function getImportQuantitySummary(materials, packages) {
@@ -178,8 +220,8 @@ export function getImportQuantitySummary(materials, packages) {
 
 export function getImportMaterialRemaining(materials, packages, material, editedDetail = null) {
     if (!material) return 0;
-    const code = String(readValue(material, ['itemCode', 'ItemCode'], '')).trim().toUpperCase();
-    const matches = (row) => String(readValue(row, ['itemCode', 'ItemCode'], '')).trim().toUpperCase() === code;
+    const materialKey = getImportPlanKey(material);
+    const matches = (row) => getImportPlanKey(row) === materialKey;
     const requested = materials.filter(matches)
         .reduce((sum, row) => sum + asNumber(readValue(row, ['soLuong', 'SoLuong'], 0)), 0);
     const allocated = packages.flatMap(getPackageDetails).filter(matches)

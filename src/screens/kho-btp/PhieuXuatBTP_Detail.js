@@ -61,6 +61,22 @@ function matchesExportLine(item, line) {
         && matches(['idQuyTrinhSanXuat', 'ID_QuyTrinhSanXuat'], ['idQuyTrinhSanXuat', 'ID_QuyTrinhSanXuat']);
 }
 
+function sameExportLine(item, line) {
+    if (!item || !line) return false;
+    const itemOrderId = Number(readValue(item, ['idDonHang', 'ID_DonHang'], 0)) || 0;
+    const lineOrderId = Number(readValue(line, ['idDonHang', 'ID_DonHang'], 0)) || 0;
+    if (itemOrderId !== lineOrderId) return false;
+    const itemProductId = Number(readValue(item, ['idDonHangSanPham', 'ID_DonHang_SanPham'], 0)) || 0;
+    const lineProductId = Number(readValue(line, ['idDonHangSanPham', 'ID_DonHang_SanPham'], 0)) || 0;
+    if (itemProductId !== 0 && itemProductId !== lineProductId) return false;
+    const itemLotId = Number(readValue(item, ['idDonHangLoSanXuat', 'ID_DonHang_LoSanXuat'], 0)) || 0;
+    const lineLotId = Number(readValue(line, ['idDonHangLoSanXuat', 'ID_DonHang_LoSanXuat'], 0)) || 0;
+    if (itemLotId !== 0 && itemLotId !== lineLotId) return false;
+    const itemProcessId = Number(readValue(item, ['idQuyTrinhSanXuat', 'ID_QuyTrinhSanXuat'], 0)) || 0;
+    const lineProcessId = Number(readValue(line, ['idQuyTrinhSanXuat', 'ID_QuyTrinhSanXuat'], 0)) || 0;
+    return !lineProcessId || !itemProcessId || itemProcessId === lineProcessId;
+}
+
 function normalizeQr(value) {
     return String(value || '').trim().toUpperCase();
 }
@@ -72,8 +88,8 @@ function scannedPackageKey(lineKeyValue, qrCode) {
 function QuantityModal({ visible, item, max, onClose, onConfirm }) {
     const [value, setValue] = useState('');
     useEffect(() => {
-        if (visible) setValue(String(Math.max(0, max || 0)));
-    }, [visible, max]);
+        if (visible) setValue(String(Math.max(0, item?.quantity ?? max ?? 0)));
+    }, [visible, item?.quantity, max]);
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
             <View style={styles.overlay}>
@@ -85,7 +101,7 @@ function QuantityModal({ visible, item, max, onClose, onConfirm }) {
                     pointerEvents="box-none"
                 >
                 <View style={styles.dialog}>
-                    <Text style={styles.dialogTitle}>Nhập số lượng xuất</Text>
+                    <Text style={styles.dialogTitle}>Sửa số lượng xuất</Text>
                     <Text style={styles.dialogSub}>QR: {getPackageQr(item) || '-'}</Text>
                     <Text style={styles.dialogSub}>Dấu tuần: {readValue(item, ['weekMark', 'dauTuan', 'DauTuan'], null) || 'Chưa có dấu tuần'}</Text>
                     <TextInput style={styles.qtyInput} value={value} onChangeText={setValue} {...numericKeyboardProps()} autoFocus />
@@ -99,7 +115,7 @@ function QuantityModal({ visible, item, max, onClose, onConfirm }) {
                                 return;
                             }
                             onConfirm(quantity);
-                        }}><Text style={styles.primaryText}>Thêm kiện</Text></TouchableOpacity>
+                        }}><Text style={styles.primaryText}>Lưu thay đổi</Text></TouchableOpacity>
                     </View>
                 </View>
                 </KeyboardAvoidingView>
@@ -204,8 +220,10 @@ function SuggestionModal({ visible, packages, selectedDetailIds, scannedQrCodes,
     );
 }
 
-function LineCard({ item, selected, pendingQuantity, onPress }) {
+function LineCard({ item, selected, savedQuantity = 0, pendingQuantity = 0, onPress }) {
     const requested = asNumber(readValue(item, ['soLuongLenhXuat', 'SoLuong_XuatKho', 'soLuong'], 0));
+    const scannedQuantity = savedQuantity + pendingQuantity;
+    const remainingQuantity = Math.max(0, requested - scannedQuantity);
     return (
         <TouchableOpacity style={[styles.lineCard, selected && styles.lineSelected]} onPress={onPress}>
             <View style={[styles.lineIcon, selected && { backgroundColor: COLORS.primary }]}>
@@ -219,7 +237,8 @@ function LineCard({ item, selected, pendingQuantity, onPress }) {
             <View style={styles.lineQty}>
                 <Text style={styles.qtyLabel}>Yêu cầu</Text>
                 <Text style={styles.qtyValue}>{requested}</Text>
-                {!!pendingQuantity && <Text style={styles.pendingQty}>Chờ: {pendingQuantity}</Text>}
+                <Text style={styles.scannedQty}>Đã quét: {scannedQuantity}</Text>
+                <Text style={styles.remainingQty}>Còn: {remainingQuantity}</Text>
             </View>
         </TouchableOpacity>
     );
@@ -377,11 +396,16 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
     const pendingForActiveLine = useMemo(() => pendingPicks.filter((item) => item.lineKey === activeKey), [activeKey, pendingPicks]);
     const requestedForActive = asNumber(readValue(activeLine, ['soLuongLenhXuat', 'SoLuong_XuatKho', 'soLuong'], 0));
     const pendingActiveTotal = pendingForActiveLine.reduce((sum, item) => sum + item.quantity, 0);
-    const savedForLine = savedPackages.filter((item) => {
-        const productId = readValue(item, ['idDonHangSanPham', 'ID_DonHang_SanPham'], null);
-        return !productId || String(productId) === String(readValue(activeLine, ['idDonHangSanPham'], null));
-    }).reduce((sum, item) => sum + asNumber(readValue(item, ['soLuongXuatKho', 'SoLuongXuatKho', 'SoLuong_XuatKho'], 0)), 0);
+    const savedForLine = savedPackages
+        .filter((item) => sameExportLine(item, activeLine))
+        .reduce((sum, item) => sum + asNumber(readValue(item, ['soLuong', 'soLuongXuatKho', 'SoLuongXuatKho', 'SoLuong_XuatKho'], 0)), 0);
     const remainingForActive = Math.max(0, requestedForActive - savedForLine - pendingActiveTotal);
+    const totalSavedQuantity = savedPackages.reduce(
+        (sum, item) => sum + asNumber(readValue(item, ['soLuong', 'soLuongXuatKho', 'SoLuongXuatKho', 'SoLuong_XuatKho'], 0)),
+        0,
+    );
+    const totalPendingQuantity = pendingPicks.reduce((sum, item) => sum + asNumber(item.quantity), 0);
+    const totalScannedQuantity = totalSavedQuantity + totalPendingQuantity;
     const selectedSuggestionDetailIds = useMemo(
         () => new Set(pendingPicks.map((item) => String(packageDetailId(item.raw))).filter((value) => value && value !== 'null')),
         [pendingPicks],
@@ -444,16 +468,27 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
             Toast.show({ type: 'error', text1: remainingForActive <= 0 ? 'Dòng phiếu đã đủ số lượng' : 'Kiện đã hết tồn' });
             return false;
         }
-        setQuantityItem({
+        const pendingItem = {
             raw: item,
             qrCode: qr,
             stock,
             lineKey: activeKey,
             itemCode: readValue(item, ['itemCode', 'ItemCode'], readValue(activeLine, ['itemCode'], '')),
-            weekMark: readValue(item, ['weekMark', 'dauTuan', 'DauTuan'], null),
+            tenSanPham: readValue(
+                item,
+                ['tenSanPham', 'Ten_SanPham', 'TenSanPham', 'productName', 'ProductName'],
+                readValue(activeLine, ['tenSanPham', 'Ten_SanPham', 'TenSanPham', 'productName', 'ProductName'], '')
+            ),
+            weekMark: readValue(
+                item,
+                ['weekMark', 'dauTuan', 'DauTuan'],
+                readValue(raw, ['weekMark', 'dauTuan', 'DauTuan'], null)
+            ),
             weekMarkSource: readValue(item, ['weekMarkSource'], null),
-        });
-        setQuantityMax(max);
+            quantity: max,
+            line: activeLine,
+        };
+        setPendingPicks((current) => [...current, pendingItem]);
         return true;
     };
 
@@ -478,49 +513,21 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
         if (scanned) return;
         setScanned(true);
         const scannedQr = normalizeQr(data);
-        const isSuggestedQr = suggestionPackages.some((item) => normalizeQr(item.qrCode) === scannedQr);
-        if (scanOrigin === 'suggestions' && isSuggestedQr && activeScannedQrCodes.has(scannedQr)) {
-            setScanMode(false);
-            setSuggestionVisible(true);
-            setScanned(false);
-            Toast.show({ type: 'info', text1: 'Kiện này đã được quét' });
-            return;
-        }
         try {
             const response = await khoBtpApi.getExportPackageByQr({
                 qrCode: data,
                 idPhieuXuat: id,
                 idDonHangLoSanXuat: readValue(activeLine, ['idDonHangLoSanXuat'], 0),
             });
-            const verifiedDetails = asList(response, ['details', 'bTPs', 'kiens', 'items', 'rows']);
-            if (!verifiedDetails.some((item) => stockQuantity(item) > 0)) {
-                throw new Error('Kiện đã hết tồn');
-            }
-            const verifiedQr = normalizeQr(getPackageQr(response) || data);
-            const matchingDetails = verifiedDetails.filter((item) =>
-                stockQuantity(item) > 0 && matchesExportLine(item, activeLine));
-            markPackageScanned(verifiedQr);
-            setScanMode(false);
-            setScanned(false);
-            const matchedSuggestion = suggestionPackages.some((item) => normalizeQr(item.qrCode) === verifiedQr);
-            if (scanOrigin === 'suggestions' && matchedSuggestion) {
-                setSuggestionVisible(true);
-                Toast.show({ type: 'success', text1: 'Đã quét đúng kiện', text2: 'Bạn có thể chọn các dòng dấu tuần của kiện' });
-                return;
-            }
-            if (matchingDetails.length > 1) {
-                setSuggestionPackages([response]);
-                setSuggestionVisible(true);
+            if (addPackageCandidate(response)) {
+                markPackageScanned(scannedQr);
+                setScanMode(false);
+                setScanned(false);
+                setSuggestionVisible(false);
                 setReturnToSuggestions(false);
-                Toast.show({
-                    type: 'info',
-                    text1: `Kiện có ${matchingDetails.length} chi tiết`,
-                    text2: 'Chọn từng dòng dấu tuần cần xuất',
-                });
-                return;
+            } else {
+                setTimeout(() => setScanned(false), 800);
             }
-            setReturnToSuggestions(false);
-            addPackageCandidate(matchingDetails[0] || response);
         } catch (error) {
             Toast.show({ type: 'error', text1: 'QR không phù hợp', text2: getApiErrorMessage(error) });
             setTimeout(() => setScanned(false), 800);
@@ -538,16 +545,8 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                     idPhieuXuat: id,
                     idDonHangLoSanXuat: readValue(activeLine, ['idDonHangLoSanXuat'], 0),
                 });
-                if (mounted) {
-                    markPackageScanned(getPackageQr(response) || initialQr);
-                    const rows = asList(response, ['details', 'bTPs', 'kiens', 'items', 'rows'])
-                        .filter((item) => stockQuantity(item) > 0 && matchesExportLine(item, activeLine));
-                    if (rows.length > 1) {
-                        setSuggestionPackages([response]);
-                        setSuggestionVisible(true);
-                    } else {
-                        addPackageCandidate(rows[0] || response);
-                    }
+                if (mounted && addPackageCandidate(response)) {
+                    markPackageScanned(initialQr);
                 }
             } catch (error) {
                 if (mounted) Toast.show({ type: 'error', text1: 'Kiện quét trước không khớp phiếu', text2: getApiErrorMessage(error) });
@@ -640,10 +639,10 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
             if (picks.some((pick) => !pick.IdTheKhoKienBTPChiTiet)) throw new Error('Thiếu ID chi tiết kiện xuất');
             await khoBtpApi.confirmExport({ idPhieuXuat: id, picks });
             setPendingPicks([]);
-            Toast.show({ type: 'success', text1: 'Xác nhận phiếu xuất thành công' });
+            Toast.show({ type: 'success', text1: 'Đã lưu kiện vào phiếu xuất' });
             await fetchDetail();
         } catch (error) {
-            Toast.show({ type: 'error', text1: 'Xác nhận phiếu xuất thất bại', text2: getApiErrorMessage(error) });
+            Toast.show({ type: 'error', text1: 'Lưu kiện vào phiếu thất bại', text2: getApiErrorMessage(error) });
         } finally {
             setLoading(false);
         }
@@ -684,14 +683,24 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                 onRefresh={fetchDetail}
                 {...keyboardAwareScrollProps()}
                 keyExtractor={(item, index) => lineKey(item, index)}
-                renderItem={({ item, index }) => (
-                    <LineCard
-                        item={item}
-                        selected={index === activeLineIndex}
-                        pendingQuantity={pendingPicks.filter((pick) => pick.lineKey === lineKey(item, index)).reduce((sum, pick) => sum + pick.quantity, 0)}
-                        onPress={() => setActiveLineIndex(index)}
-                    />
-                )}
+                renderItem={({ item, index }) => {
+                    const currentLineKey = lineKey(item, index);
+                    const pendingQuantity = pendingPicks
+                        .filter((pick) => pick.lineKey === currentLineKey)
+                        .reduce((sum, pick) => sum + pick.quantity, 0);
+                    const savedQuantity = savedPackages
+                        .filter((savedItem) => sameExportLine(savedItem, item))
+                        .reduce((sum, savedItem) => sum + asNumber(readValue(savedItem, ['soLuong', 'soLuongXuatKho', 'SoLuongXuatKho', 'SoLuong_XuatKho'], 0)), 0);
+                    return (
+                        <LineCard
+                            item={item}
+                            selected={index === activeLineIndex}
+                            savedQuantity={savedQuantity}
+                            pendingQuantity={pendingQuantity}
+                            onPress={() => setActiveLineIndex(index)}
+                        />
+                    );
+                }}
                 contentContainerStyle={styles.content}
                 ListHeaderComponent={
                     <View>
@@ -749,6 +758,7 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                             ))}
                             <View style={styles.summaryStats}>
                                 <Text style={styles.stat}>Dòng BTP: {lines.length}</Text>
+                                {!kho?.isCrane && <Text style={styles.stat}>Đã quét: {totalScannedQuantity}</Text>}
                                 <Text style={styles.stat}>Đã lưu: {savedPackages.length}</Text>
                                 {!kho?.isCrane && <Text style={styles.stat}>Chờ lưu: {pendingPicks.length}</Text>}
                             </View>
@@ -811,15 +821,15 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
             />
             {!isConfirmed && !kho?.isCrane && <View style={styles.footer}>
                 <TouchableOpacity style={[styles.saveBtn, (!pendingPicks.length || isConfirmed) && styles.disabled]} disabled={!pendingPicks.length || isConfirmed || loading} onPress={savePicks}>
-                    {loading ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="save-outline" size={20} color={COLORS.white} /><Text style={styles.saveText}>Lưu phiếu ({pendingPicks.length})</Text></>}
+                    {loading ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="save-outline" size={20} color={COLORS.white} /><Text style={styles.saveText}>Lưu kiện ({pendingPicks.length})</Text></>}
                 </TouchableOpacity>
             </View>}
             <Modal visible={saveConfirmVisible} transparent animationType="fade" onRequestClose={() => setSaveConfirmVisible(false)}>
                 <View style={styles.overlay}>
                     <Pressable style={StyleSheet.absoluteFill} onPress={() => setSaveConfirmVisible(false)} />
                     <View style={styles.dialog}>
-                        <Text style={styles.dialogTitle}>Xác nhận phiếu xuất</Text>
-                        <Text style={styles.dialogSub}>Lưu {pendingPicks.length} kiện và chuyển phiếu sang trạng thái phê duyệt?</Text>
+                        <Text style={styles.dialogTitle}>Lưu kiện vào phiếu xuất</Text>
+                        <Text style={styles.dialogSub}>Lưu {pendingPicks.length} kiện đang chờ vào phiếu xuất?</Text>
                         <View style={styles.dialogActions}>
                             <TouchableOpacity style={styles.secondaryBtn} onPress={() => setSaveConfirmVisible(false)}><Text style={styles.secondaryText}>Hủy</Text></TouchableOpacity>
                             <TouchableOpacity style={styles.primaryBtn} onPress={confirmSavePicks}><Text style={styles.primaryText}>Xác nhận</Text></TouchableOpacity>
@@ -930,8 +940,6 @@ export default function PhieuXuatBTP_Detail({ navigation, route }) {
                 onConfirm={(quantity) => {
                     if (Number.isInteger(quantityItem?.editIndex)) {
                         setPendingPicks((current) => current.map((pick, index) => index === quantityItem.editIndex ? { ...pick, quantity } : pick));
-                    } else {
-                        setPendingPicks((current) => [...current, { ...quantityItem, quantity, line: activeLine }]);
                     }
                     closeQuantityModal();
                 }}
@@ -993,7 +1001,8 @@ const styles = StyleSheet.create({
     lineQty: { alignItems: 'center', minWidth: 64, backgroundColor: COLORS.background, borderRadius: 11, padding: 7 },
     qtyLabel: { fontSize: 9, color: COLORS.textSecondary, textTransform: 'uppercase' },
     qtyValue: { fontSize: 17, fontWeight: '800', color: COLORS.primary, marginTop: 2 },
-    pendingQty: { fontSize: 9, color: COLORS.warning, fontWeight: '800', marginTop: 2 },
+    scannedQty: { fontSize: 9, color: COLORS.success, fontWeight: '800', marginTop: 3 },
+    remainingQty: { fontSize: 9, color: COLORS.warning, fontWeight: '800', marginTop: 2 },
     actions: { flexDirection: 'row', gap: 10, marginTop: 16 },
     actionBtn: { flex: 1, height: 49, borderRadius: 15, backgroundColor: COLORS.primary, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 },
     actionText: { color: COLORS.white, fontWeight: '800', fontSize: 13 },

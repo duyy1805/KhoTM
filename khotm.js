@@ -1474,6 +1474,158 @@ router.get('/btp/phieuxuat/kien/:qrcode/:idPhieuXuat/:idDonHangLoSanXuat', async
     }
 });
 
+router.put('/btp/phieuxuat/quet-kien', async (req, res) => {
+    const idPhieuXuat = toIntOrNull(req.body?.IdPhieuXuat);
+    const qrCode = String(req.body?.QrCode || '').trim();
+    const idDonHangLoSanXuat = toIntOrNull(req.body?.IdDonHangLoSanXuat) || 0;
+    const idDonHangSanPham = toIntOrNull(req.body?.IdDonHangSanPham) || 0;
+    const idDonHang = toIntOrNull(req.body?.IdDonHang) || 0;
+    const idQuyTrinhSanXuat = toIntOrNull(req.body?.IdQuyTrinhSanXuat) || 0;
+    if (!idPhieuXuat || !qrCode) return res.status(400).json({ message: 'Thiếu phiếu xuất hoặc QR kiện' });
+
+    const sameSelectedLine = (row) => {
+        if ((toIntOrNull(row?.ID_DonHang) || 0) !== idDonHang) return false;
+        if ((toIntOrNull(row?.ID_DonHang_SanPham) || 0) !== idDonHangSanPham) return false;
+        if ((toIntOrNull(row?.ID_DonHang_LoSanXuat) || 0) !== idDonHangLoSanXuat) return false;
+        const rowProcessId = toIntOrNull(row?.ID_QuyTrinhSanXuat) || 0;
+        return !idQuyTrinhSanXuat || !rowProcessId || rowProcessId === idQuyTrinhSanXuat;
+    };
+
+    const matchesStoredPackageLine = (row) => {
+        if ((toIntOrNull(row?.ID_DonHang) || 0) !== idDonHang) return false;
+        const rowProductId = toIntOrNull(row?.ID_DonHang_SanPham) || 0;
+        const rowLotId = toIntOrNull(row?.ID_DonHang_LoSanXuat) || 0;
+        return (
+            (rowProductId === idDonHangSanPham && rowLotId === idDonHangLoSanXuat)
+            || rowLotId === 0
+            || rowProductId === 0
+        );
+    };
+
+    let transaction;
+    try {
+        const pool = await tagpoolPromise;
+        transaction = new sql.Transaction(pool);
+        await transaction.begin(sql.ISOLATION_LEVEL.SERIALIZABLE);
+
+        const exportResult = await new sql.Request(transaction)
+            .input('ID_PhieuXuatBTP', sql.Int, idPhieuXuat)
+            .execute('App_BTP_PhieuXuat_ThongTinChiTiet');
+        const header = exportResult.recordsets?.[0]?.[0];
+        if (!header) {
+            await transaction.rollback();
+            transaction = null;
+            return res.status(404).json({ message: 'Không tìm thấy phiếu xuất BTP' });
+        }
+        if (header.QrStatus) {
+            await transaction.rollback();
+            transaction = null;
+            return res.status(409).json({ message: 'Phiếu xuất BTP đã xác nhận' });
+        }
+
+        const exportLines = (exportResult.recordsets?.[1] || []).filter(sameSelectedLine);
+        if (!exportLines.length) {
+            await transaction.rollback();
+            transaction = null;
+            return res.status(400).json({ message: 'Không tìm thấy dòng phiếu phù hợp với kiện quét' });
+        }
+        const requestedQuantity = exportLines.reduce((sum, row) => sum + toNumber(row.SoLuong_XuatKho), 0);
+        const savedQuantity = (exportResult.recordsets?.[2] || [])
+            .filter(matchesStoredPackageLine)
+            .reduce((sum, row) => sum + toNumber(row.SoLuong_XuatKho), 0);
+        let remainingQuantity = Math.max(0, requestedQuantity - savedQuantity);
+        if (remainingQuantity <= 0) {
+            await transaction.rollback();
+            transaction = null;
+            return res.status(409).json({ message: 'Dòng phiếu đã đủ số lượng' });
+        }
+
+        const packageResult = await new sql.Request(transaction)
+            .input('QRCode', sql.NVarChar(100), qrCode)
+            .input('StartDate', sql.Date, null)
+            .input('EndDate', sql.Date, null)
+            .execute('sp_KhoTM_PXK_FindByQRCode');
+        const packageHeader = packageResult.recordsets?.[0]?.[0];
+        if (!packageHeader) {
+            await transaction.rollback();
+            transaction = null;
+            return res.status(404).json({ message: 'Không tìm thấy thông tin kiện theo QR' });
+        }
+
+        const packageDetails = (packageResult.recordsets?.[1] || [])
+            .filter((row) => {
+                if (!matchesStoredPackageLine(row)) return false;
+                const rowProcessId = toIntOrNull(row?.ID_QuyTrinhSanXuat) || 0;
+                if (idQuyTrinhSanXuat && rowProcessId && rowProcessId !== idQuyTrinhSanXuat) return false;
+                return toNumber(row.ConLai ?? row.SoLuongTon) > 0;
+            });
+        if (!packageDetails.length) {
+            await transaction.rollback();
+            transaction = null;
+            return res.status(400).json({ message: 'Kiện không khớp đơn hàng, sản phẩm, lô sản xuất của dòng phiếu hoặc đã hết tồn' });
+        }
+
+        const allocations = [];
+        for (const row of packageDetails) {
+            if (remainingQuantity <= 0) break;
+            const available = Math.max(0, toNumber(row.ConLai ?? row.SoLuongTon));
+            const quantity = Math.min(available, remainingQuantity);
+            if (quantity <= 0) continue;
+            allocations.push({
+                idTheKhoKienBTPChiTiet: toIntOrNull(row.ID_TheKhoKienBTP_ChiTiet),
+                idDonHangLoSanXuat: toIntOrNull(row.ID_DonHang_LoSanXuat) || 0,
+                idDonHangSanPham: toIntOrNull(row.ID_DonHang_SanPham) || 0,
+                idDonHang: toIntOrNull(row.ID_DonHang) || 0,
+                quantity,
+            });
+            remainingQuantity -= quantity;
+        }
+        if (!allocations.length || allocations.some((row) => !row.idTheKhoKienBTPChiTiet)) {
+            await transaction.rollback();
+            transaction = null;
+            return res.status(400).json({ message: 'Không có số lượng kiện phù hợp để xuất' });
+        }
+
+        const table = new sql.Table('dbo.ChiTietKienBTPsType');
+        table.columns.add('ID_TheKhoKienBTP_ChiTiet', sql.Int);
+        table.columns.add('ID_DonHang_LoSanXuat', sql.Int);
+        table.columns.add('ID_DonHang_SanPham', sql.Int);
+        table.columns.add('ID_DonHang', sql.Int);
+        table.columns.add('SoLuong_XuatKho', sql.Decimal(18, 2));
+        allocations.forEach((row) => table.rows.add(
+            row.idTheKhoKienBTPChiTiet,
+            row.idDonHangLoSanXuat,
+            row.idDonHangSanPham,
+            row.idDonHang,
+            row.quantity,
+        ));
+
+        const updateResult = await new sql.Request(transaction)
+            .input('ChiTietKienBTPsTable', table)
+            .input('ID_PhieuXuatBTP', sql.Int, idPhieuXuat)
+            .output('InsertResult', sql.NVarChar(50))
+            .execute('App_Update_PhieuXuatBTP_ChiTiet_By_PhieuXuatBTP_ChiTiet_TheKhoKien');
+        const status = updateResult.output?.InsertResult;
+        if (status !== 'success') throw new Error(status || 'Thêm kiện vào phiếu xuất thất bại');
+
+        await transaction.commit();
+        transaction = null;
+        const addedQuantity = allocations.reduce((sum, row) => sum + row.quantity, 0);
+        return res.json({
+            ok: true,
+            qrCode: packageHeader.QRCode ?? packageHeader.QrCode ?? qrCode,
+            addedQuantity,
+            remainingQuantity: Math.max(0, requestedQuantity - savedQuantity - addedQuantity),
+            allocations,
+        });
+    } catch (error) {
+        if (transaction) {
+            try { await transaction.rollback(); } catch (_) {}
+        }
+        return res.status(400).json({ message: error.message });
+    }
+});
+
 router.put('/btp/phieuxuat/xac-nhan', async (req, res) => {
     try {
         const idPhieuXuat = toIntOrNull(req.body?.IdPhieuXuat);
