@@ -37,6 +37,7 @@ import {
     getImportQuantityMismatches,
     getImportQuantitySummary,
     getImportMaterialRemaining,
+    getImportPlanQuantityRows,
     getLocationCode,
     getLocationId,
     getPackageLocationCode,
@@ -144,7 +145,7 @@ function BtpDetailModal({ visible, material, detail, max, plannedQuantity, requi
                                 <Text style={styles.quantityReferenceValue}>{asNumber(plannedQuantity).toLocaleString('vi-VN')}</Text>
                             </View>
                             <TextInput style={styles.dialogInput} value={quantity} onChangeText={setQuantity} {...numericKeyboardProps()} autoFocus />
-                            {max != null && <Text style={styles.hint}>Còn có thể phân bổ theo mã hàng: {asNumber(max).toLocaleString('vi-VN')}</Text>}
+                            {max != null && <Text style={styles.hint}>Còn có thể phân bổ theo kế hoạch này: {asNumber(max).toLocaleString('vi-VN')}</Text>}
                             <Text style={[styles.dialogLabel, { marginTop: 14 }]}>Dấu tuần</Text>
                             <TextInput
                                 style={styles.dialogInput}
@@ -168,7 +169,8 @@ function BtpDetailModal({ visible, material, detail, max, plannedQuantity, requi
     );
 }
 
-function MaterialModal({ visible, materials, onClose, onSelect }) {
+function MaterialModal({ visible, materials, packages, onClose, onSelect }) {
+    const planRows = useMemo(() => getImportPlanQuantityRows(materials, packages), [materials, packages]);
     return (
         <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
             <View style={styles.overlay}>
@@ -179,18 +181,19 @@ function MaterialModal({ visible, materials, onClose, onSelect }) {
                     <Text style={styles.dialogTitle}>Chọn BTP cho kiện</Text>
                     <Text style={styles.hint}>Có thể thêm nhiều dòng BTP vào cùng một kiện</Text>
                     <FlatList
-                        data={materials}
+                        data={planRows}
                         {...keyboardAwareScrollProps()}
-                        keyExtractor={(item, index) => `${readValue(item, ['itemCode', 'ItemCode'], '')}-${index}`}
+                        keyExtractor={(item) => item.key}
                         renderItem={({ item }) => (
-                            <TouchableOpacity style={styles.materialCard} onPress={() => onSelect(item)}>
+                            <TouchableOpacity style={styles.materialCard} onPress={() => onSelect(item.material)} disabled={item.remaining <= 0}>
                                 <View style={styles.materialIcon}><Ionicons name="cube-outline" size={20} color={COLORS.primary} /></View>
                                 <View style={{ flex: 1 }}>
-                                    <Text style={styles.materialCode}>{readValue(item, ['itemCode', 'ItemCode'], '-')}</Text>
-                                    <Text style={styles.materialName}>{readValue(item, ['tenSanPham', 'Ten_SanPham'], '-')}</Text>
-                                    <Text style={styles.hint}>Đơn hàng: {readValue(item, ['maDonHang', 'Ma_DonHang'], '-')}</Text>
+                                    <Text style={styles.materialCode}>{item.itemCode || '-'}</Text>
+                                    <Text style={styles.materialName}>{item.productName || '-'}</Text>
+                                    <Text style={styles.materialPlan}>Kế hoạch: {item.idKeHoachSanXuat || '-'} • Lô SX: {item.soLoSanXuat || item.idDonHangLoSanXuat || '-'}</Text>
+                                    <Text style={styles.materialProgress}>Yêu cầu {formatQuantity(item.requested)} • Đã lấy {formatQuantity(item.allocated)} • Còn {formatQuantity(item.remaining)}</Text>
                                 </View>
-                                <Text style={styles.materialQty}>{readValue(item, ['soLuong', 'SoLuong'], 0)}</Text>
+                                <Text style={[styles.materialQty, item.remaining <= 0 && styles.materialQtyDone]}>{formatQuantity(item.remaining)}</Text>
                             </TouchableOpacity>
                         )}
                         ListEmptyComponent={<Text style={styles.emptyText}>Phiếu chưa có BTP</Text>}
@@ -227,6 +230,7 @@ function PackageCard({ item, selected, locked, isCrane, onSelect, onAddMaterial,
                 <View key={String(readValue(detail, ['idTheKhoKienBTPChiTiet', 'ID_TheKhoKienBTP_ChiTiet'], index))} style={styles.detailLine}>
                     <View style={{ flex: 1 }}>
                         <Text style={styles.detailCode}>{readValue(detail, ['itemCode', 'ItemCode'], '-')} • {readValue(detail, ['tenSanPham', 'Ten_SanPham', 'TenSanPham', 'productName', 'ProductName'], 'Chưa có tên sản phẩm')} • SL {readValue(detail, ['soLuongTon', 'SoLuong', 'soLuong'], 0)}</Text>
+                        <Text style={styles.packageSub}>Kế hoạch: {readValue(detail, ['idKeHoachSanXuat', 'ID_KeHoachSanXuat'], '-')} • Lô SX: {readValue(detail, ['soLoSanXuat', 'So_LoSanXuat', 'SoLoSanXuat', 'idDonHangLoSanXuat', 'ID_DonHang_LoSanXuat'], '-')}</Text>
                         <Text style={styles.packageSub}>Dấu tuần: {readValue(detail, ['dauTuan', 'DauTuan'], '-')}</Text>
                     </View>
                     {!locked && <>
@@ -803,6 +807,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
             <MaterialModal
                 visible={materialVisible}
                 materials={materials}
+                packages={packages}
                 onClose={() => setMaterialVisible(false)}
                 onSelect={(material) => {
                     setWorkingMaterial(material);
@@ -920,7 +925,10 @@ const styles = StyleSheet.create({
     materialIcon: { width: 40, height: 40, borderRadius: 12, backgroundColor: COLORS.primaryLight, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
     materialCode: { fontSize: 14, fontWeight: '800', color: COLORS.textPrimary },
     materialName: { fontSize: 11, color: COLORS.textSecondary, marginTop: 2 },
+    materialPlan: { fontSize: 12, color: COLORS.textPrimary, fontWeight: '700', marginTop: 5 },
+    materialProgress: { fontSize: 11, color: COLORS.textSecondary, marginTop: 3 },
     materialQty: { fontSize: 16, fontWeight: '800', color: COLORS.primary, marginLeft: 8 },
+    materialQtyDone: { color: COLORS.textSecondary },
     emptyText: { textAlign: 'center', color: COLORS.textSecondary, marginTop: 45 },
     scanner: { flex: 1, backgroundColor: '#000', alignItems: 'center', justifyContent: 'center' },
     scanClose: { position: 'absolute', left: 18, zIndex: 3, padding: 10, borderRadius: 22, backgroundColor: 'rgba(0,0,0,0.45)' },
