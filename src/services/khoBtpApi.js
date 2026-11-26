@@ -23,6 +23,48 @@ function encode(value) {
 }
 
 export const khoBtpApi = {
+    async getTransferWarehouses() {
+        try {
+            const response = await apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+                url: '/btp/xuat-chuyen-kho/khos' });
+            return response?.items || [];
+        } catch (error) {
+            if (error?.response?.status !== 404) throw error;
+            const response = await apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+                url: '/btp/phieunhap/khos' });
+            return Array.isArray(response) ? response : [];
+        }
+    },
+    async getTransferPackageByQr({ qrCode, idKhoXuat }) {
+        const response = await apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/xuat-chuyen-kho/kien/${encode(qrCode)}?idKhoXuat=${positiveInt(idKhoXuat, 'Kho xuất')}` });
+        return response?.item;
+    },
+    async validateTransferPackages({ idKhoXuat, packageIds }) {
+        return apiRequest({ method: 'POST', baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/xuat-chuyen-kho/kiem-tra', data: {
+                idKhoXuat: positiveInt(idKhoXuat, 'Kho xuất'),
+                idTheKhoKienBTPs: cleanIdList(packageIds),
+            } });
+    },
+    async createTransferExport({ draftUuid, idKhoXuat, idKhoNhap, ghiChu = '', packageIds }) {
+        const userId = await getCurrentUserId({ required: true });
+        return apiRequest({ method: 'POST', baseURL: KHO_TM_API_BASE_URL, timeout: 60000,
+            url: '/btp/xuat-chuyen-kho/tao-phieu', data: {
+                draftUuid: String(draftUuid || '').trim(),
+                idKhoXuat: positiveInt(idKhoXuat, 'Kho xuất'),
+                idKhoNhap: positiveInt(idKhoNhap, 'Kho nhập'),
+                ghiChu: String(ghiChu || '').trim(),
+                idTheKhoKienBTPs: cleanIdList(packageIds),
+                idTaiKhoan: userId,
+            } });
+    },
+    async searchTransferExports({ search = '', idKhoXuat, idKhoNhap, fromDate, toDate, pageIndex = 0, pageSize = 20 } = {}) {
+        return apiRequest({ method: 'POST', baseURL: KHO_TM_API_BASE_URL,
+            url: '/btp/xuat-chuyen-kho/phieu/tim-kiem', data: {
+                search: String(search || '').trim(), idKhoXuat, idKhoNhap, fromDate, toDate, pageIndex, pageSize,
+            } });
+    },
     async listWmsOutboundRequests({ search = '', page = 0, pageSize = 20 } = {}) {
         const query = new URLSearchParams({ search: String(search || '').trim(), page: String(page), pageSize: String(pageSize) });
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL,

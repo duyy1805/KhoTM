@@ -285,7 +285,7 @@ const WarehouseDetailScreen = ({ route }) => {
                             <Ionicons name="arrow-back" size={24} color={COLORS.white} />
                         </TouchableOpacity>
                         <Text style={styles.headerTitle}>{kho.title}</Text>
-                        <View style={{ width: 24 }} />
+                        <View style={styles.headerSide} />
                     </View>
 
                     <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -327,6 +327,12 @@ const WarehouseDetailScreen = ({ route }) => {
                                 iconName="upload"
                                 onPress={handleExportPress}
                             />
+                            {(kho.id === 5 || kho.isCrane) && <OptionItem
+                                title="Xuất chuyển kho"
+                                description="Quét kiện và tạo phiếu xuất chuyển kho ERP"
+                                iconName="truck-fast-outline"
+                                onPress={() => navigation.navigate('BtpWarehouseTransferList', { kho })}
+                            />}
                             {kho.isCrane && <OptionItem
                                 title="Yêu cầu xuất"
                                 description="Tạo yêu cầu và gửi trực tiếp sang WMS"
@@ -401,12 +407,21 @@ const styles = StyleSheet.create({
         borderBottomRightRadius: 24,
     },
     backButton: {
-        padding: 8,
+        width: 44,
+        height: 44,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    headerSide: {
+        width: 44,
+        height: 44,
     },
     headerTitle: {
+        flex: 1,
         fontSize: 18,
         fontWeight: '700',
         color: COLORS.white,
+        textAlign: 'center',
     },
     scrollContent: {
         padding: 24,

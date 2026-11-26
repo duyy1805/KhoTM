@@ -40,6 +40,8 @@ import KhoBTPReportLocationScreen from "./src/screens/kho-btp/KhoBTPReportLocati
 import KhoBTPReportPackagesScreen from "./src/screens/kho-btp/KhoBTPReportPackagesScreen";
 import WmsOutboundRequestListScreen from "./src/screens/kho-btp/WmsOutboundRequestListScreen";
 import WmsOutboundRequestDetailScreen from "./src/screens/kho-btp/WmsOutboundRequestDetailScreen";
+import BtpWarehouseTransferListScreen from "./src/screens/kho-btp/BtpWarehouseTransferListScreen";
+import BtpWarehouseTransferDetailScreen from "./src/screens/kho-btp/BtpWarehouseTransferDetailScreen";
 
 import KhoBTPLocationHistoryScreen from "./src/screens/kho-btp/KhoBTPLocationHistoryScreen";
 import KhoBTPLocationHistoryDetailScreen from "./src/screens/kho-btp/KhoBTPLocationHistoryDetailScreen";
@@ -96,6 +98,8 @@ export default function App() {
           />
           <Stack.Screen name="WmsOutboundRequestList" component={WmsOutboundRequestListScreen} options={{ headerShown: false, title: "Yêu cầu xuất" }} />
           <Stack.Screen name="WmsOutboundRequestDetail" component={WmsOutboundRequestDetailScreen} options={{ headerShown: false, title: "Chi tiết yêu cầu xuất" }} />
+          <Stack.Screen name="BtpWarehouseTransferList" component={BtpWarehouseTransferListScreen} options={{ headerShown: false, title: "Xuất chuyển kho" }} />
+          <Stack.Screen name="BtpWarehouseTransferDetail" component={BtpWarehouseTransferDetailScreen} options={{ headerShown: false, title: "Chi tiết xuất chuyển kho" }} />
           <Stack.Screen
             name="KhoBTPImportList"
             component={KhoBTPImportListScreen}
