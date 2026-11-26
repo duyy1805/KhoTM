@@ -33,6 +33,7 @@ import {
     asNumber,
     BTP_COLORS as COLORS,
     buildImportConfirmPackage,
+    canSaveCraneImportActualQuantities,
     getBtpMaterialPayload,
     getImportQuantityMismatches,
     getImportQuantitySummary,
@@ -355,6 +356,8 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
     const allReady = packages.length > 0 && packages.every((item) => isImportPackageReady(item, Boolean(kho?.isCrane)));
     const quantityMismatches = useMemo(() => getImportQuantityMismatches(materials, packages), [materials, packages]);
     const canConfirm = allReady && materials.length > 0 && quantityMismatches.length === 0;
+    const canSaveActualQuantity = Boolean(kho?.isCrane)
+        && canSaveCraneImportActualQuantities(materials, packages);
     const retryableWmsPackages = packages.filter((item) =>
         ['PENDING', 'FAILED'].includes(readValue(item?.wmsInbound, ['DispatchStatus'], '')),
     );
@@ -674,6 +677,38 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
         });
     };
 
+    const saveActualQuantities = () => {
+        if (!canSaveActualQuantity) {
+            Toast.show({
+                type: 'error',
+                text1: 'Chưa thể lưu số lượng thực tế',
+                text2: 'Tất cả kiện phải đủ thông tin và đã được WMS cập nhật vị trí',
+            });
+            return;
+        }
+        const actualTotal = summaryProducts.reduce((sum, item) => sum + asNumber(item.allocated), 0);
+        confirmAction(
+            'Lưu số lượng thực tế',
+            `Cập nhật số lượng phiếu nhập thành tổng số lượng các kiện (${formatQuantity(actualTotal)}) và hoàn tất phiếu ERP?`,
+            async () => {
+                try {
+                    setLoading(true);
+                    const result = await khoBtpApi.saveCraneImportActualQuantities(id);
+                    const finalized = Boolean(result?.finalize?.finalized);
+                    Toast.show({
+                        type: finalized ? 'success' : 'info',
+                        text1: finalized ? 'Đã lưu và hoàn tất phiếu ERP' : 'Đã lưu số lượng thực tế',
+                    });
+                    await fetchDetail();
+                } catch (error) {
+                    Toast.show({ type: 'error', text1: 'Lưu số lượng thất bại', text2: getApiErrorMessage(error) });
+                } finally {
+                    setLoading(false);
+                }
+            },
+        );
+    };
+
     return (
         <View style={[styles.container, { paddingBottom: insets.bottom }]}>
             <StatusBar barStyle="light-content" backgroundColor={COLORS.primary} />
@@ -763,7 +798,7 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
                                 </Text>
                             ))}
                             {kho?.isCrane && !isConfirmed && <Text style={styles.summarySub}>
-                                Phiếu sẽ tự lưu khi đủ số lượng và tất cả kiện có vị trí WMS.
+                                Phiếu sẽ tự lưu khi đủ số lượng và tất cả kiện có vị trí WMS. Nếu số lượng kiện ít hơn phiếu, có thể lưu số lượng thực tế sau khi WMS cập nhật đủ vị trí.
                             </Text>}
                             {finalizeFailed && <Text style={[styles.summarySub, { color: COLORS.danger }]}>
                                 Đủ điều kiện nhưng chưa lưu ERP: {readValue(detail, ['wmsFinalizeError'], 'Vui lòng xác nhận lại')}
@@ -795,10 +830,19 @@ export default function KhoBTPImportDetailScreen({ navigation, route }) {
             />
 
             <View style={styles.footer}>
-                <TouchableOpacity style={[styles.confirmBtn, ((!canConfirm || isConfirmed) || (kho?.isCrane && !finalizeFailed)) && styles.disabled]}
-                    onPress={confirmImport} disabled={!canConfirm || isConfirmed || loading || (Boolean(kho?.isCrane) && !finalizeFailed)}>
+                <TouchableOpacity style={[styles.confirmBtn, (
+                    isConfirmed || (kho?.isCrane
+                        ? (!canSaveActualQuantity && !finalizeFailed)
+                        : !canConfirm)
+                ) && styles.disabled]}
+                    onPress={canSaveActualQuantity ? saveActualQuantities : confirmImport}
+                    disabled={isConfirmed || loading || (Boolean(kho?.isCrane)
+                        ? (!canSaveActualQuantity && !finalizeFailed)
+                        : !canConfirm)}>
                     {loading ? <ActivityIndicator color={COLORS.white} /> : <><Ionicons name="save-outline" size={20} color={COLORS.white} /><Text style={styles.confirmText}>
-                        {kho?.isCrane ? (finalizeFailed ? 'Xác nhận lại phiếu' : 'Chờ WMS hoàn tất vị trí') : 'Lưu / Xác nhận phiếu'}
+                        {kho?.isCrane
+                            ? (canSaveActualQuantity ? 'Lưu số lượng thực tế' : (finalizeFailed ? 'Xác nhận lại phiếu' : 'Chờ WMS hoàn tất vị trí'))
+                            : 'Lưu / Xác nhận phiếu'}
                     </Text></>}
                 </TouchableOpacity>
             </View>

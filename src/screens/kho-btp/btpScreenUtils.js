@@ -160,6 +160,22 @@ export function getImportQuantityMismatches(materials, packages) {
     return [...totals.values()].filter(({ requested, scanned }) => requested !== scanned);
 }
 
+export function canSaveCraneImportActualQuantities(materials, packages) {
+    const rows = Array.isArray(packages) ? packages : [];
+    const mismatches = getImportQuantityMismatches(materials, rows);
+    return rows.length > 0
+        && rows.every((item) => isImportPackageReady(item, true))
+        && rows.every((item) => {
+            const wmsLocationId = readValue(item?.wmsInbound, ['LocationID'], null);
+            return readValue(item?.wmsInbound, ['DispatchStatus'], '') === 'SENT'
+                && Boolean(wmsLocationId)
+                && Number(getLocationId(item)) === Number(wmsLocationId);
+        })
+        && Array.isArray(materials) && materials.length > 0
+        && mismatches.length > 0
+        && mismatches.every(({ requested, scanned }) => scanned >= 0 && scanned < requested);
+}
+
 function getImportPlanKey(row) {
     return [
         String(readValue(row, ['itemCode', 'ItemCode'], '')).trim().toUpperCase(),

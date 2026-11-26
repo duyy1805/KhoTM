@@ -361,6 +361,15 @@ export const khoBtpApi = {
         });
     },
 
+    async saveCraneImportActualQuantities(idPhieuNhap) {
+        return apiRequest({
+            method: 'POST',
+            baseURL: KHO_TM_API_BASE_URL,
+            url: `/btp/phieunhap/${positiveInt(idPhieuNhap, 'Phiếu nhập')}/luu-so-luong-thuc-te`,
+            timeout: 45000,
+        });
+    },
+
     async getExportTypes() {
         return apiRequest({ method: 'GET', baseURL: KHO_TM_API_BASE_URL, url: '/btp/phieuxuat/types' });
     },
